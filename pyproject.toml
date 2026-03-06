@@ -1,0 +1,31 @@
+[project]
+name = "stattools"
+version = "0.1.0"
+description = "DataFrame analysis and manipulation toolkit"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pandas>=2.1",
+    "numpy>=1.24",
+    "pyarrow>=12.0",
+    "scipy>=1.10",
+    "statsmodels>=0.14",
+    "duckdb>=0.8",
+    "matplotlib>=3.7",
+    "seaborn>=0.12",
+    "polars>=0.18",
+    "tqdm>=4.65",
+]
+
+[project.scripts]
+dfstat = "stattools.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.10.4,<0.11.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = ["pytest>=8.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
