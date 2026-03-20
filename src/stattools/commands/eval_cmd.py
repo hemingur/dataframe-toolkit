@@ -55,6 +55,16 @@ Available special functions:
   Row aggregation (applied across named columns):
     sum  mean  std  min  max  median
 
+  Conditional assignment:
+    where(cond_col, true_val, false_val)
+      — np.where-style conditional; cond_col must be a boolean column.
+        true_val and false_val can each be: a column name, a quoted
+        string literal ("foo"), or a numeric literal.
+      Example:
+        dfstat eval data.tsv \
+          -f "big = value > 100" \
+          -f "label = where(big, \"large\", \"small\")"
+
   Bitwise:
     applymask(col, mask_col)     — col & mask_col
     overlap(lo1, hi1, lo2, hi2)  — length of interval overlap
@@ -169,11 +179,73 @@ _STATS_DISPATCH = {
     "generalized_poisson_nll": _stats.generalized_poisson_nll,
 }
 
-_PATH_FUNCS = {"basename", "dirname", "exists", "getsize", "realpath"}
-_NP_FUNCS   = {"sign"}
+_PATH_FUNCS    = {"basename", "dirname", "exists", "getsize", "realpath"}
+_NP_FUNCS      = {"sign"}
+_ROW_AGG_FUNCS = {"sum", "mean", "std", "min", "max", "median"}
+_ROW_IDX_FUNCS = {"idxmax", "idxmin"}
+
+
+class _FrameFunc:
+    """Callable that applies a named pandas DataFrame method along axis=1.
+
+    Used for idxmax/idxmin, which need the column labels and therefore cannot
+    go through the standard ``func(row.to_numpy())`` dispatch path.
+    """
+    def __init__(self, method: str) -> None:
+        self.method = method
+
+    def __call__(self, df_subset):
+        return getattr(df_subset, self.method)(axis=1)
+
+
+def _resolve_where_val(val: str, df: pd.DataFrame):
+    """Resolve a where() argument to a scalar, Series, or literal string.
+
+    Resolution order:
+      1. Quoted string literal  ("foo" or 'foo')
+      2. Column name present in *df*
+      3. Integer literal
+      4. Float literal
+      5. Bare string (returned as-is)
+    """
+    s = val.strip()
+    if (s.startswith('"') and s.endswith('"')) or (s.startswith("'") and s.endswith("'")):
+        return s[1:-1]
+    if s in df.columns:
+        return df[s]
+    try:
+        return int(s)
+    except ValueError:
+        pass
+    try:
+        return float(s)
+    except ValueError:
+        pass
+    return s
+
+
+class _WhereFunc:
+    """Callable for ``where(cond_col, true_val, false_val)`` using ``np.where``.
+
+    Receives the full DataFrame so that *true_val* and *false_val* can be
+    resolved as column references, quoted string literals, or numeric literals.
+    """
+    def __init__(self, cond_col: str, true_val: str, false_val: str) -> None:
+        self.cond_col = cond_col
+        self.true_val = true_val
+        self.false_val = false_val
+
+    def __call__(self, df: pd.DataFrame):
+        cond = df[self.cond_col]
+        true_res = _resolve_where_val(self.true_val, df)
+        false_res = _resolve_where_val(self.false_val, df)
+        return np.where(cond, true_res, false_res)
+
+
 _VALID_SPECIAL = (
     {"sum", "mean", "std", "min", "max", "median",
-     "overlap", "applymask", "colsum"}
+     "overlap", "applymask", "colsum", "where"}
+    | _ROW_IDX_FUNCS
     | _PATH_FUNCS
     | _NP_FUNCS
     | set(_STATS_DISPATCH)
@@ -188,13 +260,28 @@ def _special_function(formula: str, df_columns: list[str]):
         raise ValueError(f"Function {func_name!r} is not available as a "
                          "special function.  See dfstat eval --help.")
 
+    if func_name == "where":
+        if len(cols) != 3:
+            raise ValueError(
+                "where() requires exactly 3 arguments: "
+                "where(cond_col, true_val, false_val)"
+            )
+        return dest, _WhereFunc(cols[0], cols[1], cols[2]), []
+
     if func_name == "overlap":
         func = partial(lambda x: max(0, min(x[1], x[3]) - max(x[0] - 1, x[2] - 1)))
     elif func_name == "applymask":
         func = partial(lambda x: x[0] & x[1])
     elif func_name == "colsum":
         cols = fnmatch.filter(df_columns, body)
-        func = lambda x: x.sum()  # noqa: E731  x is a numpy array row
+        func = np.sum
+    elif func_name in _ROW_AGG_FUNCS:
+        func = getattr(np, func_name)
+        # Each argument may be a glob pattern: expand to matching column names
+        cols = [c for pat in cols for c in (fnmatch.filter(df_columns, pat) or [pat])]
+    elif func_name in _ROW_IDX_FUNCS:
+        func = _FrameFunc(func_name)
+        cols = [c for pat in cols for c in (fnmatch.filter(df_columns, pat) or [pat])]
     elif func_name in _NP_FUNCS:
         func = getattr(np, func_name)
     elif func_name in _PATH_FUNCS:
@@ -342,6 +429,11 @@ def _eval(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
             dest, func, cols = _special_function(formula, list(df.columns))
             if len(df) == 0:
                 df[dest] = True
+            elif isinstance(func, _WhereFunc):
+                df[dest] = func(df)
+            elif isinstance(func, _FrameFunc):
+                # Frame-level functions (idxmax/idxmin) need column labels
+                df[dest] = func(df[cols])
             elif len(cols) == 1:
                 # Element-wise on a single column (e.g. np.sign, os.path.*)
                 df[dest] = df[cols[0]].apply(func)

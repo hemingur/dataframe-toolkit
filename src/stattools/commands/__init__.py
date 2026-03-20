@@ -22,13 +22,15 @@ from stattools.commands.hist_cmd import HistCommand
 from stattools.commands.melt_cmd import MeltCommand
 from stattools.commands.func_cmd import FuncCommand
 from stattools.commands.interp_cmd import InterpCommand
+from stattools.commands.dataset_cmd import DatasetCommand
+from stattools.commands.annotate_cmd import AnnotateCommand
+from stattools.commands.test_cmd import TestCommand
 
 # Ported subcommands — uncomment as each one is added:
 # from stattools.commands.sample    import SampleCommand
 # from stattools.commands.concat    import ConcatCommand
 # from stattools.commands.split     import SplitCommand
 # from stattools.commands.corr      import CorrCommand
-# from stattools.commands.test      import TestCommand
 # from stattools.commands.wstat     import WstatCommand
 # from stattools.commands.binx      import BinxCommand
 # from stattools.commands.segid     import SegidCommand
@@ -37,7 +39,7 @@ from stattools.commands.interp_cmd import InterpCommand
 # from stattools.commands.transpose import TransposeCommand
 # from stattools.commands.color     import ColorCommand
 # from stattools.commands.wavelet   import WaveletCommand
-# from stattools.commands.fisher    import FisherCommand
+# from stattools.commands.fisher    import FisherCommand  # superseded by eval's fisher_test/fisher_OR
 
 command_list = [
     PrintCommand(),
@@ -55,6 +57,9 @@ command_list = [
     MeltCommand(),
     FuncCommand(),
     InterpCommand(),
+    DatasetCommand(),
+    AnnotateCommand(),
+    TestCommand(),
 ]
 
 # HelpCommand receives the live list so it can introspect any peer.

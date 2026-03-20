@@ -77,12 +77,43 @@ def _is_temp_pipe_path(path: str) -> bool:
     )
 
 
+def _read_parquet_meta(path: str) -> dict[str, str]:
+    """Return custom (non-pandas) metadata from a parquet file's schema."""
+    import pyarrow.parquet as pq
+    schema = pq.read_schema(path)
+    raw = schema.metadata or {}
+    return {k.decode(): v.decode() for k, v in raw.items() if k != b"pandas"}
+
+
+def _write_parquet(df: pd.DataFrame, path: str,
+                   meta: dict[str, str] | None = None) -> None:
+    """Write *df* to *path* as parquet, embedding custom *meta* annotations.
+
+    Any metadata already carried in ``df.attrs["_parquet_meta"]`` is merged
+    with *meta* (explicit *meta* values take precedence).
+    """
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    table = pa.Table.from_pandas(df, preserve_index=False)
+    # Start from whatever the pandas→arrow conversion embedded
+    existing: dict[bytes, bytes] = dict(table.schema.metadata or {})
+    # Merge attrs-carried provenance then explicit --meta overrides
+    carried: dict[str, str] = df.attrs.get("_parquet_meta", {})
+    merged = {
+        **existing,
+        **{k.encode(): v.encode() for k, v in carried.items()},
+        **{k.encode(): v.encode() for k, v in (meta or {}).items()},
+    }
+    table = table.replace_schema_metadata(merged)
+    pq.write_table(table, path)
+
+
 def _write_pipe_parquet(df: pd.DataFrame) -> str:
     """Write *df* to a temp parquet file in DFSTAT_TMPDIR and return the path."""
     os.makedirs(DFSTAT_TMPDIR, exist_ok=True)
     fd, path = tempfile.mkstemp(suffix=".parquet", dir=DFSTAT_TMPDIR)
     os.close(fd)
-    df.to_parquet(path, index=False)
+    _write_parquet(df, path)
     return path
 
 
@@ -256,6 +287,7 @@ class io:
             # Named file
             if filename.endswith(".parquet"):
                 df = pd.read_parquet(filename)
+                df.attrs["_parquet_meta"] = _read_parquet_meta(filename)
             elif backend == "duckdb" and duckdb is not None:
                 try:
                     df = duckdb.query(
@@ -280,6 +312,7 @@ class io:
 
             if _is_pipe_path(first_line):
                 df = pd.read_parquet(first_line)
+                df.attrs["_parquet_meta"] = _read_parquet_meta(first_line)
                 if _is_temp_pipe_path(first_line):
                     try:
                         os.unlink(first_line)
@@ -432,6 +465,16 @@ class io:
             default=[],
             action="append",
             metavar="EXPR",
+        )
+        g.add_argument(
+            "--meta",
+            help=(
+                "Embed provenance metadata in parquet output (KEY=VALUE).  "
+                "Repeatable.  Ignored for TSV output."
+            ),
+            default=[],
+            action="append",
+            metavar="KEY=VALUE",
         )
         g.add_argument(
             "--errortag",
@@ -681,6 +724,15 @@ class io:
         digits: int | None = getattr(args, "digits", None)
         float_format = f"%.{digits}g" if digits is not None else None
 
+        # Parse --meta KEY=VALUE pairs
+        meta: dict[str, str] = {}
+        for item in getattr(args, "meta", []):
+            try:
+                k, v = item.split("=", 1)
+                meta[k.strip()] = v.strip()
+            except ValueError:
+                logging.warning(f"--meta: expected KEY=VALUE, got {item!r}")
+
         # Header: suppressed if the input had no header, or --removeheader set
         header = not getattr(args, "noheader", False)
         if header and getattr(args, "removeheader", False):
@@ -688,14 +740,17 @@ class io:
 
         if output == "":
             # Pipe mode — write temp parquet, print path
-            path = _write_pipe_parquet(df)
+            os.makedirs(DFSTAT_TMPDIR, exist_ok=True)
+            fd, path = tempfile.mkstemp(suffix=".parquet", dir=DFSTAT_TMPDIR)
+            os.close(fd)
+            _write_parquet(df, path, meta=meta or None)
             print(path)
 
         elif output is not None and output.endswith(".parquet"):
             # Named parquet — write file and print path so the pipe continues.
             # The file is NOT auto-deleted by downstream readers (only DFSTAT_TMPDIR
             # temp files are deleted), so it can be referenced later in a pipeline.
-            df.to_parquet(output, index=False)
+            _write_parquet(df, output, meta=meta or None)
             print(output)
 
         else:

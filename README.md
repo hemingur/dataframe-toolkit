@@ -38,10 +38,11 @@ dfstat stat data.tsv -c value -g group -o \
 
 ### Statistics
 
-| Command | Description                                                                              |
-|---------|------------------------------------------------------------------------------------------|
-| `stat`  | Descriptive statistics (count/mean/std/CI/SEM/skew/kurtosis) with grouping and bootstrap |
-| `fit`   | OLS/robust/weighted regression via R-style formulas; tidy table, `--summary`, `--anova`  |
+| Command | Description                                                                                         |
+|---------|-----------------------------------------------------------------------------------------------------|
+| `stat`  | Descriptive statistics (count/mean/std/CI/SEM/skew/kurtosis) with grouping and bootstrap            |
+| `fit`   | OLS/robust/weighted regression via R-style formulas; tidy table, `--summary`, `--anova`             |
+| `test`  | P-values between column pairs: t-test, Mann-Whitney, Wilcoxon, KS, correlations, bootstrap; groups  |
 
 ### Plots
 
@@ -58,11 +59,13 @@ publication-quality output.
 
 ### Utilities
 
-| Command | Description                                                              |
-|---------|--------------------------------------------------------------------------|
-| `print` | Read any dfstat input (TSV, stdin, parquet pipe) and write TSV to stdout |
-| `clean` | Remove leftover temp parquet pipe files from interrupted pipelines       |
-| `help`  | List all subcommands or show full help for one: `dfstat help stat`       |
+| Command    | Description                                                              |
+|------------|--------------------------------------------------------------------------|
+| `dataset`  | Load a curated example dataset from seaborn, statsmodels, or pydataset   |
+| `annotate` | Read and write provenance metadata (genome, source, …) in parquet files  |
+| `print`    | Read any dfstat input (TSV, stdin, parquet pipe) and write TSV to stdout |
+| `clean`    | Remove leftover temp parquet pipe files from interrupted pipelines       |
+| `help`     | List all subcommands or show full help for one: `dfstat help stat`       |
 
 ## Common patterns
 
@@ -118,6 +121,31 @@ Standard output options (available on all tabular commands):
 - `--drop col1 col2 …` — remove these columns
 - `--round N` / `--sigdig N` — round numeric output
 - `--postquery EXPR` — filter output rows after processing
+- `--meta KEY=VALUE` — embed provenance metadata in parquet output (repeatable)
+
+### Provenance annotations
+
+Metadata embedded with `--meta` is stored in the parquet file schema and propagates
+automatically through the pipe: every subsequent `-o` write re-embeds it alongside
+any new `--meta` values.
+
+```bash
+# Tag a file at creation
+dfstat eval raw.tsv -f "z = x + y" -o results.parquet \
+    --meta genome=hg38 --meta source=gwas_2024
+
+# Inspect annotations
+dfstat annotate results.parquet
+# genome   hg38
+# source   gwas_2024
+
+# Add or update an annotation in-place
+dfstat annotate results.parquet --set step=qc_filtered
+
+# Annotations survive piping
+cat results.parquet | dfstat scale - -c z -o scaled.parquet
+dfstat annotate scaled.parquet   # genome and source still present
+```
 
 ## Figure options (plot commands)
 
