@@ -13,9 +13,16 @@ statistical modelling and publication-quality figures.
 ## Installation
 
 ```bash
-uv sync                      # install into project venv
-source .venv/bin/activate    # or: source ~/venv/current/bin/activate
+uv tool install git+https://github.com/hemingur/stattools.git
 dfstat --help
+```
+
+To install from a local clone:
+
+```bash
+git clone https://github.com/hemingur/stattools.git
+cd stattools
+uv tool install .
 ```
 
 ## Quick example
