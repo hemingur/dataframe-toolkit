@@ -74,6 +74,21 @@ def execute(self, args):
 
 ---
 
+## Git workflow
+
+- **Branches**: use a feature branch for any change that touches multiple files or adds a new subcommand. Merge via PR. Direct commits to `main` are fine for single-file, low-risk changes (typo fix, one new test).
+- **Commit size**: one logical change per commit. A new subcommand warrants at least two commits: implementation and tests.
+- **Commit prefixes** (same style as genomics-tool):
+  - `feat:` — new subcommand or significant new capability
+  - `fix:` — bug fix
+  - `test:` — adding or updating tests only
+  - `chore:` — tooling, deps, CI, version bumps
+  - `docs:` — CLAUDE.md, README, comments
+  - `refactor:` — code restructuring with no behaviour change
+- **No `Co-Authored-By` trailers** in commit messages.
+
+---
+
 ## Key conventions
 
 - **File naming**: all command modules are `<name>_cmd.py` (e.g. `stat_cmd.py`, not `stat.py`).
