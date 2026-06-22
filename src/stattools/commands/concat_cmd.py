@@ -32,9 +32,7 @@ class ConcatCommand(BaseCommand):
         return "Concatenate multiple input files row-wise"
 
     def add_arguments(self, parser: argparse.ArgumentParser) -> None:
-        import argparse as ap
-
-        parser.formatter_class = ap.RawDescriptionHelpFormatter
+        parser.formatter_class = argparse.RawDescriptionHelpFormatter
         parser.epilog = """\
 COLUMN ALIGNMENT
 ----------------
@@ -75,15 +73,46 @@ EXAMPLES
                 "(default: NaN).  Use 0 or '' for numeric/string defaults."
             ),
         )
-        g.add_argument(
+
+        r = parser.add_argument_group("data input")
+        r.add_argument(
+            "--backend",
+            help="Backend for reading data (default: pandas)",
+            choices=["pandas", "duckdb", "polars"],
+            default="pandas",
+        )
+        r.add_argument(
             "--noheader",
             help="Input files have no header row; columns are named V1, V2, …",
             action="store_true",
         )
-        g.add_argument(
+        r.add_argument(
+            "--nrows",
+            help="Maximum number of rows to read per file",
+            type=int,
+            default=None,
+        )
+        r.add_argument(
             "--delimiter",
             help="Column delimiter for TSV inputs (default: tab)",
             default=None,
+        )
+        r.add_argument(
+            "--readasobject",
+            help=(
+                "Read named columns as object dtype.  "
+                "Omit column names to apply to all columns."
+            ),
+            nargs="*",
+            default=None,
+            metavar="COL",
+        )
+        r.add_argument(
+            "--prequery",
+            help="Pandas query expression after reading each file.  Repeatable.",
+            default=[],
+            action="append",
+            metavar="EXPR",
         )
 
         io.parser_output(parser)
@@ -103,7 +132,6 @@ EXAMPLES
             # Build a per-file args with DATAFILE set to this path.
             file_args = copy.copy(args)
             file_args.DATAFILE = path
-            file_args.prequery = []
 
             try:
                 df = io.read(file_args)

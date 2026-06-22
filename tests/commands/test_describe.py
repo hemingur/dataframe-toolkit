@@ -102,7 +102,7 @@ class TestProfileColBasic:
         col = pd.Series([np.nan, np.nan], name="x")
         row = _profile_col(col, 2)
         assert "all_missing" in row["notes"]
-        assert "high_missing" in row["notes"]
+        assert "high_missing" not in row["notes"]  # all_missing takes precedence
 
     def test_high_missing_flag(self):
         col = pd.Series([1.0] + [np.nan] * 4, name="x")
@@ -361,7 +361,7 @@ class TestDescribeExecute:
 
     def test_correlations_in_stderr(self, capsys):
         df = pd.DataFrame({"x": [1.0, 2.0, 3.0], "y": [2.0, 4.0, 6.0]})
-        _run(df, correlations=True)
+        _run(df, summary=True, correlations=True)
         captured = capsys.readouterr()
         assert "correlation" in captured.err.lower()
         assert "x" in captured.err and "y" in captured.err

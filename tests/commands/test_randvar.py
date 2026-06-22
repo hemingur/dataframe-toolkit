@@ -2,8 +2,6 @@
 Tests for stattools.commands.randvar_cmd.
 """
 
-import argparse
-
 import pandas as pd
 import pytest
 
@@ -11,78 +9,53 @@ from stattools.commands.randvar_cmd import (
     RandvarCommand,
     _list_distributions,
     _parse_parameters,
-    _resolve_seed,
 )
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+from stattools.common.seed import normalize_seed
+from tests.conftest import make_args
 
 
-def _args(**kwargs) -> argparse.Namespace:
+def _make_args(**kwargs):
     defaults = dict(
-        DATAFILE=None,
         destcol="x",
         dist="norm",
         parameters=None,
         randomseed=None,
         nsamples=None,
         list=False,
-        # io output defaults
-        output=None,
-        digits=None,
-        drop=None,
-        move=None,
-        select=None,
-        cast=None,
-        round=None,
-        removeheader=False,
-        deduplicate=None,
-        postquery=[],
-        meta=[],
-        errortag="-",
-        sortasc=None,
-        sortdesc=None,
-        sort=None,
-        na_rep=None,
-        dropna=False,
-        noheader=False,
     )
     defaults.update(kwargs)
-    return argparse.Namespace(**defaults)
+    return make_args(**defaults)
 
 
 # ---------------------------------------------------------------------------
-# _resolve_seed
+# normalize_seed (common.seed)
 # ---------------------------------------------------------------------------
 
 
 def test_resolve_seed_none():
-    assert _resolve_seed(None) is None
+    assert normalize_seed(None) is None
 
 
 def test_resolve_seed_int_string():
-    assert _resolve_seed("42") == 42
+    assert normalize_seed("42") == 42
 
 
 def test_resolve_seed_negative_int():
-    assert _resolve_seed("-1") == -1
+    assert normalize_seed("-1") == -1
 
 
-def test_resolve_seed_string_hashed(capsys):
-    seed = _resolve_seed("hello")
+def test_resolve_seed_string_hashed():
+    seed = normalize_seed("hello")
     assert isinstance(seed, int)
     assert 0 <= seed < (1 << 32)
-    captured = capsys.readouterr()
-    assert "randomseed" in captured.err
 
 
 def test_resolve_seed_string_reproducible():
-    assert _resolve_seed("myseed") == _resolve_seed("myseed")
+    assert normalize_seed("myseed") == normalize_seed("myseed")
 
 
 def test_resolve_seed_different_strings_differ():
-    assert _resolve_seed("aaa") != _resolve_seed("bbb")
+    assert normalize_seed("aaa") != normalize_seed("bbb")
 
 
 # ---------------------------------------------------------------------------
@@ -164,7 +137,7 @@ def test_list_distributions_poisson_no_scale():
 
 def test_standalone_norm(capsys):
     cmd = RandvarCommand()
-    args = _args(nsamples=100, dist="norm", randomseed="42")
+    args = _make_args(nsamples=100, dist="norm", randomseed="42")
     cmd.execute(args)
     out = capsys.readouterr().out
     lines = out.strip().splitlines()
@@ -174,7 +147,7 @@ def test_standalone_norm(capsys):
 
 def test_standalone_correct_count(capsys):
     cmd = RandvarCommand()
-    args = _args(nsamples=50, dist="uniform", randomseed="0")
+    args = _make_args(nsamples=50, dist="uniform", randomseed="0")
     cmd.execute(args)
     out = capsys.readouterr().out
     df = pd.read_csv(__import__("io").StringIO(out), sep="\t")
@@ -184,25 +157,25 @@ def test_standalone_correct_count(capsys):
 
 def test_standalone_reproducible(capsys):
     cmd = RandvarCommand()
-    cmd.execute(_args(nsamples=20, dist="norm", randomseed="99"))
+    cmd.execute(_make_args(nsamples=20, dist="norm", randomseed="99"))
     out1 = capsys.readouterr().out
-    cmd.execute(_args(nsamples=20, dist="norm", randomseed="99"))
+    cmd.execute(_make_args(nsamples=20, dist="norm", randomseed="99"))
     out2 = capsys.readouterr().out
     assert out1 == out2
 
 
 def test_standalone_different_seeds_differ(capsys):
     cmd = RandvarCommand()
-    cmd.execute(_args(nsamples=50, dist="norm", randomseed="1"))
+    cmd.execute(_make_args(nsamples=50, dist="norm", randomseed="1"))
     out1 = capsys.readouterr().out
-    cmd.execute(_args(nsamples=50, dist="norm", randomseed="2"))
+    cmd.execute(_make_args(nsamples=50, dist="norm", randomseed="2"))
     out2 = capsys.readouterr().out
     assert out1 != out2
 
 
 def test_standalone_with_parameters(capsys):
     cmd = RandvarCommand()
-    args = _args(
+    args = _make_args(
         nsamples=1000, dist="norm", parameters="loc:100,scale:0.001", randomseed="7"
     )
     cmd.execute(args)
@@ -213,7 +186,7 @@ def test_standalone_with_parameters(capsys):
 
 def test_standalone_discrete_poisson(capsys):
     cmd = RandvarCommand()
-    args = _args(nsamples=500, dist="poisson", parameters="mu:3", randomseed="5")
+    args = _make_args(nsamples=500, dist="poisson", parameters="mu:3", randomseed="5")
     cmd.execute(args)
     out = capsys.readouterr().out
     df = pd.read_csv(__import__("io").StringIO(out), sep="\t")
@@ -223,7 +196,7 @@ def test_standalone_discrete_poisson(capsys):
 
 def test_standalone_custom_destcol(capsys):
     cmd = RandvarCommand()
-    args = _args(nsamples=10, dist="uniform", destcol="myrand", randomseed="0")
+    args = _make_args(nsamples=10, dist="uniform", destcol="myrand", randomseed="0")
     cmd.execute(args)
     out = capsys.readouterr().out
     df = pd.read_csv(__import__("io").StringIO(out), sep="\t")
@@ -243,7 +216,7 @@ def _run_on_df(df: pd.DataFrame, **kwargs) -> pd.DataFrame:
     mod.io.read = lambda args: df.copy()
     try:
         cmd = RandvarCommand()
-        args = _args(DATAFILE="fake.tsv", **kwargs)
+        args = _make_args(DATAFILE="fake.tsv", **kwargs)
         import io as _io
         from contextlib import redirect_stdout
 
@@ -289,28 +262,28 @@ def test_append_uniform_in_range():
 
 def test_bad_distribution_exits(capsys):
     cmd = RandvarCommand()
-    args = _args(nsamples=10, dist="notadist")
+    args = _make_args(nsamples=10, dist="notadist")
     with pytest.raises(SystemExit):
         cmd.execute(args)
 
 
 def test_bad_parameters_exits(capsys):
     cmd = RandvarCommand()
-    args = _args(nsamples=10, dist="norm", parameters="mean:0,var:1")
+    args = _make_args(nsamples=10, dist="norm", parameters="mean:0,var:1")
     with pytest.raises(SystemExit):
         cmd.execute(args)
 
 
 def test_missing_destcol_exits():
     cmd = RandvarCommand()
-    args = _args(nsamples=10, dist="norm", destcol=None)
+    args = _make_args(nsamples=10, dist="norm", destcol=None)
     with pytest.raises(SystemExit):
         cmd.execute(args)
 
 
 def test_missing_dist_exits():
     cmd = RandvarCommand()
-    args = _args(nsamples=10, dist=None)
+    args = _make_args(nsamples=10, dist=None)
     with pytest.raises(SystemExit):
         cmd.execute(args)
 
@@ -322,7 +295,7 @@ def test_missing_dist_exits():
 
 def test_list_flag_prints_tsv(capsys):
     cmd = RandvarCommand()
-    args = _args(list=True)
+    args = _make_args(list=True)
     cmd.execute(args)
     out = capsys.readouterr().out
     df = pd.read_csv(__import__("io").StringIO(out), sep="\t")

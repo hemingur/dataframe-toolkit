@@ -19,7 +19,6 @@ Usage
 """
 
 import argparse
-import hashlib
 import logging
 import sys
 
@@ -29,6 +28,7 @@ import scipy.stats as ss
 
 from stattools.commands.base import BaseCommand
 from stattools.common.io import io
+from stattools.common.seed import normalize_seed
 
 logger = logging.getLogger(__name__)
 
@@ -64,19 +64,6 @@ EXAMPLES
 """
 
 
-def _resolve_seed(randomseed: str | None) -> int | None:
-    """Return an integer seed, hashing a non-numeric string if needed."""
-    if randomseed is None:
-        return None
-    try:
-        seed = int(randomseed)
-    except ValueError:
-        raw = randomseed.encode("utf-8")
-        seed = int(hashlib.md5(raw).hexdigest(), 16) & ((1 << 32) - 1)
-    print(f"randomseed = {seed}", file=sys.stderr)
-    return seed
-
-
 def _parse_parameters(paramstring: str | None) -> dict:
     """Parse 'key:val,key:val' into {key: float} dict."""
     if not paramstring:
@@ -102,8 +89,13 @@ def _list_distributions() -> pd.DataFrame:
 
 
 class RandvarCommand(BaseCommand):
-    name = "randvar"
-    help = "Append a column of random variates from a scipy.stats distribution."
+    @property
+    def name(self) -> str:
+        return "randvar"
+
+    @property
+    def help(self) -> str:
+        return "Append a column of random variates from a scipy.stats distribution."
 
     def add_arguments(self, parser: argparse.ArgumentParser) -> None:
         parser.formatter_class = argparse.RawDescriptionHelpFormatter
@@ -158,7 +150,7 @@ class RandvarCommand(BaseCommand):
         # --list short-circuits everything
         if args.list:
             df = _list_distributions()
-            df.to_csv(sys.stdout, sep="\t", index=False)
+            io.printdf(df, args)
             return
 
         # Validate required args (not enforced at parse time to allow --list)
@@ -186,7 +178,7 @@ class RandvarCommand(BaseCommand):
             logger.error("Invalid parameters for %r: %s", args.dist, exc)
             sys.exit(1)
 
-        seed = _resolve_seed(args.randomseed)
+        seed = normalize_seed(args.randomseed)
         rng = np.random.default_rng(seed)
 
         # -n given → standalone mode (no input file needed)

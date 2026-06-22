@@ -81,7 +81,7 @@ class TestConcatMismatchedColumns:
         result = _run({"a.tsv": a, "b.tsv": b}, ["a.tsv", "b.tsv"])
         assert "y" in result.columns
         assert "z" in result.columns
-        assert pd.isna(result.loc[0, "z"]) or result.loc[0, "z"] != result.loc[0, "z"]
+        assert pd.isna(result.loc[0, "z"])
 
     def test_fill_value_replaces_nan(self):
         a = pd.DataFrame({"x": [1], "y": [2]})

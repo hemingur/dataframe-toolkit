@@ -99,12 +99,12 @@ def _profile_col(col: pd.Series, n_rows: int) -> dict:
 
     notes: list[str] = []
 
-    if missing_pct > 20.0:
-        notes.append("high_missing")
     if missing_pct == 100.0:
         notes.append("all_missing")
         row["notes"] = ",".join(notes)
         return row
+    if missing_pct > 20.0:
+        notes.append("high_missing")
 
     if n_unique == 0:
         row["notes"] = ",".join(notes)
@@ -276,9 +276,7 @@ class DescribeCommand(BaseCommand):
         return "Profile DataFrame columns: types, distributions, and quality flags"
 
     def add_arguments(self, parser: argparse.ArgumentParser) -> None:
-        import argparse as ap
-
-        parser.formatter_class = ap.RawDescriptionHelpFormatter
+        parser.formatter_class = argparse.RawDescriptionHelpFormatter
         parser.epilog = """\
 OUTPUT COLUMNS
 --------------
@@ -354,7 +352,7 @@ EXAMPLES
             threshold = getattr(args, "corr_threshold", 0.7)
             corr_pairs = _correlations(df, threshold)
 
-        if getattr(args, "summary", False) or corr_pairs:
+        if getattr(args, "summary", False):
             print(
                 _generate_summary(profile, corr_pairs, n_rows, n_cols), file=sys.stderr
             )
