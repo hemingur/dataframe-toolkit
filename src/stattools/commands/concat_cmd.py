@@ -78,7 +78,7 @@ EXAMPLES
         r.add_argument(
             "--backend",
             help="Backend for reading data (default: pandas)",
-            choices=["pandas", "duckdb", "polars"],
+            choices=["pandas", "duckdb"],
             default="pandas",
         )
         r.add_argument(

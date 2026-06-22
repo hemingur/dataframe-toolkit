@@ -38,11 +38,6 @@ try:
 except ImportError:
     duckdb = None
 
-try:
-    import polars as pl
-except ImportError:
-    pl = None
-
 logging.basicConfig(
     format="%(asctime)s %(module)s %(levelname)s at line %(lineno)d: %(message)s",
     level=logging.INFO,
@@ -191,7 +186,7 @@ class io:
         g.add_argument(
             "--backend",
             help="Backend for reading data (default: pandas)",
-            choices=["pandas", "duckdb", "polars"],
+            choices=["pandas", "duckdb"],
             default="pandas",
         )
         g.add_argument(
@@ -309,12 +304,6 @@ class io:
                     ).to_df()
                 except Exception as exc:
                     logging.error(f"DuckDB failed to read {filename!r}: {exc}")
-                    raise
-            elif backend == "polars" and pl is not None:
-                try:
-                    df = pl.read_csv(filename, separator=sep).to_pandas()
-                except Exception as exc:
-                    logging.error(f"Polars failed to read {filename!r}: {exc}")
                     raise
             else:
                 df = _csv_from_file(filename)
