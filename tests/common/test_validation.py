@@ -11,7 +11,6 @@ import pytest
 
 from stattools.common.io import check_cols, io
 
-
 # ---------------------------------------------------------------------------
 # check_cols() unit tests
 # ---------------------------------------------------------------------------
@@ -23,9 +22,8 @@ def sample_df():
 
 
 class TestCheckCols:
-
     def test_valid_cols_no_error(self, sample_df):
-        check_cols(sample_df, ["a", "b"])   # should not raise
+        check_cols(sample_df, ["a", "b"])  # should not raise
 
     def test_missing_col_raises(self, sample_df):
         with pytest.raises(ValueError, match="Column\\(s\\) not found"):
@@ -37,17 +35,17 @@ class TestCheckCols:
 
     def test_error_shows_available_cols(self, sample_df):
         with pytest.raises(ValueError, match="a"):
-            check_cols(sample_df, ["z"])   # message lists available cols
+            check_cols(sample_df, ["z"])  # message lists available cols
 
     def test_context_label_in_error(self, sample_df):
         with pytest.raises(ValueError, match=r"-c/--cols"):
             check_cols(sample_df, ["z"], "-c/--cols")
 
     def test_none_cols_is_no_op(self, sample_df):
-        check_cols(sample_df, None)         # should not raise
+        check_cols(sample_df, None)  # should not raise
 
     def test_empty_list_is_no_op(self, sample_df):
-        check_cols(sample_df, [])           # should not raise
+        check_cols(sample_df, [])  # should not raise
 
     def test_multiple_missing_all_reported(self, sample_df):
         with pytest.raises(ValueError) as exc_info:
@@ -64,10 +62,7 @@ class TestCheckCols:
 
 
 class TestStatColumnValidation:
-
     def test_missing_col_raises(self):
-        from stattools.commands.stat_cmd import StatCommand
-        cmd = StatCommand()
         df = pd.DataFrame({"x": [1, 2, 3]})
         args = argparse.Namespace(
             cols=["nonexistent"],
@@ -83,6 +78,7 @@ class TestStatColumnValidation:
         )
         with pytest.raises(ValueError, match="nonexistent"):
             from stattools.common.io import check_cols
+
             check_cols(df, args.cols, "-c/--cols")
 
     def test_missing_groupcol_raises(self):
@@ -102,7 +98,6 @@ class TestStatColumnValidation:
 
 
 class TestPivotColumnValidation:
-
     def test_missing_value_col_raises(self):
         df = pd.DataFrame({"x": [1, 2], "group": ["A", "B"]})
         with pytest.raises(ValueError, match="bad_col"):
@@ -125,15 +120,12 @@ class TestPivotColumnValidation:
 
 
 class TestMergeColumnValidation:
-
     def test_missing_key_in_left_raises(self):
         left = pd.DataFrame({"id": [1, 2], "val": [10, 20]})
-        right = pd.DataFrame({"id": [1, 2], "tag": ["a", "b"]})
         with pytest.raises(ValueError, match="bad_key"):
             check_cols(left, ["bad_key"], "-k (left file)")
 
     def test_missing_key_in_right_raises(self):
-        left = pd.DataFrame({"id": [1, 2], "val": [10, 20]})
         right = pd.DataFrame({"other_id": [1, 2], "tag": ["a", "b"]})
         with pytest.raises(ValueError, match="id"):
             check_cols(right, ["id"], "-k (right file)")
@@ -156,16 +148,25 @@ class TestMergeColumnValidation:
 
 
 class TestSelectLiteralWarning:
-
     def _printdf_args(self, select, **extra):
         defaults = dict(
             select=select,
-            drop=None, move=None, na_rep=None, dropna=False,
-            postquery=[], cast=None, sortasc=None, sortdesc=None, sort=None,
-            expect=None, round=None, sigdig=None,
-            movetofront=None, movetoback=None,
-            deduplicate=None, noheader=False, removeheader=False,
-            output=None, digits=None, errortag="-",
+            drop=None,
+            move=None,
+            na_rep=None,
+            dropna=False,
+            postquery=[],
+            cast=None,
+            sortasc=None,
+            sortdesc=None,
+            sort=None,
+            round=None,
+            deduplicate=None,
+            noheader=False,
+            removeheader=False,
+            output=None,
+            digits=None,
+            errortag="-",
         )
         defaults.update(extra)
         return argparse.Namespace(**defaults)
@@ -188,57 +189,3 @@ class TestSelectLiteralWarning:
         with caplog.at_level(logging.WARNING):
             io.printdf(sample_df, args)
         assert not any("--select" in r.message for r in caplog.records)
-
-
-# ---------------------------------------------------------------------------
-# io.printdf — --movetofront / --movetoback missing column warning
-# ---------------------------------------------------------------------------
-
-
-class TestMoveToWarning:
-
-    def _printdf_args(self, **kwargs):
-        defaults = dict(
-            select=None, drop=None, move=None, na_rep=None, dropna=False,
-            postquery=[], cast=None, sortasc=None, sortdesc=None, sort=None,
-            expect=None, round=None, sigdig=None,
-            movetofront=None, movetoback=None,
-            deduplicate=None, noheader=False, removeheader=False,
-            output=None, digits=None, errortag="-",
-        )
-        defaults.update(kwargs)
-        return argparse.Namespace(**defaults)
-
-    def test_movetofront_missing_warns(self, sample_df, caplog):
-        args = self._printdf_args(movetofront=["z"])
-        with caplog.at_level(logging.WARNING):
-            io.printdf(sample_df, args)
-        assert any("movetofront" in r.message and "z" in r.message
-                   for r in caplog.records)
-
-    def test_movetoback_missing_warns(self, sample_df, caplog):
-        args = self._printdf_args(movetoback=["z"])
-        with caplog.at_level(logging.WARNING):
-            io.printdf(sample_df, args)
-        assert any("movetoback" in r.message and "z" in r.message
-                   for r in caplog.records)
-
-    def test_movetofront_valid_no_warning(self, sample_df, caplog):
-        args = self._printdf_args(movetofront=["c"])
-        with caplog.at_level(logging.WARNING):
-            io.printdf(sample_df, args)
-        assert not any("movetofront" in r.message for r in caplog.records)
-
-    def test_movetofront_actually_moves(self, sample_df, caplog):
-        import io as _io
-        import sys
-        args = self._printdf_args(movetofront=["c"])
-        # Capture output to verify column order
-        buf = _io.StringIO()
-        args.output = None
-        old_stdout = sys.stdout
-        sys.stdout = buf
-        io.printdf(sample_df, args)
-        sys.stdout = old_stdout
-        header = buf.getvalue().split("\n")[0]
-        assert header.startswith("c")

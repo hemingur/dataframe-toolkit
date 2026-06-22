@@ -57,18 +57,17 @@ Per-chromosome genetic-map lookup (grouped):
 """
 
 import argparse
-from typing import Optional
 
 import numpy as np
 import pandas as pd
 
 from stattools.commands.base import BaseCommand
-from stattools.common.io import io, check_cols
-
+from stattools.common.io import check_cols, io
 
 # ---------------------------------------------------------------------------
 # Core interpolation
 # ---------------------------------------------------------------------------
+
 
 def _interp_one(
     ref: pd.DataFrame,
@@ -89,12 +88,7 @@ def _interp_one(
     query = query.copy()
     x_new = query[x_query].to_numpy(dtype=float)
 
-    if fill == "edge":
-        fill_value = "extrapolate"  # use boundary values — interp1d handles this
-        # Actually for "edge" clamping we use fill_value=(y[0], y[-1])
-        fill_value = (None, None)  # set per-column below
-
-    for src, dest in zip(val_cols, dest_cols):
+    for src, dest in zip(val_cols, dest_cols, strict=False):
         x_ref_arr = ref[x_ref].to_numpy(dtype=float)
         y_ref_arr = ref[src].to_numpy(dtype=float)
 
@@ -125,7 +119,7 @@ def _interp(
     dest_cols: list[str],
     method: str,
     fill: str,
-    groupcols: Optional[list[str]],
+    groupcols: list[str] | None,
 ) -> pd.DataFrame:
     """Run interpolation, optionally within groups."""
 
@@ -143,8 +137,14 @@ def _interp(
                 continue
             parts.append(
                 _interp_one(
-                    ref_groups[grp_key], grp_data,
-                    x_ref, x_query, val_cols, dest_cols, method, fill,
+                    ref_groups[grp_key],
+                    grp_data,
+                    x_ref,
+                    x_query,
+                    val_cols,
+                    dest_cols,
+                    method,
+                    fill,
                 )
             )
         return pd.concat(parts, ignore_index=True)
@@ -155,6 +155,7 @@ def _interp(
 # ---------------------------------------------------------------------------
 # Command
 # ---------------------------------------------------------------------------
+
 
 class InterpCommand(BaseCommand):
     name = "interp"
@@ -174,7 +175,8 @@ class InterpCommand(BaseCommand):
             help="Reference file containing the curve to interpolate from.",
         )
         g.add_argument(
-            "-x", "--xcol",
+            "-x",
+            "--xcol",
             required=True,
             metavar="COL",
             help="X-axis column in DATAFILE (the query positions).",
@@ -186,26 +188,31 @@ class InterpCommand(BaseCommand):
             help="X-axis column in the reference file (default: same as -x/--xcol).",
         )
         g.add_argument(
-            "-v", "--val",
+            "-v",
+            "--val",
             required=True,
             nargs="+",
             metavar="COL",
             help="Y-axis column(s) in the reference file to interpolate.",
         )
         g.add_argument(
-            "-d", "--destcol",
+            "-d",
+            "--destcol",
             default=None,
             nargs="+",
             metavar="NAME",
             help="Output column name(s) in DATAFILE (default: same as -v/--val).",
         )
         g.add_argument(
-            "-g", "--groupcol",
+            "-g",
+            "--groupcol",
             nargs="+",
             default=None,
             metavar="COL",
-            help="Interpolate independently within each group defined by these column(s). "
-                 "Must be present in both DATAFILE and the reference file.",
+            help=(
+                "Interpolate independently within each group. "
+                "Must be present in both DATAFILE and the reference file."
+            ),
         )
         g.add_argument(
             "--method",
@@ -218,7 +225,7 @@ class InterpCommand(BaseCommand):
             "--fill",
             default="nan",
             choices=["nan", "edge"],
-            help="Out-of-range fill strategy: nan (default) or edge (clamp to boundary).",
+            help="Out-of-range fill: nan (default) or edge (clamp to boundary).",
         )
 
     def execute(self, args: argparse.Namespace) -> None:
@@ -227,6 +234,7 @@ class InterpCommand(BaseCommand):
 
         # Read the reference file using the same read settings
         import copy
+
         ref_args = copy.copy(args)
         ref_args.DATAFILE = args.ref
         ref = io.read(ref_args)
@@ -236,8 +244,8 @@ class InterpCommand(BaseCommand):
 
         if len(dest_cols) != len(args.val):
             raise ValueError(
-                f"--destcol has {len(dest_cols)} name(s) but --val has {len(args.val)} column(s). "
-                "They must match."
+                f"--destcol has {len(dest_cols)} name(s) but "
+                f"--val has {len(args.val)} column(s). They must match."
             )
 
         # Validate columns

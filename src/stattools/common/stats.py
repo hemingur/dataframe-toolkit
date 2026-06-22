@@ -82,7 +82,9 @@ def chi2_to_neglogp(row, threshold: float = 1380) -> float:
         return float((lin_term + log_term + constant) / np.log(10))
 
 
-def neglogp_to_chi2(row, threshold: float = 300, max_iter: int = 50, tol: float = 1e-8) -> float:
+def neglogp_to_chi2(
+    row, threshold: float = 300, max_iter: int = 50, tol: float = 1e-8
+) -> float:
     """Convert -log10(p) and df to a chi-squared statistic.
 
     Uses scipy.stats.chi2.isf for moderate -log10(p) values; switches to a
@@ -208,10 +210,5 @@ def generalized_poisson_nll(row) -> float:
     lam_theta_x = lam + theta * x
     if lam_theta_x <= 0 or lam <= 0:
         return float("inf")
-    log_pmf = (
-        np.log(lam)
-        + (x - 1) * np.log(lam_theta_x)
-        - lam_theta_x
-        - gammaln(x + 1)
-    )
+    log_pmf = np.log(lam) + (x - 1) * np.log(lam_theta_x) - lam_theta_x - gammaln(x + 1)
     return float(-log_pmf)

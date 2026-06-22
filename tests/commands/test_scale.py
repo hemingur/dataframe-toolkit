@@ -3,29 +3,33 @@ Tests for stattools.commands.scale_cmd.
 """
 
 import argparse
+
 import numpy as np
 import pandas as pd
 import pytest
 
-from stattools.commands.scale_cmd import ScaleCommand, scalecols, rankcols, residcols
-
+from stattools.commands.scale_cmd import ScaleCommand, rankcols, residcols, scalecols
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def simple_df():
-    return pd.DataFrame({"x": [1.0, 2.0, 3.0, 4.0, 5.0],
-                          "y": [10.0, 20.0, 30.0, 40.0, 50.0]})
+    return pd.DataFrame(
+        {"x": [1.0, 2.0, 3.0, 4.0, 5.0], "y": [10.0, 20.0, 30.0, 40.0, 50.0]}
+    )
 
 
 @pytest.fixture
 def grouped_df():
-    return pd.DataFrame({
-        "group": ["A", "A", "A", "B", "B", "B"],
-        "x":     [1.0, 2.0, 3.0, 10.0, 20.0, 30.0],
-    })
+    return pd.DataFrame(
+        {
+            "group": ["A", "A", "A", "B", "B", "B"],
+            "x": [1.0, 2.0, 3.0, 10.0, 20.0, 30.0],
+        }
+    )
 
 
 @pytest.fixture
@@ -57,8 +61,8 @@ def _args(**kwargs) -> argparse.Namespace:
 # scalecols — shift options
 # ---------------------------------------------------------------------------
 
-class TestScaleColsShift:
 
+class TestScaleColsShift:
     def test_shift_mean_gives_zero_mean(self, simple_df):
         df = simple_df.copy()
         result = scalecols(df, _args(scale_by="none"))
@@ -77,16 +81,17 @@ class TestScaleColsShift:
     def test_shift_none_preserves_values(self, simple_df):
         df = simple_df.copy()
         result = scalecols(df, _args(shift="none", scale_by="none"))
-        np.testing.assert_array_almost_equal(result["x_scaled"].values,
-                                             simple_df["x"].values)
+        np.testing.assert_array_almost_equal(
+            result["x_scaled"].values, simple_df["x"].values
+        )
 
 
 # ---------------------------------------------------------------------------
 # scalecols — scale options
 # ---------------------------------------------------------------------------
 
-class TestScaleColsScale:
 
+class TestScaleColsScale:
     def test_scale_std_gives_unit_std(self, simple_df):
         df = simple_df.copy()
         result = scalecols(df, _args())
@@ -111,8 +116,9 @@ class TestScaleColsScale:
         df = simple_df.copy()
         result = scalecols(df, _args(scale_by="none"))
         # after mean shift, values should be [-2, -1, 0, 1, 2]
-        np.testing.assert_array_almost_equal(result["x_scaled"].values,
-                                             [-2.0, -1.0, 0.0, 1.0, 2.0])
+        np.testing.assert_array_almost_equal(
+            result["x_scaled"].values, [-2.0, -1.0, 0.0, 1.0, 2.0]
+        )
 
     def test_zscore_default(self, simple_df):
         df = simple_df.copy()
@@ -142,8 +148,8 @@ class TestScaleColsScale:
 # rankcols
 # ---------------------------------------------------------------------------
 
-class TestRankCols:
 
+class TestRankCols:
     def test_uniform_range(self, simple_df):
         df = simple_df.copy()
         result = rankcols(df, _args(rank=True, rankdist="uniform"))
@@ -154,7 +160,7 @@ class TestRankCols:
         df = simple_df.copy()
         result = rankcols(df, _args(rank=True, rankdist="uniform"))
         vals = result["x_scaled"].values
-        assert all(vals[i] < vals[i+1] for i in range(len(vals)-1))
+        assert all(vals[i] < vals[i + 1] for i in range(len(vals) - 1))
 
     def test_normal_zero_mean(self, simple_df):
         df = simple_df.copy()
@@ -170,7 +176,7 @@ class TestRankCols:
         df = simple_df.copy()
         result = rankcols(df, _args(rank=True, rankdist="normal"))
         vals = result["x_scaled"].values
-        assert all(vals[i] < vals[i+1] for i in range(len(vals)-1))
+        assert all(vals[i] < vals[i + 1] for i in range(len(vals) - 1))
 
     def test_ties_handled(self):
         df = pd.DataFrame({"x": [1.0, 1.0, 2.0, 3.0]})
@@ -183,8 +189,8 @@ class TestRankCols:
 # residcols
 # ---------------------------------------------------------------------------
 
-class TestResidCols:
 
+class TestResidCols:
     def test_resid_col_created(self, regression_df):
         args = _args(resid=True, formula="y ~ x", cols=None)
         result = residcols(regression_df.copy(), args)
@@ -214,8 +220,8 @@ class TestResidCols:
 # Grouping
 # ---------------------------------------------------------------------------
 
-class TestGrouped:
 
+class TestGrouped:
     def test_grouped_zscore_each_group_zero_mean(self, grouped_df):
         """Each group should be independently z-scored."""
         args = _args(groupcol=["group"])
@@ -243,10 +249,11 @@ class TestGrouped:
 # ScaleCommand validation
 # ---------------------------------------------------------------------------
 
-class TestScaleCommandValidation:
 
+class TestScaleCommandValidation:
     def _make_file(self, df):
-        import tempfile, os
+        import tempfile
+
         f = tempfile.NamedTemporaryFile(suffix=".tsv", mode="w", delete=False)
         df.to_csv(f, sep="\t", index=False)
         f.close()
@@ -265,12 +272,23 @@ class TestScaleCommandValidation:
             formula=None,
             nointercept=False,
             verbose=False,
-            select=None, drop=None, move=None, na_rep=None, dropna=False,
-            postquery=[], cast=None, sortasc=None, sortdesc=None, sort=None,
-            expect=None, round=None, sigdig=None,
-            movetofront=None, movetoback=None,
-            deduplicate=None, noheader=False, removeheader=False,
-            output=None, digits=None, errortag="-",
+            select=None,
+            drop=None,
+            move=None,
+            na_rep=None,
+            dropna=False,
+            postquery=[],
+            cast=None,
+            sortasc=None,
+            sortdesc=None,
+            sort=None,
+            round=None,
+            deduplicate=None,
+            noheader=False,
+            removeheader=False,
+            output=None,
+            digits=None,
+            errortag="-",
         )
         for k, v in kwargs.items():
             setattr(base, k, v)
@@ -278,6 +296,7 @@ class TestScaleCommandValidation:
 
     def test_resid_without_formula_raises(self, simple_df):
         import os
+
         fname = self._make_file(simple_df)
         try:
             args = self._base_args(fname, resid=True, formula=None)
@@ -288,6 +307,7 @@ class TestScaleCommandValidation:
 
     def test_missing_col_raises(self, simple_df):
         import os
+
         fname = self._make_file(simple_df)
         try:
             args = self._base_args(fname, cols=["no_such_col"])
@@ -298,6 +318,7 @@ class TestScaleCommandValidation:
 
     def test_missing_groupcol_raises(self, simple_df):
         import os
+
         fname = self._make_file(simple_df)
         try:
             args = self._base_args(fname, groupcol=["no_such_group"])
@@ -308,6 +329,7 @@ class TestScaleCommandValidation:
 
     def test_rank_without_cols_raises(self, simple_df):
         import os
+
         fname = self._make_file(simple_df)
         try:
             args = self._base_args(fname, rank=True, cols=None)

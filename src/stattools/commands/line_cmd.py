@@ -20,7 +20,7 @@ import matplotlib.lines as mlines
 import numpy as np
 
 from stattools.commands.base import BaseCommand
-from stattools.common.io import io, check_cols
+from stattools.common.io import check_cols, io
 from stattools.common.plot import (
     add_figure_arguments,
     add_group_arguments,
@@ -33,12 +33,14 @@ from stattools.common.plot import (
     make_figure,
     make_grouplabel,
     save_or_show,
+    subgraph_groups,
     subgraph_layout,
 )
 
 # ---------------------------------------------------------------------------
 # Error bar helper
 # ---------------------------------------------------------------------------
+
 
 def _resolve_yerr(df, args):
     """Return yerr array for df, or None.  Handles --yerr and --yci."""
@@ -57,8 +59,10 @@ def _resolve_yerr(df, args):
 # Fit overlay (shared logic with scat)
 # ---------------------------------------------------------------------------
 
+
 def _fit_overlay(ax, x_series, y_series, args):
     import pandas as pd
+
     from stattools.commands.fit_cmd import regress_it
 
     df_fit = pd.DataFrame({"_x": x_series.values, "_y": y_series.values}).dropna()
@@ -98,6 +102,7 @@ def _fit_overlay(ax, x_series, y_series, args):
 # Single-axes line plot
 # ---------------------------------------------------------------------------
 
+
 def _line_ax(ax, df, args, title_suffix: str = ""):
     xcol = args.xcol
     ycol = args.ycol
@@ -106,11 +111,16 @@ def _line_ax(ax, df, args, title_suffix: str = ""):
     drawstyle = getattr(args, "drawstyle", "default")
 
     if args.groupcol is not None:
-        for groupname, gdf in df.groupby(args.groupcol):
-            label = make_grouplabel(groupname, args.groupcol)
+        for groupname, gdf in subgraph_groups(
+            df, args.groupcol, getattr(args, "groupcolorder", None)
+        ):
+            label = make_grouplabel(
+                groupname, args.groupcol, getattr(args, "groupcolformat", None)
+            )
             yerr = _resolve_yerr(gdf, args)
             ax.errorbar(
-                gdf[xcol], gdf[ycol],
+                gdf[xcol],
+                gdf[ycol],
                 yerr=yerr,
                 marker=marker,
                 drawstyle=drawstyle,
@@ -122,7 +132,8 @@ def _line_ax(ax, df, args, title_suffix: str = ""):
         yerr = _resolve_yerr(df, args)
         label = args.legend or ""
         ax.errorbar(
-            df[xcol], df[ycol],
+            df[xcol],
+            df[ycol],
             yerr=yerr,
             marker=marker,
             drawstyle=drawstyle,
@@ -137,9 +148,7 @@ def _line_ax(ax, df, args, title_suffix: str = ""):
 
     apply_limits(ax, args)
     apply_ticks(ax, args)
-    apply_labels(ax, args,
-                 default_xlabel=xcol or "",
-                 default_ylabel=ycol or "")
+    apply_labels(ax, args, default_xlabel=xcol or "", default_ylabel=ycol or "")
     if title_suffix:
         existing = ax.get_title()
         ax.set_title(f"{existing}  [{title_suffix}]" if existing else title_suffix)
@@ -203,31 +212,64 @@ class LineCommand(BaseCommand):
         add_legend_arguments(parser)
 
         s = parser.add_argument_group("line options")
-        s.add_argument("-m", "--marker", default="", metavar="MARKER",
-                       help="Matplotlib marker style (default: none).")
-        s.add_argument("--drawstyle", default="default", metavar="STYLE",
-                       help="Matplotlib drawstyle, e.g. steps-mid (default: default).")
+        s.add_argument(
+            "-m",
+            "--marker",
+            default="",
+            metavar="MARKER",
+            help="Matplotlib marker style (default: none).",
+        )
+        s.add_argument(
+            "--drawstyle",
+            default="default",
+            metavar="STYLE",
+            help="Matplotlib drawstyle, e.g. steps-mid (default: default).",
+        )
 
         e = parser.add_argument_group("error bars (mutually exclusive)")
         mx = e.add_mutually_exclusive_group()
-        mx.add_argument("--yerr", default=None, metavar="COL",
-                        help="Column of symmetric ±error values.")
-        mx.add_argument("--yci", default=None, metavar="CILO,CIHI",
-                        help="Two column names for asymmetric confidence interval "
-                             "(comma-separated, e.g. cilo,cihi).")
+        mx.add_argument(
+            "--yerr",
+            default=None,
+            metavar="COL",
+            help="Column of symmetric ±error values.",
+        )
+        mx.add_argument(
+            "--yci",
+            default=None,
+            metavar="CILO,CIHI",
+            help="Two column names for asymmetric confidence interval "
+            "(comma-separated, e.g. cilo,cihi).",
+        )
 
         f = parser.add_argument_group("fit options")
-        f.add_argument("--fit", action="store_true",
-                       help="Overlay an OLS regression line (no grouping). "
-                            "Prints summary to stderr.")
-        f.add_argument("-r", "--robust", action="store_true",
-                       help="Use robust regression (RLM) for --fit.")
-        f.add_argument("-w", "--weights", default=None, metavar="COL",
-                       help="Weight column for WLS fit.")
-        f.add_argument("--nointercept", action="store_true",
-                       help="Suppress intercept in --fit.")
-        f.add_argument("--pvalue", action="store_true",
-                       help="Add −log₁₀(p) to the fit legend label.")
+        f.add_argument(
+            "--fit",
+            action="store_true",
+            help="Overlay an OLS regression line (no grouping). "
+            "Prints summary to stderr.",
+        )
+        f.add_argument(
+            "-r",
+            "--robust",
+            action="store_true",
+            help="Use robust regression (RLM) for --fit.",
+        )
+        f.add_argument(
+            "-w",
+            "--weights",
+            default=None,
+            metavar="COL",
+            help="Weight column for WLS fit.",
+        )
+        f.add_argument(
+            "--nointercept", action="store_true", help="Suppress intercept in --fit."
+        )
+        f.add_argument(
+            "--pvalue",
+            action="store_true",
+            help="Add −log₁₀(p) to the fit legend label.",
+        )
 
     def execute(self, args: argparse.Namespace) -> None:
         if not args.xcol or not args.ycol:
@@ -245,21 +287,27 @@ class LineCommand(BaseCommand):
 
         if args.file:
             import matplotlib
+
             matplotlib.use("Agg")
 
         import matplotlib.pyplot as plt
+
         if args.usetex:
             plt.rc("text", usetex=True)
 
         apply_style(args)
 
         if args.subgraphcol is not None:
-            groups = list(df.groupby(args.subgraphcol))
+            groups = subgraph_groups(
+                df, args.subgraphcol, getattr(args, "subgraphorder", None)
+            )
             nrows, ncols = subgraph_layout(len(groups), args.ncols)
             fig, axes = make_figure(args, nrows=nrows, ncols=ncols)
             for idx, (groupname, gdf) in enumerate(groups):
                 ax = axes[idx // ncols][idx % ncols]
-                suffix = make_grouplabel(groupname, args.subgraphcol)
+                suffix = make_grouplabel(
+                    groupname, args.subgraphcol, getattr(args, "subgraphformat", None)
+                )
                 _line_ax(ax, gdf, args, title_suffix=suffix)
             for idx in range(len(groups), nrows * ncols):
                 axes[idx // ncols][idx % ncols].set_visible(False)

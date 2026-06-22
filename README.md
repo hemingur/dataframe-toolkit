@@ -4,6 +4,12 @@
 Each subcommand reads tabular data, performs one operation, and writes TSV to
 stdout, making it easy to chain commands in pipelines.
 
+`dfstat` was developed during computational genomics research as a fast,
+composable alternative to writing one-off pandas scripts. It is designed
+for analysts who live in the terminal and want a consistent, pipeable toolkit
+for the full data analysis pipeline — from initial exploration through
+statistical modelling and publication-quality figures.
+
 ## Installation
 
 ```bash
@@ -63,7 +69,7 @@ publication-quality output.
 |------------|--------------------------------------------------------------------------|
 | `dataset`  | Load a curated example dataset from seaborn, statsmodels, or pydataset   |
 | `annotate` | Read and write provenance metadata (genome, source, …) in parquet files  |
-| `print`    | Read any dfstat input (TSV, stdin, parquet pipe) and write TSV to stdout |
+| `print`    | Read any dfstat input (TSV, stdin, `...` parquet pipe) and write TSV     |
 | `clean`    | Remove leftover temp parquet pipe files from interrupted pipelines       |
 | `help`     | List all subcommands or show full help for one: `dfstat help stat`       |
 
@@ -111,15 +117,16 @@ dfstat stat data.tsv -c value -g group --bootstrap 1000 --randomseed 42 -o \
 All commands accept:
 
 - A TSV filename as a positional argument
-- `-` to read from stdin (TSV)
-- A `.parquet` path written by a previous `dfstat` command with `-o`
+- `-` to read TSV from stdin
+- `...` to receive a parquet path from stdin (written by a previous `-o` command)
+- A `.parquet` filename to read a named parquet file directly
 
 Standard output options (available on all tabular commands):
 
 - `-o` / `--output` — write a temp parquet for the next piped command instead of TSV to stdout
 - `--select col1 col2 …` — keep only these columns
 - `--drop col1 col2 …` — remove these columns
-- `--round N` / `--sigdig N` — round numeric output
+- `--round N` — round numeric output
 - `--postquery EXPR` — filter output rows after processing
 - `--meta KEY=VALUE` — embed provenance metadata in parquet output (repeatable)
 
@@ -143,7 +150,7 @@ dfstat annotate results.parquet
 dfstat annotate results.parquet --set step=qc_filtered
 
 # Annotations survive piping
-cat results.parquet | dfstat scale - -c z -o scaled.parquet
+dfstat eval results.parquet -f "z_scaled = z / 2" -o | dfstat scale ... -c z -o scaled.parquet
 dfstat annotate scaled.parquet   # genome and source still present
 ```
 

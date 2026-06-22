@@ -7,14 +7,13 @@ import math
 import pytest
 
 from stattools.common.seq import (
+    at_gc_ratio,
+    count_motif,
     gc_content,
     letter_count,
     letter_total,
-    at_gc_ratio,
-    count_motif,
     read_offset,
 )
-
 
 # ---------------------------------------------------------------------------
 # letter_count
@@ -22,7 +21,6 @@ from stattools.common.seq import (
 
 
 class TestLetterCount:
-
     def test_balanced(self):
         A, T, G, C = letter_count("AATTGGCC")
         assert (A, T, G, C) == (2, 2, 2, 2)
@@ -46,7 +44,6 @@ class TestLetterCount:
 
 
 class TestGcContent:
-
     def test_fifty_percent(self):
         assert gc_content("ATGCATGC") == pytest.approx(50.0)
 
@@ -69,7 +66,6 @@ class TestGcContent:
 
 
 class TestLetterTotal:
-
     def test_pure_sequence(self):
         assert letter_total("ATGCATGC") == 8
 
@@ -83,7 +79,6 @@ class TestLetterTotal:
 
 
 class TestAtGcRatio:
-
     def test_equal_ratio(self):
         assert at_gc_ratio("AAGG") == pytest.approx(1.0)
 
@@ -105,7 +100,6 @@ class TestAtGcRatio:
 
 
 class TestCountMotif:
-
     def test_exact_match(self):
         assert count_motif("ATG", "ATGATG") == 2
 
@@ -130,7 +124,6 @@ class TestCountMotif:
 
 
 class TestReadOffset:
-
     def test_simple_match(self):
         # All 5 bases are M (match), read starts at ref position 100
         # Requesting position 102 → index 2 in read → 'G'
@@ -163,3 +156,54 @@ class TestReadOffset:
         seq = "ATGCAT"
         result = read_offset(100, 103, "3M2D3M", seq)
         assert result == "N"
+
+    # -- insertion tests -------------------------------------------------------
+
+    def test_insertion_middle_m_bases_before(self):
+        # 3M 2I 3M, read_pos=100
+        # read:  A  C  G  T  T  A  G  C
+        # role:  M  M  M  I  I  M  M  M
+        # ref:  100 101 102 --  -- 103 104 105
+        seq = "ACGTTAGC"
+        assert read_offset(100, 100, "3M2I3M", seq) == "A"
+        assert read_offset(100, 101, "3M2I3M", seq) == "C"
+        assert read_offset(100, 102, "3M2I3M", seq) == "G"
+
+    def test_insertion_middle_m_bases_after(self):
+        # Regression: buggy code returned insertion bases ('T') for ref 103/104
+        # because it assigned them phantom reference offsets that collided with
+        # the subsequent M bases.
+        seq = "ACGTTAGC"
+        assert read_offset(100, 103, "3M2I3M", seq) == "A"  # was 'T' (buggy)
+        assert read_offset(100, 104, "3M2I3M", seq) == "G"  # was 'T' (buggy)
+        assert read_offset(100, 105, "3M2I3M", seq) == "C"
+
+    def test_insertion_count_spanning(self):
+        # count=2 crossing the insertion: ref 102 → 'G', ref 103 → 'A'
+        seq = "ACGTTAGC"
+        assert read_offset(100, 102, "3M2I3M", seq, count=2) == "GA"  # was 'GT' (buggy)
+
+    def test_leading_insertion(self):
+        # 2I 3M: first two read bases are insertions with no ref position
+        # read:  A  B  C  D  E
+        # role:  I  I  M  M  M
+        # ref:            100 101 102
+        seq = "ABCDE"
+        assert read_offset(100, 100, "2I3M", seq) == "C"  # was 'A' (buggy)
+        assert read_offset(100, 101, "2I3M", seq) == "D"
+        assert read_offset(100, 102, "2I3M", seq) == "E"
+
+    def test_insertion_before_queried_pos_is_ignored(self):
+        # Position before the insertion is unaffected
+        seq = "ACGTTAGC"
+        assert read_offset(100, 99, "3M2I3M", seq) == "."  # before read start
+
+    def test_insertion_single_base(self):
+        # 4M 1I 4M
+        # read:  A  T  G  C  X  T  G  C  A
+        # role:  M  M  M  M  I  M  M  M  M
+        # ref:  10  11  12  13  --  14  15  16  17
+        seq = "ATGCXTGCA"
+        assert read_offset(10, 13, "4M1I4M", seq) == "C"
+        assert read_offset(10, 14, "4M1I4M", seq) == "T"  # was 'X' (buggy)
+        assert read_offset(10, 17, "4M1I4M", seq) == "A"

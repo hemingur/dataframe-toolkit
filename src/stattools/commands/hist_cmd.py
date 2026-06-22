@@ -18,7 +18,7 @@ import argparse
 import numpy as np
 
 from stattools.commands.base import BaseCommand
-from stattools.common.io import io, check_cols
+from stattools.common.io import check_cols, io
 from stattools.common.plot import (
     add_figure_arguments,
     add_group_arguments,
@@ -29,12 +29,14 @@ from stattools.common.plot import (
     make_figure,
     make_grouplabel,
     save_or_show,
+    subgraph_groups,
     subgraph_layout,
 )
 
 # ---------------------------------------------------------------------------
 # Single-axes histogram
 # ---------------------------------------------------------------------------
+
 
 def _hist_ax(ax, df, args, title_suffix: str = ""):
     xcol = args.xcol
@@ -57,14 +59,25 @@ def _hist_ax(ax, df, args, title_suffix: str = ""):
     )
 
     if args.groupcol is not None:
-        for groupname, gdf in df.groupby(args.groupcol):
-            label = make_grouplabel(groupname, args.groupcol)
+        for groupname, gdf in subgraph_groups(
+            df, args.groupcol, getattr(args, "groupcolorder", None)
+        ):
+            label = make_grouplabel(
+                groupname, args.groupcol, getattr(args, "groupcolformat", None)
+            )
             data = gdf[xcol].dropna()
             weights = gdf[args.weightcol].values if args.weightcol else None
             if args.kde:
                 import seaborn as sns
-                sns.kdeplot(data, bw_method=kde_bw, label=label,
-                            cumulative=args.cumulative, cut=0, ax=ax)
+
+                sns.kdeplot(
+                    data,
+                    bw_method=kde_bw,
+                    label=label,
+                    cumulative=args.cumulative,
+                    cut=0,
+                    ax=ax,
+                )
             else:
                 ax.hist(data, bins=bins, weights=weights, label=label, **hist_kw)
         ax.legend(loc=legendloc, title=args.legendtitle)
@@ -77,12 +90,21 @@ def _hist_ax(ax, df, args, title_suffix: str = ""):
             mu, sigma = data.mean(), data.std()
             stats_str = f"μ={mu:.3g}, σ={sigma:.3g}"
             existing_title = title_suffix or args.title or ""
-            title_suffix = f"{existing_title}  ({stats_str})" if existing_title else stats_str
+            title_suffix = (
+                f"{existing_title}  ({stats_str})" if existing_title else stats_str
+            )
 
         if args.kde:
             import seaborn as sns
-            sns.kdeplot(data, bw_method=kde_bw, label=label,
-                        cumulative=args.cumulative, cut=0, ax=ax)
+
+            sns.kdeplot(
+                data,
+                bw_method=kde_bw,
+                label=label,
+                cumulative=args.cumulative,
+                cut=0,
+                ax=ax,
+            )
         else:
             ax.hist(data, bins=bins, weights=weights, label=label, **hist_kw)
 
@@ -90,9 +112,12 @@ def _hist_ax(ax, df, args, title_suffix: str = ""):
             ax.legend(loc=legendloc, title=args.legendtitle)
 
     apply_limits(ax, args)
-    apply_labels(ax, args,
-                 default_xlabel=xcol or "",
-                 default_ylabel="density" if args.normed else "count")
+    apply_labels(
+        ax,
+        args,
+        default_xlabel=xcol or "",
+        default_ylabel="density" if args.normed else "count",
+    )
 
     title = args.title or ""
     if title_suffix:
@@ -165,43 +190,93 @@ class HistCommand(BaseCommand):
         add_legend_arguments(parser)
 
         g = parser.add_argument_group("histogram options")
-        g.add_argument("-x", "--xcol", metavar="COL", required=True,
-                       help="Column to histogram.")
-        g.add_argument("-y", "--weightcol", default=None, metavar="COL",
-                       help="Column to use as observation weights.")
-        g.add_argument("-xl", "--xlabel", default=None, metavar="TEXT",
-                       help="X-axis label (default: column name).")
-        g.add_argument("-yl", "--ylabel", default=None, metavar="TEXT",
-                       help="Y-axis label (default: count or density).")
-        g.add_argument("-xm", "--xlim", nargs=2, metavar=("LO", "HI"), default=None,
-                       help="X-axis limits.")
-        g.add_argument("-ym", "--ylim", nargs=2, metavar=("LO", "HI"), default=None,
-                       help="Y-axis limits.")
-        g.add_argument("-lx", "--logx", action="store_true",
-                       help="Logarithmic x axis.")
-        g.add_argument("-ly", "--logy", action="store_true",
-                       help="Logarithmic y axis.")
-        g.add_argument("--xmargin", action="store_true",
-                       help="Add 1 %% margin to x limits.")
-        g.add_argument("--ymargin", action="store_true",
-                       help="Add 1 %% margin to y limits.")
+        g.add_argument(
+            "-x", "--xcol", metavar="COL", required=True, help="Column to histogram."
+        )
+        g.add_argument(
+            "-y",
+            "--weightcol",
+            default=None,
+            metavar="COL",
+            help="Column to use as observation weights.",
+        )
+        g.add_argument(
+            "-xl",
+            "--xlabel",
+            default=None,
+            metavar="TEXT",
+            help="X-axis label (default: column name).",
+        )
+        g.add_argument(
+            "-yl",
+            "--ylabel",
+            default=None,
+            metavar="TEXT",
+            help="Y-axis label (default: count or density).",
+        )
+        g.add_argument(
+            "-xm",
+            "--xlim",
+            nargs=2,
+            metavar=("LO", "HI"),
+            default=None,
+            help="X-axis limits.",
+        )
+        g.add_argument(
+            "-ym",
+            "--ylim",
+            nargs=2,
+            metavar=("LO", "HI"),
+            default=None,
+            help="Y-axis limits.",
+        )
+        g.add_argument("-lx", "--logx", action="store_true", help="Logarithmic x axis.")
+        g.add_argument("-ly", "--logy", action="store_true", help="Logarithmic y axis.")
+        g.add_argument(
+            "--xmargin", action="store_true", help="Add 1 %% margin to x limits."
+        )
+        g.add_argument(
+            "--ymargin", action="store_true", help="Add 1 %% margin to y limits."
+        )
 
-        g.add_argument("-n", "--normed", action="store_true",
-                       help="Normalise so area sums to 1 (density).")
-        g.add_argument("-c", "--cumulative", action="store_true",
-                       help="Plot cumulative histogram.")
-        g.add_argument("-k", "--kde", action="store_true",
-                       help="Plot kernel density estimate instead of histogram "
-                            "(uses seaborn.kdeplot).")
-        g.add_argument("--stats", action="store_true",
-                       help="Add mean ± σ to the subplot title.")
+        g.add_argument(
+            "-n",
+            "--normed",
+            action="store_true",
+            help="Normalise so area sums to 1 (density).",
+        )
+        g.add_argument(
+            "-c", "--cumulative", action="store_true", help="Plot cumulative histogram."
+        )
+        g.add_argument(
+            "-k",
+            "--kde",
+            action="store_true",
+            help="Plot kernel density estimate instead of histogram "
+            "(uses seaborn.kdeplot).",
+        )
+        g.add_argument(
+            "--stats", action="store_true", help="Add mean ± σ to the subplot title."
+        )
 
         bins = parser.add_argument_group("bin options (mutually exclusive)")
         mx = bins.add_mutually_exclusive_group()
-        mx.add_argument("-b", "--bins", type=int, default=10, metavar="N",
-                        help="Number of bins (default: 10).")
-        mx.add_argument("-w", "--binwidth", type=float, default=None, metavar="W",
-                        help="Bin width (overrides --bins; also sets KDE bandwidth).")
+        mx.add_argument(
+            "-b",
+            "--bins",
+            type=int,
+            default=10,
+            metavar="N",
+            help="Number of bins (default: 10).",
+        )
+        mx.add_argument(
+            "-w",
+            "--binwidth",
+            type=float,
+            default=None,
+            metavar="W",
+            help="Bin width (overrides --bins; also sets KDE bandwidth).",
+        )
 
     def execute(self, args: argparse.Namespace) -> None:
         df = io.read(args)
@@ -213,21 +288,27 @@ class HistCommand(BaseCommand):
 
         if args.file:
             import matplotlib
+
             matplotlib.use("Agg")
 
         import matplotlib.pyplot as plt
+
         if getattr(args, "usetex", False):
             plt.rc("text", usetex=True)
 
         apply_style(args)
 
         if args.subgraphcol is not None:
-            groups = list(df.groupby(args.subgraphcol))
+            groups = subgraph_groups(
+                df, args.subgraphcol, getattr(args, "subgraphorder", None)
+            )
             nrows, ncols = subgraph_layout(len(groups), args.ncols)
             fig, axes = make_figure(args, nrows=nrows, ncols=ncols)
             for idx, (groupname, gdf) in enumerate(groups):
                 ax = axes[idx // ncols][idx % ncols]
-                suffix = make_grouplabel(groupname, args.subgraphcol)
+                suffix = make_grouplabel(
+                    groupname, args.subgraphcol, getattr(args, "subgraphformat", None)
+                )
                 _hist_ax(ax, gdf, args, title_suffix=suffix)
             for idx in range(len(groups), nrows * ncols):
                 axes[idx // ncols][idx % ncols].set_visible(False)

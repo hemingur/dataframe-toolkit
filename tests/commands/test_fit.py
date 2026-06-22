@@ -14,8 +14,6 @@ from stattools.commands.fit_cmd import (
     FitCommand,
     regress_it,
     res2df,
-    standard_model,
-    weighted_model,
 )
 
 # ---------------------------------------------------------------------------
@@ -49,7 +47,7 @@ def weighted_df():
     x = np.arange(20, dtype=float)
     y = 2.0 * x + rng.normal(0, 1, 20)
     w = np.ones(20)
-    w[:10] = 0.1   # low weight for first half
+    w[:10] = 0.1  # low weight for first half
     return pd.DataFrame({"x": x, "y": y, "w": w})
 
 
@@ -73,7 +71,6 @@ def _args(**kwargs) -> argparse.Namespace:
 
 
 class TestRegressIt:
-
     def test_ols_returns_result(self, simple_df):
         res = regress_it(simple_df, _args())
         assert hasattr(res, "params")
@@ -97,7 +94,7 @@ class TestRegressIt:
         assert "x" in res.params.index
 
     def test_bad_formula_raises(self, simple_df):
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017
             regress_it(simple_df, _args(formula="y ~ nonexistent_col"))
 
 
@@ -107,12 +104,22 @@ class TestRegressIt:
 
 
 class TestRes2df:
-
     def test_ols_columns_present(self, simple_df):
         res = regress_it(simple_df, _args())
         out = res2df(res, _args())
-        for col in ["tag", "variable", "marker", "effect", "stdev", "pval",
-                    "nobs", "cilo", "cihi", "rsquared", "condnum"]:
+        for col in [
+            "tag",
+            "variable",
+            "marker",
+            "effect",
+            "stdev",
+            "pval",
+            "nobs",
+            "cilo",
+            "cihi",
+            "rsquared",
+            "condnum",
+        ]:
             assert col in out.columns
 
     def test_robust_no_rsquared(self, simple_df):
@@ -136,9 +143,7 @@ class TestRes2df:
 
     def test_grouped_prepends_group_cols(self, grouped_df):
         args = _args(groupcol=["group"])
-        res = regress_it(
-            grouped_df[grouped_df["group"] == "A"], args
-        )
+        res = regress_it(grouped_df[grouped_df["group"] == "A"], args)
         out = res2df(res, args, groupname="A")
         assert "group" in out.columns
         assert (out["group"] == "A").all()
@@ -155,10 +160,11 @@ class TestRes2df:
 
 
 class TestFitCommandGrouped:
-
     def test_grouped_output_has_both_groups(self, grouped_df):
         """execute() with groupcol produces rows for each group."""
-        import tempfile, os
+        import os
+        import tempfile
+
         with tempfile.NamedTemporaryFile(suffix=".tsv", mode="w", delete=False) as f:
             grouped_df.to_csv(f, sep="\t", index=False)
             fname = f.name
@@ -174,12 +180,23 @@ class TestFitCommandGrouped:
                 summary=False,
                 anova=False,
                 # io.printdf defaults
-                select=None, drop=None, move=None, na_rep=None, dropna=False,
-                postquery=[], cast=None, sortasc=None, sortdesc=None, sort=None,
-                expect=None, round=None, sigdig=None,
-                movetofront=None, movetoback=None,
-                deduplicate=None, noheader=False, removeheader=False,
-                output=None, digits=None, errortag="-",
+                select=None,
+                drop=None,
+                move=None,
+                na_rep=None,
+                dropna=False,
+                postquery=[],
+                cast=None,
+                sortasc=None,
+                sortdesc=None,
+                sort=None,
+                round=None,
+                deduplicate=None,
+                noheader=False,
+                removeheader=False,
+                output=None,
+                digits=None,
+                errortag="-",
             )
             buf = _io.StringIO()
             old_stdout = sys.stdout
@@ -214,9 +231,10 @@ class TestFitCommandGrouped:
 
 
 class TestFitCommandSummaryAnova:
-
     def _run_execute(self, grouped_df_or_simple, args):
-        import tempfile, os
+        import os
+        import tempfile
+
         df = grouped_df_or_simple
         with tempfile.NamedTemporaryFile(suffix=".tsv", mode="w", delete=False) as f:
             df.to_csv(f, sep="\t", index=False)
@@ -242,12 +260,23 @@ class TestFitCommandSummaryAnova:
             groupcol=None,
             summary=False,
             anova=False,
-            select=None, drop=None, move=None, na_rep=None, dropna=False,
-            postquery=[], cast=None, sortasc=None, sortdesc=None, sort=None,
-            expect=None, round=None, sigdig=None,
-            movetofront=None, movetoback=None,
-            deduplicate=None, noheader=False, removeheader=False,
-            output=None, digits=None, errortag="-",
+            select=None,
+            drop=None,
+            move=None,
+            na_rep=None,
+            dropna=False,
+            postquery=[],
+            cast=None,
+            sortasc=None,
+            sortdesc=None,
+            sort=None,
+            round=None,
+            deduplicate=None,
+            noheader=False,
+            removeheader=False,
+            output=None,
+            digits=None,
+            errortag="-",
         )
         for k, v in kwargs.items():
             setattr(base, k, v)
@@ -276,9 +305,10 @@ class TestFitCommandSummaryAnova:
 
 
 class TestFitCommandValidation:
-
     def test_missing_groupcol_raises(self, simple_df):
-        import tempfile, os
+        import os
+        import tempfile
+
         with tempfile.NamedTemporaryFile(suffix=".tsv", mode="w", delete=False) as f:
             simple_df.to_csv(f, sep="\t", index=False)
             fname = f.name
@@ -292,12 +322,23 @@ class TestFitCommandValidation:
                 groupcol=["no_such_col"],
                 summary=False,
                 anova=False,
-                select=None, drop=None, move=None, na_rep=None, dropna=False,
-                postquery=[], cast=None, sortasc=None, sortdesc=None, sort=None,
-                expect=None, round=None, sigdig=None,
-                movetofront=None, movetoback=None,
-                deduplicate=None, noheader=False, removeheader=False,
-                output=None, digits=None, errortag="-",
+                select=None,
+                drop=None,
+                move=None,
+                na_rep=None,
+                dropna=False,
+                postquery=[],
+                cast=None,
+                sortasc=None,
+                sortdesc=None,
+                sort=None,
+                round=None,
+                deduplicate=None,
+                noheader=False,
+                removeheader=False,
+                output=None,
+                digits=None,
+                errortag="-",
             )
             with pytest.raises(ValueError, match="no_such_col"):
                 FitCommand().execute(args)
@@ -305,7 +346,9 @@ class TestFitCommandValidation:
             os.unlink(fname)
 
     def test_missing_weights_raises(self, simple_df):
-        import tempfile, os
+        import os
+        import tempfile
+
         with tempfile.NamedTemporaryFile(suffix=".tsv", mode="w", delete=False) as f:
             simple_df.to_csv(f, sep="\t", index=False)
             fname = f.name
@@ -319,12 +362,23 @@ class TestFitCommandValidation:
                 groupcol=None,
                 summary=False,
                 anova=False,
-                select=None, drop=None, move=None, na_rep=None, dropna=False,
-                postquery=[], cast=None, sortasc=None, sortdesc=None, sort=None,
-                expect=None, round=None, sigdig=None,
-                movetofront=None, movetoback=None,
-                deduplicate=None, noheader=False, removeheader=False,
-                output=None, digits=None, errortag="-",
+                select=None,
+                drop=None,
+                move=None,
+                na_rep=None,
+                dropna=False,
+                postquery=[],
+                cast=None,
+                sortasc=None,
+                sortdesc=None,
+                sort=None,
+                round=None,
+                deduplicate=None,
+                noheader=False,
+                removeheader=False,
+                output=None,
+                digits=None,
+                errortag="-",
             )
             with pytest.raises(ValueError, match="no_such_weight"):
                 FitCommand().execute(args)

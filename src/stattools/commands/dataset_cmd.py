@@ -23,23 +23,26 @@ import pandas as pd
 from stattools.commands.base import BaseCommand
 from stattools.common.io import io
 
-
 # ---------------------------------------------------------------------------
 # Per-source load/list helpers
 # ---------------------------------------------------------------------------
 
+
 def _load_seaborn(name: str) -> pd.DataFrame:
     import seaborn as sns
+
     return sns.load_dataset(name)
 
 
 def _list_seaborn() -> list[tuple[str, str, str]]:
     import seaborn as sns
+
     return [("seaborn", n, "") for n in sorted(sns.get_dataset_names())]
 
 
 def _load_statsmodels(name: str) -> pd.DataFrame:
     import statsmodels.api as sm
+
     mod = getattr(sm.datasets, name, None)
     if mod is not None and hasattr(mod, "load_pandas"):
         return mod.load_pandas().data
@@ -48,6 +51,7 @@ def _load_statsmodels(name: str) -> pd.DataFrame:
 
 def _list_statsmodels() -> list[tuple[str, str, str]]:
     import statsmodels.api as sm
+
     rows = []
     for name in sorted(dir(sm.datasets)):
         if name.startswith("_"):
@@ -63,6 +67,7 @@ def _list_statsmodels() -> list[tuple[str, str, str]]:
 
 try:
     import pydataset as _pydataset  # noqa: F401
+
     _HAS_PYDATASET = True
 except ImportError:
     _HAS_PYDATASET = False
@@ -70,11 +75,13 @@ except ImportError:
 
 def _load_pydataset(name: str) -> pd.DataFrame:
     import pydataset
+
     return pydataset.data(name)
 
 
 def _list_pydataset() -> list[tuple[str, str, str]]:
     import pydataset
+
     index = pydataset.data()
     return [
         ("pydataset", str(row["item"]), str(row.get("title", "")))
@@ -94,6 +101,7 @@ if _HAS_PYDATASET:
 # ---------------------------------------------------------------------------
 # Command
 # ---------------------------------------------------------------------------
+
 
 class DatasetCommand(BaseCommand):
     name = "dataset"

@@ -1,14 +1,12 @@
 """Tests for stattools.commands.annotate_cmd and parquet metadata I/O."""
 
-import os
-import tempfile
+import argparse
 
 import pandas as pd
 import pytest
 
-from stattools.commands.annotate_cmd import _read_meta, _write_meta
+from stattools.commands.annotate_cmd import AnnotateCommand, _read_meta, _write_meta
 from stattools.common.io import _read_parquet_meta, _write_parquet
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -39,7 +37,6 @@ def annotated_file(tmp_path):
 
 
 class TestWriteParquet:
-
     def test_round_trip_data(self, tmp_path):
         df = pd.DataFrame({"a": [1, 2], "b": ["x", "y"]})
         path = str(tmp_path / "out.parquet")
@@ -77,12 +74,11 @@ class TestWriteParquet:
         path = str(tmp_path / "out.parquet")
         _write_parquet(df, path, meta={"genome": "hg38"})
         meta = _read_parquet_meta(path)
-        assert meta["genome"] == "hg38"   # overridden
-        assert meta["source"] == "old"    # carried from attrs
+        assert meta["genome"] == "hg38"  # overridden
+        assert meta["source"] == "old"  # carried from attrs
 
 
 class TestMetaPropagation:
-
     def test_attrs_carried_through_write(self, tmp_path):
         """Metadata loaded into df.attrs is re-embedded on the next write."""
         df = pd.DataFrame({"a": [1, 2]})
@@ -98,9 +94,9 @@ class TestMetaPropagation:
         _write_parquet(df2, p2, meta={"step": "doubled"})
         meta2 = _read_parquet_meta(p2)
 
-        assert meta2["genome"] == "hg38"        # propagated
-        assert meta2["source"] == "original"    # propagated
-        assert meta2["step"] == "doubled"       # new
+        assert meta2["genome"] == "hg38"  # propagated
+        assert meta2["source"] == "original"  # propagated
+        assert meta2["step"] == "doubled"  # new
 
 
 # ---------------------------------------------------------------------------
@@ -109,7 +105,6 @@ class TestMetaPropagation:
 
 
 class TestReadMeta:
-
     def test_reads_custom_keys(self, annotated_file):
         meta = _read_meta(annotated_file)
         assert meta["genome"] == "hg38"
@@ -124,7 +119,6 @@ class TestReadMeta:
 
 
 class TestWriteMeta:
-
     def test_sets_keys(self, parquet_file):
         _write_meta(parquet_file, {"genome": "mm10"})
         assert _read_meta(parquet_file)["genome"] == "mm10"
@@ -133,13 +127,13 @@ class TestWriteMeta:
         _write_meta(annotated_file, {"genome": "mm10"})
         meta = _read_meta(annotated_file)
         assert meta["genome"] == "mm10"
-        assert "source" not in meta   # replaced entirely
+        assert "source" not in meta  # replaced entirely
 
     def test_preserves_pandas_key(self, annotated_file):
         """_write_meta must not corrupt the pandas schema metadata."""
         _write_meta(annotated_file, {"x": "y"})
         df = pd.read_parquet(annotated_file)
-        assert list(df.columns) == ["x"]   # data intact
+        assert list(df.columns) == ["x"]  # data intact
 
     def test_clear_by_empty_dict(self, annotated_file):
         _write_meta(annotated_file, {})
@@ -149,10 +143,6 @@ class TestWriteMeta:
 # ---------------------------------------------------------------------------
 # AnnotateCommand.execute (via CLI helpers)
 # ---------------------------------------------------------------------------
-
-
-from stattools.commands.annotate_cmd import AnnotateCommand
-import argparse
 
 
 def _make_args(**kwargs):
@@ -168,7 +158,6 @@ def _make_args(**kwargs):
 
 
 class TestAnnotateExecute:
-
     def test_list_prints_sorted_tsv(self, annotated_file, capsys):
         cmd = AnnotateCommand()
         cmd.execute(_make_args(PARQUET=annotated_file))
@@ -189,8 +178,9 @@ class TestAnnotateExecute:
 
     def test_set_multiple_keys(self, parquet_file):
         cmd = AnnotateCommand()
-        cmd.execute(_make_args(PARQUET=parquet_file,
-                               set_meta=["genome=hg38", "source=test"]))
+        cmd.execute(
+            _make_args(PARQUET=parquet_file, set_meta=["genome=hg38", "source=test"])
+        )
         meta = _read_meta(parquet_file)
         assert meta["genome"] == "hg38"
         assert meta["source"] == "test"
@@ -205,7 +195,7 @@ class TestAnnotateExecute:
         cmd.execute(_make_args(PARQUET=annotated_file, delete_keys=["source"]))
         meta = _read_meta(annotated_file)
         assert "source" not in meta
-        assert meta["genome"] == "hg38"   # other key intact
+        assert meta["genome"] == "hg38"  # other key intact
 
     def test_delete_missing_key_noop(self, annotated_file):
         cmd = AnnotateCommand()
@@ -230,9 +220,11 @@ class TestAnnotateExecute:
 
     def test_set_then_get(self, parquet_file, capsys):
         cmd = AnnotateCommand()
-        cmd.execute(_make_args(PARQUET=parquet_file,
-                               set_meta=["step=normalized"],
-                               get_key="step"))
+        cmd.execute(
+            _make_args(
+                PARQUET=parquet_file, set_meta=["step=normalized"], get_key="step"
+            )
+        )
         assert capsys.readouterr().out.strip() == "normalized"
 
     def test_non_parquet_exits(self, tmp_path):

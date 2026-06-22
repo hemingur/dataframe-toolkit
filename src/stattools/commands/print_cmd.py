@@ -10,8 +10,8 @@ dfstat pipeline:
       | dfstat print
 """
 
-import sys
 import argparse
+import sys
 
 from stattools.commands.base import BaseCommand
 from stattools.common.io import io
@@ -32,5 +32,5 @@ class PrintCommand(BaseCommand):
         df = io.read(args)
         try:
             df.to_csv(sys.stdout, sep="\t", index=False)
-        except (BrokenPipeError, IOError):
+        except (OSError, BrokenPipeError):
             sys.stderr.close()

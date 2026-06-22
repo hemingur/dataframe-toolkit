@@ -31,8 +31,8 @@ Runs the regression independently for each group and concatenates the
 tidy coefficient tables into one output dataframe.
 """
 
-import logging
 import argparse
+import logging
 
 import pandas as pd
 import statsmodels.api as sm
@@ -40,7 +40,7 @@ import statsmodels.formula.api as smf
 import statsmodels.stats.anova as sa
 
 from stattools.commands.base import BaseCommand
-from stattools.common.io import io, check_cols
+from stattools.common.io import check_cols, io
 
 logger = logging.getLogger(__name__)
 
@@ -90,17 +90,27 @@ def res2df(
 
     ci = res.conf_int()
     out_dict = {
-        "tag":      args.tag,
+        "tag": args.tag,
         "variable": res.model.data.ynames,
-        "marker":   res.model.data.xnames,
-        "effect":   res.params,
-        "stdev":    res.bse,
-        "pval":     res.pvalues,
-        "nobs":     res.nobs,
-        "cilo":     ci[0],
-        "cihi":     ci[1],
+        "marker": res.model.data.xnames,
+        "effect": res.params,
+        "stdev": res.bse,
+        "pval": res.pvalues,
+        "nobs": res.nobs,
+        "cilo": ci[0],
+        "cihi": ci[1],
     }
-    stat_cols = ["tag", "variable", "marker", "effect", "stdev", "pval", "nobs", "cilo", "cihi"]
+    stat_cols = [
+        "tag",
+        "variable",
+        "marker",
+        "effect",
+        "stdev",
+        "pval",
+        "nobs",
+        "cilo",
+        "cihi",
+    ]
 
     if not is_robust:
         out_dict["rsquared"] = res.rsquared
@@ -114,7 +124,7 @@ def res2df(
     vals = list(groupname) if isinstance(groupname, tuple) else [groupname]
     grpcols = args.groupcol[:]
     n = len(res.params)
-    for grpcol, val in zip(grpcols, vals):
+    for grpcol, val in zip(grpcols, vals, strict=False):
         out_dict[grpcol] = [val] * n
     return pd.DataFrame(out_dict)[grpcols + stat_cols]
 
@@ -180,13 +190,15 @@ class FitCommand(BaseCommand):
 
         g = parser.add_argument_group("regression options")
         g.add_argument(
-            "-f", "--formula",
+            "-f",
+            "--formula",
             required=True,
             metavar="FORMULA",
             help="R-style formula, e.g. 'y ~ x + z'.",
         )
         g.add_argument(
-            "-w", "--weights",
+            "-w",
+            "--weights",
             default=None,
             metavar="COL",
             help="Column name to use as observation weights (WLS).",
@@ -198,21 +210,24 @@ class FitCommand(BaseCommand):
             help="Label added to the 'tag' column in every output row (default: tag).",
         )
         g.add_argument(
-            "-r", "--robust",
+            "-r",
+            "--robust",
             action="store_true",
             help="Use robust linear regression (RLM with HuberT norm) instead of OLS.",
         )
         g.add_argument(
-            "-g", "--groupcol",
+            "-g",
+            "--groupcol",
             nargs="+",
             default=None,
             metavar="COL",
             help="Run a separate regression for each combination of these columns.",
         )
         g.add_argument(
-            "-s", "--summary",
+            "-s",
+            "--summary",
             action="store_true",
-            help="Print the full statsmodels summary (overrides tabular output; no grouping).",
+            help="Print the full statsmodels summary (overrides tabular output; no grouping).",  # noqa: E501
         )
         g.add_argument(
             "--anova",
@@ -242,9 +257,7 @@ class FitCommand(BaseCommand):
                 try:
                     res = regress_it(groupdf, args)
                 except Exception as exc:
-                    logger.error(
-                        "Regression failed for group %s: %s", groupname, exc
-                    )
+                    logger.error("Regression failed for group %s: %s", groupname, exc)
                     raise
                 parts.append(res2df(res, args, groupname))
             out = pd.concat(parts, ignore_index=True)

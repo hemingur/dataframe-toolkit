@@ -39,7 +39,7 @@ import pandas as pd
 import scipy.stats as ss
 
 from stattools.commands.base import BaseCommand
-from stattools.common.io import io, check_cols
+from stattools.common.io import check_cols, io
 from stattools.common.seed import normalize_seed
 
 logger = logging.getLogger("stattools")
@@ -83,15 +83,15 @@ def _pvalue(v1: np.ndarray, v2: np.ndarray, test: str, randomize: bool) -> float
     if test == "bootstrap":
         return _bootstrap(v1, v2, randomize)
     fn = {
-        "student_t":          ss.ttest_ind,
-        "paired_student_t":   ss.ttest_rel,
-        "anova":              ss.f_oneway,
-        "pearson":            ss.pearsonr,
-        "kendall":            ss.kendalltau,
-        "spearman":           ss.spearmanr,
-        "mannwhitneyu":       ss.mannwhitneyu,
-        "wilcoxon":           ss.wilcoxon,
-        "kruskal":            ss.kruskal,
+        "student_t": ss.ttest_ind,
+        "paired_student_t": ss.ttest_rel,
+        "anova": ss.f_oneway,
+        "pearson": ss.pearsonr,
+        "kendall": ss.kendalltau,
+        "spearman": ss.spearmanr,
+        "mannwhitneyu": ss.mannwhitneyu,
+        "wilcoxon": ss.wilcoxon,
+        "kruskal": ss.kruskal,
         "kolmogorov_smirnov": ss.ks_2samp,
     }[test]
     return float(fn(v1, v2).pvalue)
@@ -100,6 +100,7 @@ def _pvalue(v1: np.ndarray, v2: np.ndarray, test: str, randomize: bool) -> float
 # ---------------------------------------------------------------------------
 # Core computation
 # ---------------------------------------------------------------------------
+
 
 def _run_test(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
     """Return a DataFrame of p-values for one or more column pairs.
@@ -143,6 +144,7 @@ def _run_test(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
 # Command
 # ---------------------------------------------------------------------------
 
+
 class TestCommand(BaseCommand):
     """Run statistical tests between column pairs, optionally within groups."""
 
@@ -157,21 +159,24 @@ class TestCommand(BaseCommand):
 
         g = parser.add_argument_group("test")
         g.add_argument(
-            "-c", "--cols",
+            "-c",
+            "--cols",
             help="Column pair(s) to test, in the form col1:col2",
             nargs="+",
             required=True,
             metavar="COL1:COL2",
         )
         g.add_argument(
-            "-d", "--dest",
+            "-d",
+            "--dest",
             help="Output column name(s) for p-values (one per --cols pair)",
             nargs="+",
             required=True,
             metavar="NAME",
         )
         g.add_argument(
-            "-g", "--groups",
+            "-g",
+            "--groups",
             help="Group-by column(s); test is run within each group",
             nargs="+",
             default=[],

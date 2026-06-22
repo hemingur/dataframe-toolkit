@@ -1,15 +1,16 @@
 """
 Tests for stattools.common.plot infrastructure.
 """
+
 import argparse
-import pytest
+
 import matplotlib
+import pytest
+
 matplotlib.use("Agg")  # non-interactive for all tests in this file
 
 from stattools.common.plot import (
     WONG_PALETTE,
-    _FONT_PRESETS,
-    _SIZE_PRESETS,
     apply_style,
     make_figure,
     make_grouplabel,
@@ -50,6 +51,7 @@ class TestParseFigsize:
 class TestApplyStyle:
     def test_publication_preset(self):
         import matplotlib as mpl
+
         apply_style(_args(fontsize="publication"))
         assert mpl.rcParams["xtick.labelsize"] == 6
         assert mpl.rcParams["axes.labelsize"] == 8
@@ -57,17 +59,20 @@ class TestApplyStyle:
 
     def test_screen_preset(self):
         import matplotlib as mpl
+
         apply_style(_args(fontsize="screen"))
         assert mpl.rcParams["xtick.labelsize"] == 9
         assert mpl.rcParams["axes.labelsize"] == 11
 
     def test_presentation_preset(self):
         import matplotlib as mpl
+
         apply_style(_args(fontsize="presentation"))
         assert mpl.rcParams["xtick.labelsize"] == 12
 
     def test_unknown_preset_falls_back_to_screen(self):
         import matplotlib as mpl
+
         apply_style(_args(fontsize="bogus"))
         assert mpl.rcParams["xtick.labelsize"] == 9
 
@@ -75,12 +80,14 @@ class TestApplyStyle:
 class TestMakeFigure:
     def test_returns_fig_and_2d_axes(self):
         import matplotlib.pyplot as plt
+
         fig, axes = make_figure(_args())
         assert axes.shape == (1, 1)
         plt.close(fig)
 
     def test_grid_shape(self):
         import matplotlib.pyplot as plt
+
         fig, axes = make_figure(_args(), nrows=2, ncols=3)
         assert axes.shape == (2, 3)
         plt.close(fig)
@@ -110,12 +117,20 @@ class TestMakeGrouplabel:
         assert make_grouplabel("A") == "A"
 
     def test_tuple_no_cols(self):
-        assert make_grouplabel(("A", "B")) == "A-B"
+        assert make_grouplabel(("A", "B")) == "A  B"
 
     def test_tuple_with_cols(self):
-        label = make_grouplabel(("A", "1"), groupcols=["group", "rep"])
-        assert "group=A" in label
-        assert "rep=1" in label
+        assert make_grouplabel(("A", "1"), groupcols=["group", "rep"]) == "A  1"
+
+    def test_tuple_with_format(self):
+        label = make_grouplabel(
+            ("A", "1"), groupcols=["group", "rep"], fmt="{group}={rep}"
+        )
+        assert label == "A=1"
+
+    def test_single_col_tuple_with_format(self):
+        label = make_grouplabel(("Jan",), groupcols=["month"], fmt="Month: {month}")
+        assert label == "Month: Jan"
 
     def test_numeric(self):
         assert make_grouplabel(42) == "42"

@@ -30,7 +30,7 @@ Long format output:
 import argparse
 
 from stattools.commands.base import BaseCommand
-from stattools.common.io import io, check_cols
+from stattools.common.io import check_cols, io
 
 
 class MeltCommand(BaseCommand):
@@ -42,26 +42,28 @@ class MeltCommand(BaseCommand):
 
         g = parser.add_argument_group("melt options")
         g.add_argument(
-            "-i", "--indexcols",
+            "-i",
+            "--indexcols",
             nargs="+",
             default=None,
             metavar="COL",
             help="Column(s) to keep as row identifiers (id_vars). "
-                 "All other columns are melted.",
+            "All other columns are melted.",
         )
         g.add_argument(
-            "-d", "--destcol",
+            "-d",
+            "--destcol",
             default="variable",
             metavar="NAME",
             help="Name of the new column that holds the original column names "
-                 "(default: variable).",
+            "(default: variable).",
         )
         g.add_argument(
-            "-v", "--valuecol",
+            "-v",
+            "--valuecol",
             default="value",
             metavar="NAME",
-            help="Name of the new column that holds the cell values "
-                 "(default: value).",
+            help="Name of the new column that holds the cell values (default: value).",
         )
 
     def execute(self, args: argparse.Namespace) -> None:

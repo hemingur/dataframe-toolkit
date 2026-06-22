@@ -14,24 +14,24 @@ import fnmatch
 import hashlib
 import logging
 import os
-import re
-import sys
 from functools import partial
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from scipy import special as _sp
 
 from stattools.commands.base import BaseCommand
-from stattools.common.io import io
-from stattools.common import stats as _stats
 from stattools.common import seq as _seq
+from stattools.common import stats as _stats
+from stattools.common.io import io
 
 logger = logging.getLogger(__name__)
 
 # Optional dependency: python-Levenshtein
 try:
     import Levenshtein as _lev
+
     _HAS_LEVENSHTEIN = True
 except ImportError:
     _HAS_LEVENSHTEIN = False
@@ -72,8 +72,31 @@ Available special functions:
   Column aggregation (glob pattern):
     colsum(col*)     — sum of all columns matching the glob pattern
 
-  NumPy scalars:
-    sign(col)
+  NumPy math (element-wise):
+    sign(col)  cbrt(col)  log1p(col)  expm1(col)
+
+  scipy.special — log-gamma / digamma:
+    gamma(col)   lgamma(col)   digamma(col)
+    beta(a, b)   betaln(a, b)
+
+  scipy.special — error functions:
+    erf(col)   erfc(col)   erfinv(col)
+
+  scipy.special — sigmoid / logit:
+    expit(col)   logit(col)
+
+  scipy.special — Bessel functions (fixed order):
+    j0(col)  j1(col)   — Bessel J, order 0 / 1
+    y0(col)  y1(col)   — Bessel Y, order 0 / 1
+    i0(col)  i1(col)   — modified Bessel I, order 0 / 1
+    k0(col)  k1(col)   — modified Bessel K, order 0 / 1
+
+  scipy.special — Bessel functions (parametric order):
+    jn(n, col)   — Bessel J, integer order n
+    yn(n, col)   — Bessel Y, integer order n
+    iv(v, col)   — modified Bessel I, real order v
+    kv(v, col)   — modified Bessel K, real order v
+    (n/v is a numeric literal, e.g.  result = jn(3, x))
 
   Path functions (applied element-wise):
     basename  dirname  exists  getsize  realpath
@@ -155,8 +178,9 @@ def _parse_formula(formula: str) -> tuple[str, str, list[str], str]:
         func, right = (x.strip() for x in right.split("(", 1))
         body, _ = (x.strip() for x in right.rsplit(")", 1))
     except Exception:
-        raise ValueError(f"Bad formula syntax: {formula!r}  "
-                         "Expected: dest = func(col1, col2, ...)")
+        raise ValueError(
+            f"Bad formula syntax: {formula!r}  Expected: dest = func(col1, col2, ...)"
+        ) from None
     cols = [x.strip() for x in body.split(",")]
     return dest, func, cols, body
 
@@ -166,23 +190,57 @@ def _parse_formula(formula: str) -> tuple[str, str, list[str], str]:
 # ---------------------------------------------------------------------------
 
 _STATS_DISPATCH = {
-    "binom_test":              _stats.binom_test,
-    "fisher_test":             _stats.fisher_test,
-    "fisher_OR":               _stats.fisher_OR,
-    "boschloo_test":           _stats.boschloo_test,
-    "boschloo_OR":             _stats.boschloo_OR,
-    "pval2se":                 _stats.pval2se,
-    "t2pval":                  _stats.t2pval,
-    "chi2_to_neglogp":         _stats.chi2_to_neglogp,
-    "neglogp_to_chi2":         _stats.neglogp_to_chi2,
-    "pval_to_chi2":            _stats.pval_to_chi2,
+    "binom_test": _stats.binom_test,
+    "fisher_test": _stats.fisher_test,
+    "fisher_OR": _stats.fisher_OR,
+    "boschloo_test": _stats.boschloo_test,
+    "boschloo_OR": _stats.boschloo_OR,
+    "pval2se": _stats.pval2se,
+    "t2pval": _stats.t2pval,
+    "chi2_to_neglogp": _stats.chi2_to_neglogp,
+    "neglogp_to_chi2": _stats.neglogp_to_chi2,
+    "pval_to_chi2": _stats.pval_to_chi2,
     "generalized_poisson_nll": _stats.generalized_poisson_nll,
 }
 
-_PATH_FUNCS    = {"basename", "dirname", "exists", "getsize", "realpath"}
-_NP_FUNCS      = {"sign"}
+_PATH_FUNCS = {"basename", "dirname", "exists", "getsize", "realpath"}
+_NP_FUNCS = {"sign", "cbrt", "log1p", "expm1"}
 _ROW_AGG_FUNCS = {"sum", "mean", "std", "min", "max", "median"}
 _ROW_IDX_FUNCS = {"idxmax", "idxmin"}
+
+# scipy.special single-column functions (element-wise, vectorised)
+_SCIPY_SINGLE = {
+    "gamma": _sp.gamma,  # Γ(x)
+    "lgamma": _sp.gammaln,  # log Γ(x)
+    "digamma": _sp.digamma,  # ψ(x)  (log-derivative of Γ)
+    "erf": _sp.erf,  # error function
+    "erfc": _sp.erfc,  # complementary error function
+    "erfinv": _sp.erfinv,  # inverse error function
+    "expit": _sp.expit,  # logistic sigmoid  1/(1+exp(-x))
+    "logit": _sp.logit,  # log(x/(1-x))
+    # Bessel J (first kind), fixed order
+    "j0": _sp.j0,
+    "j1": _sp.j1,
+    # Bessel Y (second kind), fixed order
+    "y0": _sp.y0,
+    "y1": _sp.y1,
+    # Modified Bessel I, fixed order
+    "i0": _sp.i0,
+    "i1": _sp.i1,
+    # Modified Bessel K, fixed order
+    "k0": _sp.k0,
+    "k1": _sp.k1,
+}
+
+# scipy.special two-column functions: func(col_a, col_b)
+_SCIPY_DUAL = {
+    "beta": lambda x: _sp.beta(x[0], x[1]),  # B(a, b)
+    "betaln": lambda x: _sp.betaln(x[0], x[1]),  # log B(a, b)
+}
+
+# scipy.special parametric Bessel: func_name(order_literal, col)
+# Covers all-order variants: jn(n,x), yn(n,x), iv(v,x), kv(v,x)
+_SCIPY_BESSEL_ORDER = {"jn", "yn", "iv", "kv"}
 
 
 class _FrameFunc:
@@ -191,6 +249,7 @@ class _FrameFunc:
     Used for idxmax/idxmin, which need the column labels and therefore cannot
     go through the standard ``func(row.to_numpy())`` dispatch path.
     """
+
     def __init__(self, method: str) -> None:
         self.method = method
 
@@ -209,7 +268,9 @@ def _resolve_where_val(val: str, df: pd.DataFrame):
       5. Bare string (returned as-is)
     """
     s = val.strip()
-    if (s.startswith('"') and s.endswith('"')) or (s.startswith("'") and s.endswith("'")):
+    if (s.startswith('"') and s.endswith('"')) or (
+        s.startswith("'") and s.endswith("'")
+    ):
         return s[1:-1]
     if s in df.columns:
         return df[s]
@@ -230,6 +291,7 @@ class _WhereFunc:
     Receives the full DataFrame so that *true_val* and *false_val* can be
     resolved as column references, quoted string literals, or numeric literals.
     """
+
     def __init__(self, cond_col: str, true_val: str, false_val: str) -> None:
         self.cond_col = cond_col
         self.true_val = true_val
@@ -243,12 +305,25 @@ class _WhereFunc:
 
 
 _VALID_SPECIAL = (
-    {"sum", "mean", "std", "min", "max", "median",
-     "overlap", "applymask", "colsum", "where"}
+    {
+        "sum",
+        "mean",
+        "std",
+        "min",
+        "max",
+        "median",
+        "overlap",
+        "applymask",
+        "colsum",
+        "where",
+    }
     | _ROW_IDX_FUNCS
     | _PATH_FUNCS
     | _NP_FUNCS
     | set(_STATS_DISPATCH)
+    | set(_SCIPY_SINGLE)
+    | set(_SCIPY_DUAL)
+    | _SCIPY_BESSEL_ORDER
 )
 
 
@@ -257,8 +332,10 @@ def _special_function(formula: str, df_columns: list[str]):
     dest, func_name, cols, body = _parse_formula(formula)
 
     if func_name not in _VALID_SPECIAL:
-        raise ValueError(f"Function {func_name!r} is not available as a "
-                         "special function.  See dfstat eval --help.")
+        raise ValueError(
+            f"Function {func_name!r} is not available as a "
+            "special function.  See dfstat eval --help."
+        )
 
     if func_name == "where":
         if len(cols) != 3:
@@ -288,6 +365,20 @@ def _special_function(formula: str, df_columns: list[str]):
         func = np.frompyfunc(getattr(os.path, func_name), 1, 1)
     elif func_name in _STATS_DISPATCH:
         func = _STATS_DISPATCH[func_name]
+    elif func_name in _SCIPY_SINGLE:
+        func = _SCIPY_SINGLE[func_name]
+    elif func_name in _SCIPY_DUAL:
+        func = _SCIPY_DUAL[func_name]
+    elif func_name in _SCIPY_BESSEL_ORDER:
+        try:
+            order = float(cols[0])
+        except (ValueError, IndexError):
+            raise ValueError(
+                f"{func_name}() first argument must be a numeric order literal, "
+                f"e.g.  result = {func_name}(2, xcol)"
+            ) from None
+        func = partial(getattr(_sp, func_name), order)
+        cols = cols[1:]
     else:
         func = func_name  # bare string passed to pandas agg
 
@@ -322,31 +413,35 @@ def _string_function(formula: str, joinsep: str):
         return dest, partial(lambda x: str(x[0]).find(str(x[1]))), cols
     if func_name == "substr":
         start, length = int(cols[1]), int(cols[2])
-        return dest, partial(lambda x: str(x)[start: start + length]), cols[0:1]
+        return dest, partial(lambda x: str(x)[start : start + length]), cols[0:1]
     if func_name == "substring":
         length = int(cols[2])
-        return dest, partial(lambda x: str(x[0])[x[1]: x[1] + length]), cols[0:2]
+        return dest, partial(lambda x: str(x[0])[x[1] : x[1] + length]), cols[0:2]
     if func_name == "replace":
         return dest, partial(lambda x: str(x).replace(cols[1], cols[2])), cols[0:1]
 
     if func_name == "leftsplit":
         sep, idx = cols[1], int(cols[2])
+
         def _leftsplit(x):
             s = str(x)
             if sep in s:
                 parts = s.split(sep, 1)
                 return parts[0] if idx == 0 else parts[1]
             return s if idx == 0 else ""
+
         return dest, _leftsplit, cols[0:1]
 
     if func_name == "rightsplit":
         sep, idx = cols[1], int(cols[2])
+
         def _rightsplit(x):
             s = str(x)
             if sep in s:
                 parts = s.rsplit(sep, 1)
                 return parts[0] if idx == 0 else parts[1]
             return s if idx == 0 else ""
+
         return dest, _rightsplit, cols[0:1]
 
     if func_name == "levenshtein":
@@ -360,16 +455,22 @@ def _string_function(formula: str, joinsep: str):
     if func_name == "sort":
         return dest, partial(lambda x: "".join(sorted(str(x)))), cols
     if func_name == "ord":
+
         def _myord(x):
             try:
                 return min(ord(c) for c in str(x))
             except (TypeError, ValueError):
                 return 0
+
         return dest, _myord, cols[0:1]
     if func_name == "template":
         return dest, partial(lambda x: _body.format(**x)), []
     if func_name == "md5":
-        return dest, partial(lambda x: hashlib.md5(str(x).encode()).hexdigest()), cols[0:1]
+        return (
+            dest,
+            partial(lambda x: hashlib.md5(str(x).encode()).hexdigest()),
+            cols[0:1],
+        )
 
     # Path operations
     if func_name == "basename":
@@ -394,8 +495,9 @@ def _string_function(formula: str, joinsep: str):
     if func_name == "readoffset":
         return dest, partial(lambda x: _seq.read_offset(*x)), cols
 
-    raise ValueError(f"String function {func_name!r} is not available. "
-                     "See dfstat eval --help.")
+    raise ValueError(
+        f"String function {func_name!r} is not available. See dfstat eval --help."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -440,7 +542,7 @@ def _eval(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
             else:
                 # Multi-column row function: pass numpy array so positional
                 # indexing (row[0], row[1], ...) works in pandas 2.x
-                df[dest] = df[cols].apply(lambda row: func(row.to_numpy()), axis=1)
+                df[dest] = df[cols].apply(lambda row, f=func: f(row.to_numpy()), axis=1)
         except Exception:
             if len(df) == 0:
                 dest = formula.split("=", 1)[0].strip()
@@ -485,7 +587,6 @@ def _eval(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
 
 
 class EvalCommand(BaseCommand):
-
     @property
     def name(self) -> str:
         return "eval"
@@ -496,6 +597,7 @@ class EvalCommand(BaseCommand):
 
     def add_arguments(self, parser: argparse.ArgumentParser) -> None:
         import argparse as ap
+
         parser.formatter_class = ap.RawDescriptionHelpFormatter
         parser.epilog = _EPILOG
 
@@ -503,7 +605,8 @@ class EvalCommand(BaseCommand):
 
         g = parser.add_argument_group("formula evaluation")
         g.add_argument(
-            "-f", "--formula",
+            "-f",
+            "--formula",
             help=(
                 "pandas eval expression, or special function call "
                 "(dest = func(col1, col2, ...)).  Repeatable."
@@ -513,7 +616,8 @@ class EvalCommand(BaseCommand):
             metavar="EXPR",
         )
         g.add_argument(
-            "-c", "--constant",
+            "-c",
+            "--constant",
             help=(
                 "Add a constant column (dest = value).  "
                 "Value is coerced to numeric when possible.  Repeatable."
@@ -523,7 +627,8 @@ class EvalCommand(BaseCommand):
             metavar="EXPR",
         )
         g.add_argument(
-            "-s", "--strfunc",
+            "-s",
+            "--strfunc",
             help=(
                 "String or row function (dest = func(col1, col2, ...)).  "
                 "Repeatable.  See --help for full function list."
@@ -534,7 +639,7 @@ class EvalCommand(BaseCommand):
         )
         g.add_argument(
             "--joinsep",
-            help="Separator used by the join() string function (default: empty string).",
+            help="Separator used by the join() string function (default: empty).",
             default="",
             metavar="SEP",
         )

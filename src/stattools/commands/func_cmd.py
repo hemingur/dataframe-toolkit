@@ -46,7 +46,7 @@ import re
 import pandas as pd
 
 from stattools.commands.base import BaseCommand
-from stattools.common.io import io, check_cols
+from stattools.common.io import check_cols, io
 
 # Transforms that use groupby().transform()
 _GROUPBY_TRANSFORMS = {"sum", "mean", "min", "max", "count", "median", "std"}
@@ -55,9 +55,14 @@ _GROUPBY_TRANSFORMS = {"sum", "mean", "min", "max", "count", "median", "std"}
 _CUMULATIVE_TRANSFORMS = {"cumsum", "rank", "pct_rank"}
 
 
-def _apply_transform(df: pd.DataFrame, col: str, transform: str,
-                     groupcols: list[str] | None, destcol: str) -> pd.DataFrame:
-    """Apply *transform* on *col* within optional *groupcols*, storing result in *destcol*."""
+def _apply_transform(
+    df: pd.DataFrame,
+    col: str,
+    transform: str,
+    groupcols: list[str] | None,
+    destcol: str,
+) -> pd.DataFrame:
+    """Apply *transform* on *col* within optional *groupcols*, storing result in *destcol*."""  # noqa: E501
 
     # --- qcut:N ---
     m = re.fullmatch(r"qcut:(\d+)", transform)
@@ -66,8 +71,12 @@ def _apply_transform(df: pd.DataFrame, col: str, transform: str,
         if n < 2:
             raise ValueError("qcut requires N >= 2")
         if groupcols:
+
             def _qcut_group(s: pd.Series) -> pd.Series:
-                return pd.qcut(s, n, labels=False, duplicates="drop").astype("Int64") + 1
+                return (
+                    pd.qcut(s, n, labels=False, duplicates="drop").astype("Int64") + 1
+                )  # noqa: E501
+
             df[destcol] = df.groupby(groupcols)[col].transform(_qcut_group)
         else:
             df[destcol] = (
@@ -132,13 +141,15 @@ class FuncCommand(BaseCommand):
 
         g = parser.add_argument_group("transform options")
         g.add_argument(
-            "-c", "--col",
+            "-c",
+            "--col",
             required=True,
             metavar="COL",
             help="Source column to transform.",
         )
         g.add_argument(
-            "-t", "--transform",
+            "-t",
+            "--transform",
             required=True,
             metavar="TRANSFORM",
             help=(
@@ -147,13 +158,15 @@ class FuncCommand(BaseCommand):
             ),
         )
         g.add_argument(
-            "-d", "--destcol",
+            "-d",
+            "--destcol",
             default=None,
             metavar="NAME",
             help="Name of the output column (default: <col>_<transform>).",
         )
         g.add_argument(
-            "-g", "--groupcol",
+            "-g",
+            "--groupcol",
             nargs="+",
             default=None,
             metavar="COL",

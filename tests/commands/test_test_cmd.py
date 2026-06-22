@@ -15,12 +15,12 @@ import pandas as pd
 import pytest
 import scipy.stats as ss
 
-from stattools.commands.test_cmd import _run_test, _bootstrap, TESTS
-
+from stattools.commands.test_cmd import TESTS, _bootstrap, _run_test
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def make_args(**overrides) -> argparse.Namespace:
     defaults = dict(
@@ -46,28 +46,32 @@ def identical_df():
 def different_df():
     """Two clearly separated columns — parametric tests should yield p<0.05."""
     rng = np.random.default_rng(1)
-    return pd.DataFrame({
-        "a": rng.normal(0, 1, 30),
-        "b": rng.normal(10, 1, 30),
-    })
+    return pd.DataFrame(
+        {
+            "a": rng.normal(0, 1, 30),
+            "b": rng.normal(10, 1, 30),
+        }
+    )
 
 
 @pytest.fixture
 def grouped_df():
     """Two groups, each with a:b pair having known direction."""
-    return pd.DataFrame({
-        "group": ["X"] * 10 + ["Y"] * 10,
-        "a": np.concatenate([np.zeros(10), np.zeros(10)]),
-        "b": np.concatenate([np.zeros(10), np.ones(10) * 5]),
-    })
+    return pd.DataFrame(
+        {
+            "group": ["X"] * 10 + ["Y"] * 10,
+            "a": np.concatenate([np.zeros(10), np.zeros(10)]),
+            "b": np.concatenate([np.zeros(10), np.ones(10) * 5]),
+        }
+    )
 
 
 # ---------------------------------------------------------------------------
 # Output schema
 # ---------------------------------------------------------------------------
 
-class TestSchema:
 
+class TestSchema:
     def test_ungrouped_columns(self, different_df):
         result = _run_test(different_df, make_args())
         assert list(result.columns) == ["pvalue"]
@@ -99,8 +103,8 @@ class TestSchema:
 # student_t
 # ---------------------------------------------------------------------------
 
-class TestStudentT:
 
+class TestStudentT:
     def test_identical_p_near_1(self, identical_df):
         result = _run_test(identical_df, make_args(test="student_t"))
         assert result["pvalue"].iloc[0] == pytest.approx(1.0)
@@ -110,7 +114,9 @@ class TestStudentT:
         assert result["pvalue"].iloc[0] < 0.05
 
     def test_matches_scipy(self, different_df):
-        expected = float(ss.ttest_ind(different_df["a"].values, different_df["b"].values).pvalue)
+        expected = float(
+            ss.ttest_ind(different_df["a"].values, different_df["b"].values).pvalue
+        )  # noqa: E501
         result = _run_test(different_df, make_args(test="student_t"))
         assert result["pvalue"].iloc[0] == pytest.approx(expected)
 
@@ -119,7 +125,9 @@ class TestStudentT:
         x_row = result[result["group"] == "X"]
         # group X: a=b=0, so t-test cannot be computed (all zeros)
         # scipy returns nan pvalue for zero-variance identical arrays
-        assert np.isnan(x_row["pvalue"].iloc[0]) or x_row["pvalue"].iloc[0] == pytest.approx(1.0)
+        assert np.isnan(x_row["pvalue"].iloc[0]) or x_row["pvalue"].iloc[
+            0
+        ] == pytest.approx(1.0)  # noqa: E501
 
     def test_grouped_y_different(self, grouped_df):
         result = _run_test(grouped_df, make_args(test="student_t", groups=["group"]))
@@ -131,8 +139,8 @@ class TestStudentT:
 # paired_student_t
 # ---------------------------------------------------------------------------
 
-class TestPairedStudentT:
 
+class TestPairedStudentT:
     def test_identical_p_is_nan(self, identical_df):
         # paired t-test on identical columns: zero differences → NaN pvalue
         result = _run_test(identical_df, make_args(test="paired_student_t"))
@@ -143,7 +151,9 @@ class TestPairedStudentT:
         assert result["pvalue"].iloc[0] < 0.05
 
     def test_matches_scipy(self, different_df):
-        expected = float(ss.ttest_rel(different_df["a"].values, different_df["b"].values).pvalue)
+        expected = float(
+            ss.ttest_rel(different_df["a"].values, different_df["b"].values).pvalue
+        )  # noqa: E501
         result = _run_test(different_df, make_args(test="paired_student_t"))
         assert result["pvalue"].iloc[0] == pytest.approx(expected)
 
@@ -152,14 +162,16 @@ class TestPairedStudentT:
 # Mann-Whitney U
 # ---------------------------------------------------------------------------
 
-class TestMannWhitneyU:
 
+class TestMannWhitneyU:
     def test_different_p_small(self, different_df):
         result = _run_test(different_df, make_args(test="mannwhitneyu"))
         assert result["pvalue"].iloc[0] < 0.05
 
     def test_matches_scipy(self, different_df):
-        expected = float(ss.mannwhitneyu(different_df["a"].values, different_df["b"].values).pvalue)
+        expected = float(
+            ss.mannwhitneyu(different_df["a"].values, different_df["b"].values).pvalue
+        )  # noqa: E501
         result = _run_test(different_df, make_args(test="mannwhitneyu"))
         assert result["pvalue"].iloc[0] == pytest.approx(expected)
 
@@ -168,17 +180,19 @@ class TestMannWhitneyU:
 # Correlation tests (pearson, spearman, kendall)
 # ---------------------------------------------------------------------------
 
-class TestCorrelations:
 
+class TestCorrelations:
     @pytest.fixture
     def corr_df(self):
         """Perfectly correlated pair and an uncorrelated pair."""
         x = np.arange(1.0, 21.0)
-        return pd.DataFrame({
-            "a": x,
-            "b": x * 2 + 1,      # perfect positive correlation
-            "c": np.random.default_rng(99).permutation(x),  # shuffled
-        })
+        return pd.DataFrame(
+            {
+                "a": x,
+                "b": x * 2 + 1,  # perfect positive correlation
+                "c": np.random.default_rng(99).permutation(x),  # shuffled
+            }
+        )
 
     def test_pearson_perfect_correlation_small_p(self, corr_df):
         result = _run_test(corr_df, make_args(cols=["a:b"], test="pearson"))
@@ -204,8 +218,8 @@ class TestCorrelations:
 # Kolmogorov-Smirnov
 # ---------------------------------------------------------------------------
 
-class TestKolmogorovSmirnov:
 
+class TestKolmogorovSmirnov:
     def test_identical_p_is_1(self, identical_df):
         result = _run_test(identical_df, make_args(test="kolmogorov_smirnov"))
         assert result["pvalue"].iloc[0] == pytest.approx(1.0)
@@ -215,7 +229,9 @@ class TestKolmogorovSmirnov:
         assert result["pvalue"].iloc[0] < 0.05
 
     def test_matches_scipy(self, different_df):
-        expected = float(ss.ks_2samp(different_df["a"].values, different_df["b"].values).pvalue)
+        expected = float(
+            ss.ks_2samp(different_df["a"].values, different_df["b"].values).pvalue
+        )  # noqa: E501
         result = _run_test(different_df, make_args(test="kolmogorov_smirnov"))
         assert result["pvalue"].iloc[0] == pytest.approx(expected)
 
@@ -224,8 +240,8 @@ class TestKolmogorovSmirnov:
 # Bootstrap
 # ---------------------------------------------------------------------------
 
-class TestBootstrap:
 
+class TestBootstrap:
     def test_all_same_sign_p_is_1(self):
         """All differences zero → p = 1."""
         v = np.ones(10)
@@ -261,19 +277,23 @@ class TestBootstrap:
 # Wilcoxon / Kruskal / ANOVA
 # ---------------------------------------------------------------------------
 
-class TestOtherTests:
 
+class TestOtherTests:
     def test_wilcoxon_different_p_small(self, different_df):
         result = _run_test(different_df, make_args(test="wilcoxon"))
         assert result["pvalue"].iloc[0] < 0.05
 
     def test_kruskal_matches_scipy(self, different_df):
-        expected = float(ss.kruskal(different_df["a"].values, different_df["b"].values).pvalue)
+        expected = float(
+            ss.kruskal(different_df["a"].values, different_df["b"].values).pvalue
+        )  # noqa: E501
         result = _run_test(different_df, make_args(test="kruskal"))
         assert result["pvalue"].iloc[0] == pytest.approx(expected)
 
     def test_anova_matches_scipy(self, different_df):
-        expected = float(ss.f_oneway(different_df["a"].values, different_df["b"].values).pvalue)
+        expected = float(
+            ss.f_oneway(different_df["a"].values, different_df["b"].values).pvalue
+        )  # noqa: E501
         result = _run_test(different_df, make_args(test="anova"))
         assert result["pvalue"].iloc[0] == pytest.approx(expected)
 
@@ -282,8 +302,8 @@ class TestOtherTests:
 # Multi-pair and edge cases
 # ---------------------------------------------------------------------------
 
-class TestMultiPairAndEdgeCases:
 
+class TestMultiPairAndEdgeCases:
     def test_multi_pair_independent(self, different_df):
         """Two pairs produce two independent p-values in the same row."""
         df = different_df.copy()
@@ -301,9 +321,17 @@ class TestMultiPairAndEdgeCases:
     def test_all_tests_registered(self):
         """TESTS list contains all expected test names."""
         expected = {
-            "bootstrap", "student_t", "paired_student_t", "anova",
-            "pearson", "kendall", "spearman", "mannwhitneyu",
-            "wilcoxon", "kruskal", "kolmogorov_smirnov",
+            "bootstrap",
+            "student_t",
+            "paired_student_t",
+            "anova",
+            "pearson",
+            "kendall",
+            "spearman",
+            "mannwhitneyu",
+            "wilcoxon",
+            "kruskal",
+            "kolmogorov_smirnov",
         }
         assert set(TESTS) == expected
 

@@ -8,9 +8,9 @@ chance to consume (and therefore delete) them.
     dfstat clean
 """
 
+import argparse
 import os
 import sys
-import argparse
 
 from stattools.commands.base import BaseCommand
 from stattools.common.io import DFSTAT_TMPDIR
@@ -20,7 +20,7 @@ class CleanCommand(BaseCommand):
     """Remove leftover temp parquet pipe files."""
 
     name = "clean"
-    help = f"Remove temp parquet pipe files from the dfstat temp directory"
+    help = "Remove temp parquet pipe files from the dfstat temp directory"
 
     def add_arguments(self, parser: argparse.ArgumentParser) -> None:
         # No arguments needed — always cleans DFSTAT_TMPDIR.

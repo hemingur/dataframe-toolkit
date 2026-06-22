@@ -8,3 +8,19 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Tools
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# pre-commit
+.pre-commit-config.yaml.bak
+
+# OS
+.DS_Store
+
+# tests
+.coverage
+htmlcov/
+*.dist-info/

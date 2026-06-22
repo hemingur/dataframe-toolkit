@@ -11,8 +11,8 @@ Ported from df/src/df/dfio.py with the following changes:
                          (NOT auto-deleted — reusable later in the same pipeline)
       -o FILE          → TSV written to FILE, nothing on stdout
 
-  • Parquet-pipe detection on stdin: if the first line of stdin is a path
-    ending in .parquet that exists on disk, the file is read as parquet.
+  • Parquet-pipe via ``...`` DATAFILE: use ``...`` as the DATAFILE argument to
+    read a parquet path from the first line of stdin and load that file.
     Temp files (inside DFSTAT_TMPDIR) are deleted after reading; named files
     are left intact so they can be referenced again downstream.
 
@@ -21,6 +21,7 @@ Ported from df/src/df/dfio.py with the following changes:
   • parser_printdf kept as an alias for parser_output for compatibility.
 """
 
+import argparse
 import csv
 import fnmatch
 import io as _io
@@ -28,7 +29,6 @@ import logging
 import os
 import sys
 import tempfile
-import argparse
 
 import numpy as np
 import pandas as pd
@@ -80,13 +80,15 @@ def _is_temp_pipe_path(path: str) -> bool:
 def _read_parquet_meta(path: str) -> dict[str, str]:
     """Return custom (non-pandas) metadata from a parquet file's schema."""
     import pyarrow.parquet as pq
+
     schema = pq.read_schema(path)
     raw = schema.metadata or {}
     return {k.decode(): v.decode() for k, v in raw.items() if k != b"pandas"}
 
 
-def _write_parquet(df: pd.DataFrame, path: str,
-                   meta: dict[str, str] | None = None) -> None:
+def _write_parquet(
+    df: pd.DataFrame, path: str, meta: dict[str, str] | None = None
+) -> None:
     """Write *df* to *path* as parquet, embedding custom *meta* annotations.
 
     Any metadata already carried in ``df.attrs["_parquet_meta"]`` is merged
@@ -94,6 +96,7 @@ def _write_parquet(df: pd.DataFrame, path: str,
     """
     import pyarrow as pa
     import pyarrow.parquet as pq
+
     table = pa.Table.from_pandas(df, preserve_index=False)
     # Start from whatever the pandas→arrow conversion embedded
     existing: dict[bytes, bytes] = dict(table.schema.metadata or {})
@@ -121,16 +124,6 @@ def _write_pipe_parquet(df: pd.DataFrame) -> str:
 # Utility helpers
 # ---------------------------------------------------------------------------
 
-def significant_digits(datacol: pd.Series, significance: int) -> pd.Series:
-    """Round *datacol* to *significance* significant digits."""
-    abscol = np.where(
-        np.isfinite(datacol) & (datacol != 0),
-        np.abs(datacol),
-        10 ** (significance - 1),
-    )
-    magnitude = 10 ** (significance - 1 - np.floor(np.log10(abscol)))
-    return np.round(datacol * magnitude) / magnitude
-
 
 def check_cols(
     df: pd.DataFrame,
@@ -152,8 +145,7 @@ def check_cols(
         label = f" ({context})" if context else ""
         available = list(df.columns)
         raise ValueError(
-            f"Column(s) not found{label}: {missing}.  "
-            f"Available columns: {available}"
+            f"Column(s) not found{label}: {missing}.  Available columns: {available}"
         )
 
 
@@ -169,6 +161,7 @@ def globnames(names: list[str], columns: list[str]) -> list[list[str]]:
 # I/O class
 # ---------------------------------------------------------------------------
 
+
 class io:
     """Namespace for parser factories and read/write helpers."""
 
@@ -177,7 +170,9 @@ class io:
     # ------------------------------------------------------------------ #
 
     @staticmethod
-    def parser_read(parser: argparse.ArgumentParser | None = None) -> argparse.ArgumentParser:
+    def parser_read(
+        parser: argparse.ArgumentParser | None = None,
+    ) -> argparse.ArgumentParser:
         if parser is None:
             parser = argparse.ArgumentParser(description="Read data into a dataframe")
 
@@ -186,7 +181,9 @@ class io:
             "DATAFILE",
             help=(
                 "Input file (tab-separated, or .parquet).  "
-                "Omit or use - to read from stdin."
+                "Omit or use - to read TSV from stdin.  "
+                "Use ... to read a parquet path from stdin "
+                "(written by a previous -o command)."
             ),
             nargs="?",
             default=None,
@@ -250,7 +247,9 @@ class io:
 
         dtype = None
         if readasobject is not None:
-            dtype = object if len(readasobject) == 0 else {c: object for c in readasobject}
+            dtype = (
+                object if len(readasobject) == 0 else {c: object for c in readasobject}
+            )
 
         # -- helpers -------------------------------------------------------
 
@@ -283,7 +282,22 @@ class io:
 
         # -- read ----------------------------------------------------------
 
-        if filename is not None and filename != "-":
+        if filename == "...":
+            # Parquet-pipe mode: read a path from stdin, load that parquet file.
+            pipe_path = sys.stdin.readline().rstrip("\r\n")
+            if not pipe_path.endswith(".parquet") or not os.path.isfile(pipe_path):
+                raise ValueError(
+                    f"'...' expects a .parquet path on stdin, got {pipe_path!r}"
+                )
+            df = pd.read_parquet(pipe_path)
+            df.attrs["_parquet_meta"] = _read_parquet_meta(pipe_path)
+            if _is_temp_pipe_path(pipe_path):
+                try:
+                    os.unlink(pipe_path)
+                except OSError as exc:
+                    logging.warning(f"Could not remove pipe file {pipe_path!r}: {exc}")
+
+        elif filename is not None and filename != "-":
             # Named file
             if filename.endswith(".parquet"):
                 df = pd.read_parquet(filename)
@@ -306,21 +320,8 @@ class io:
                 df = _csv_from_file(filename)
 
         else:
-            # stdin — peek at the first line to detect a parquet pipe path
-            first_bytes = sys.stdin.buffer.readline()
-            first_line = first_bytes.decode("utf-8").rstrip("\r\n")
-
-            if _is_pipe_path(first_line):
-                df = pd.read_parquet(first_line)
-                df.attrs["_parquet_meta"] = _read_parquet_meta(first_line)
-                if _is_temp_pipe_path(first_line):
-                    try:
-                        os.unlink(first_line)
-                    except OSError as exc:
-                        logging.warning(f"Could not remove pipe file {first_line!r}: {exc}")
-            else:
-                rest = sys.stdin.buffer.read()
-                df = _csv_from_bytes(first_bytes + rest)
+            # stdin — read TSV directly
+            df = _csv_from_bytes(sys.stdin.buffer.read())
 
         # -- prequery ------------------------------------------------------
 
@@ -338,7 +339,9 @@ class io:
     # ------------------------------------------------------------------ #
 
     @staticmethod
-    def parser_output(parser: argparse.ArgumentParser | None = None) -> argparse.ArgumentParser:
+    def parser_output(
+        parser: argparse.ArgumentParser | None = None,
+    ) -> argparse.ArgumentParser:
         """Add output options to *parser*.
 
         The key option is ``-o / --output`` with three modes:
@@ -353,10 +356,11 @@ class io:
         g = parser.add_argument_group("data output")
 
         g.add_argument(
-            "-o", "--output",
+            "-o",
+            "--output",
             nargs="?",
-            const="",       # -o with no argument → pipe mode (empty string sentinel)
-            default=None,   # absent → TSV to stdout
+            const="",  # -o with no argument → pipe mode (empty string sentinel)
+            default=None,  # absent → TSV to stdout
             metavar="FILE",
             help=(
                 "Output destination.  "
@@ -400,13 +404,6 @@ class io:
             metavar="COL",
         )
         g.add_argument(
-            "--expect",
-            help="Columns that must exist in output; added as NaN if missing.",
-            nargs="*",
-            default=None,
-            metavar="COL",
-        )
-        g.add_argument(
             "--cast",
             help="Cast column to dtype (COL:TYPE).  Glob patterns supported.",
             nargs="*",
@@ -414,34 +411,10 @@ class io:
             metavar="COL:TYPE",
         )
         g.add_argument(
-            "--movetofront",
-            help="Move named columns to the first position.",
-            nargs="*",
-            default=None,
-            metavar="COL",
-        )
-        g.add_argument(
-            "--movetoback",
-            help="Move named columns to the last position.",
-            nargs="*",
-            default=None,
-            metavar="COL",
-        )
-        g.add_argument(
             "--round",
             help=(
                 "Round columns to N decimal places (COL:N).  "
                 "A bare integer N rounds all float columns."
-            ),
-            nargs="*",
-            default=None,
-            metavar="COL:N",
-        )
-        g.add_argument(
-            "--sigdig",
-            help=(
-                "Round columns to N significant digits (COL:N).  "
-                "A bare integer N applies to all float columns."
             ),
             nargs="*",
             default=None,
@@ -618,16 +591,11 @@ class io:
                 except KeyError:
                     pass
 
-        # Ensure expected columns exist
-        for col in getattr(args, "expect", None) or []:
-            if col not in df.columns:
-                df[col] = np.nan
-
         # Select / reorder columns.
         # IMPORTANT: this block intentionally runs against the *output* DataFrame
         # that was passed to printdf (i.e. after the command has generated any new
         # columns such as "mean" from stat or "y" from eval).  Never call
-        # check_cols() on --select / --movetofront / --move arguments against the
+        # check_cols() on --select / --move arguments against the
         # *input* DataFrame inside a command, because those columns may not exist
         # there yet.
         select = getattr(args, "select", None)
@@ -635,7 +603,7 @@ class io:
             if len(select) == 1:
                 try:
                     first, last = select[0].split(":")
-                    select = list(df.columns[int(first) - 1: int(last)])
+                    select = list(df.columns[int(first) - 1 : int(last)])
                 except Exception:
                     pass
             try:
@@ -672,44 +640,6 @@ class io:
                             df[c] = df[c].round(n)
                 except Exception:
                     pass
-
-        # Significant digits
-        for item in getattr(args, "sigdig", None) or []:
-            try:
-                col, n = item.split(":")
-                for c in fnmatch.filter(df.columns, col):
-                    df[c] = significant_digits(df[c], int(n))
-            except Exception:
-                try:
-                    n = int(item)
-                    for c in df.columns:
-                        if df[c].dtype == np.float64:
-                            df[c] = significant_digits(df[c], n)
-                except Exception:
-                    pass
-
-        # Move to front / back
-        for col in getattr(args, "movetofront", None) or []:
-            if col not in df.columns:
-                logging.warning(
-                    f"--movetofront: column {col!r} not found "
-                    f"(available: {list(df.columns)})"
-                )
-                continue
-            cols = list(df.columns)
-            cols.insert(0, cols.pop(cols.index(col)))
-            df = df[cols]
-
-        for col in getattr(args, "movetoback", None) or []:
-            if col not in df.columns:
-                logging.warning(
-                    f"--movetoback: column {col!r} not found "
-                    f"(available: {list(df.columns)})"
-                )
-                continue
-            cols = list(df.columns)
-            cols.append(cols.pop(cols.index(col)))
-            df = df[cols]
 
         # Deduplicate
         dedup = getattr(args, "deduplicate", None)
@@ -766,5 +696,5 @@ class io:
                     quoting=csv.QUOTE_NONE,
                     doublequote=False,
                 )
-            except (BrokenPipeError, IOError):
+            except (OSError, BrokenPipeError):
                 sys.stderr.close()

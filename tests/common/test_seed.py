@@ -2,13 +2,10 @@
 Tests for stattools.common.seed.normalize_seed.
 """
 
-import pytest
-
 from stattools.common.seed import normalize_seed
 
 
 class TestNormalizeSeed:
-
     def test_none_returns_none(self):
         assert normalize_seed(None) is None
 

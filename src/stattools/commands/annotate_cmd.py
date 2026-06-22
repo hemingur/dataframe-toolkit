@@ -33,11 +33,9 @@ overridden.
 import argparse
 import sys
 
-import pyarrow as pa
 import pyarrow.parquet as pq
 
 from stattools.commands.base import BaseCommand
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -71,7 +69,6 @@ def _write_meta(path: str, meta: dict[str, str]) -> None:
 
 
 class AnnotateCommand(BaseCommand):
-
     @property
     def name(self) -> str:
         return "annotate"
@@ -82,6 +79,7 @@ class AnnotateCommand(BaseCommand):
 
     def add_arguments(self, parser: argparse.ArgumentParser) -> None:
         import argparse as ap
+
         parser.formatter_class = ap.RawDescriptionHelpFormatter
         parser.description = __doc__
 
@@ -122,8 +120,10 @@ class AnnotateCommand(BaseCommand):
         path: str = args.PARQUET
 
         if not path.endswith(".parquet"):
-            print(f"annotate: {path!r} does not appear to be a parquet file.",
-                  file=sys.stderr)
+            print(
+                f"annotate: {path!r} does not appear to be a parquet file.",
+                file=sys.stderr,
+            )
             sys.exit(1)
 
         # ---- mutations (--set / --delete / --clear) — applied first -------
@@ -136,8 +136,10 @@ class AnnotateCommand(BaseCommand):
                     k, v = item.split("=", 1)
                     meta[k.strip()] = v.strip()
                 except ValueError:
-                    print(f"annotate --set: expected KEY=VALUE, got {item!r}",
-                          file=sys.stderr)
+                    print(
+                        f"annotate --set: expected KEY=VALUE, got {item!r}",
+                        file=sys.stderr,
+                    )
                     sys.exit(1)
 
             for key in args.delete_keys:
@@ -152,8 +154,9 @@ class AnnotateCommand(BaseCommand):
         if args.get_key is not None:
             value = meta.get(args.get_key)
             if value is None:
-                print(f"annotate --get: key {args.get_key!r} not found.",
-                      file=sys.stderr)
+                print(
+                    f"annotate --get: key {args.get_key!r} not found.", file=sys.stderr
+                )
                 sys.exit(1)
             print(value)
         else:

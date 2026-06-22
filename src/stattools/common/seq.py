@@ -124,7 +124,7 @@ def read_offset(
             offset_list += [last + i + 1 for i in range(steps)]
             last = offset_list[-1]
         elif op == "I":
-            offset_list += [last + i + 1 for i in range(steps)]
+            offset_list += [-1] * steps  # insertions consume read but not reference
         elif op == "S" and not got_soft_clip:
             offset_list += [-1] * steps
             last = offset_list[-1]

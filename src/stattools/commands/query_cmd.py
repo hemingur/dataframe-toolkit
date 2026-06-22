@@ -17,7 +17,7 @@ sql mode  (--sql)
     a virtual table named "data" (override with --table).  Any SQL that
     DuckDB supports is valid: SELECT, aggregation, window functions, CTEs.
 
-      dfstat query data.tsv --sql "SELECT group, AVG(x) AS mean FROM data GROUP BY group"
+      dfstat query data.tsv --sql "SELECT grp, AVG(x) AS mean FROM data GROUP BY grp"
 
     When the input is a named .parquet file, DuckDB queries it natively
     without loading the full file into memory — suitable for large datasets.
@@ -25,9 +25,9 @@ sql mode  (--sql)
     Requires: pip install duckdb
 """
 
-import os
-import logging
 import argparse
+import logging
+import os
 
 import pandas as pd
 
@@ -36,6 +36,7 @@ from stattools.common.io import io
 
 try:
     import duckdb
+
     _HAS_DUCKDB = True
 except ImportError:
     duckdb = None
@@ -68,9 +69,7 @@ def _sql_query(args: argparse.Namespace, sql: str, table: str) -> pd.DataFrame:
     read into a pandas DataFrame first and then registered with DuckDB.
     """
     if not _HAS_DUCKDB:
-        raise ImportError(
-            "--sql requires the duckdb package: pip install duckdb"
-        )
+        raise ImportError("--sql requires the duckdb package: pip install duckdb")
 
     conn = duckdb.connect()
     filename: str | None = getattr(args, "DATAFILE", None)
@@ -185,7 +184,8 @@ class QueryCommand(BaseCommand):
 
         g = parser.add_argument_group("query options")
         g.add_argument(
-            "-q", "--query",
+            "-q",
+            "--query",
             action="append",
             default=[],
             metavar="EXPR",

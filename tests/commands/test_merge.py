@@ -11,10 +11,8 @@ from stattools.commands.merge_cmd import (
     MergeCommand,
     _do_merge,
     _expand_select,
-    _filter_only,
     _set_suffixes,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -23,29 +21,35 @@ from stattools.commands.merge_cmd import (
 
 @pytest.fixture
 def left_df():
-    return pd.DataFrame({
-        "id":    [1, 2, 3],
-        "name":  ["Alice", "Bob", "Carol"],
-        "score": [10.0, 20.0, 30.0],
-    })
+    return pd.DataFrame(
+        {
+            "id": [1, 2, 3],
+            "name": ["Alice", "Bob", "Carol"],
+            "score": [10.0, 20.0, 30.0],
+        }
+    )
 
 
 @pytest.fixture
 def right_df():
-    return pd.DataFrame({
-        "id":      [1, 2, 4],
-        "country": ["US", "UK", "CA"],
-        "score":   [100.0, 200.0, 400.0],  # duplicate column name
-    })
+    return pd.DataFrame(
+        {
+            "id": [1, 2, 4],
+            "country": ["US", "UK", "CA"],
+            "score": [100.0, 200.0, 400.0],  # duplicate column name
+        }
+    )
 
 
 @pytest.fixture
 def right_mapped_df():
     """Right file with differently-named key column."""
-    return pd.DataFrame({
-        "person_id": [1, 2, 4],
-        "tag":       ["x", "y", "z"],
-    })
+    return pd.DataFrame(
+        {
+            "person_id": [1, 2, 4],
+            "tag": ["x", "y", "z"],
+        }
+    )
 
 
 def _merge_args(**overrides):
@@ -73,7 +77,6 @@ def _merge_args(**overrides):
 
 
 class TestSetSuffixes:
-
     def test_default_suffixes(self):
         args = argparse.Namespace(type="inner", only=None)
         _set_suffixes(args)
@@ -107,7 +110,6 @@ class TestSetSuffixes:
 
 
 class TestExpandSelect:
-
     def _make_args(self, select):
         args = argparse.Namespace(select=select, suffixes=("", "_r"))
         return args
@@ -152,7 +154,6 @@ class TestExpandSelect:
 
 
 class TestDoMergeInner:
-
     def test_common_key_inner_join(self, left_df, right_df):
         args = _merge_args(keys=["id"])
         result = _do_merge(left_df, right_df, args)
@@ -163,8 +164,8 @@ class TestDoMergeInner:
     def test_duplicate_col_gets_r_suffix(self, left_df, right_df):
         args = _merge_args(keys=["id"])
         result = _do_merge(left_df, right_df, args)
-        assert "score" in result.columns      # left side, no suffix
-        assert "score_r" in result.columns    # right side, _r suffix
+        assert "score" in result.columns  # left side, no suffix
+        assert "score_r" in result.columns  # right side, _r suffix
 
     def test_mapped_key_merge(self, left_df, right_mapped_df):
         args = _merge_args(left_on=["id"], right_on=["person_id"])
@@ -181,7 +182,7 @@ class TestDoMergeInner:
         args = _merge_args(keys=["id"], type="left")
         _set_suffixes(args)
         result = _do_merge(left_df, right_df, args)
-        assert len(result) == 3   # all left rows preserved
+        assert len(result) == 3  # all left rows preserved
         assert set(result["id"]) == {1, 2, 3}
 
     def test_right_join_keeps_unmatched(self, left_df, right_df):
@@ -197,7 +198,6 @@ class TestDoMergeInner:
 
 
 class TestDoMergeSelectToken:
-
     def test_select_left_expands_args_select(self, left_df, right_df):
         # [:left:] is expanded in-place on args.select before the merge.
         # _do_merge returns the full merged df; io.printdf applies the select.
@@ -226,7 +226,6 @@ class TestDoMergeSelectToken:
 
 
 class TestDoMergeOnly:
-
     def test_only_left_returns_unmatched_left_rows(self, left_df, right_df):
         args = _merge_args(keys=["id"], only="left")
         result = _do_merge(left_df, right_df, args)
@@ -261,7 +260,6 @@ class TestDoMergeOnly:
 
 
 class TestDoMergeCross:
-
     def test_cross_join_row_count(self, left_df, right_df):
         # 3 left rows × 3 right rows = 9
         args = _merge_args(type="cross")
@@ -291,7 +289,6 @@ class TestDoMergeCross:
 
 
 class TestDoMergeOuter:
-
     def test_outer_join_all_ids(self, left_df, right_df):
         args = _merge_args(keys=["id"], type="outer")
         _set_suffixes(args)
@@ -311,7 +308,6 @@ class TestDoMergeOuter:
 
 
 class TestSelfJoin:
-
     def test_self_join_inner_returns_all_rows(self, left_df):
         # Joining a df with itself on a unique key returns the same rows
         args = _merge_args(keys=["id"])
@@ -341,6 +337,6 @@ class TestSelfJoin:
 
     def test_self_join_right_dash_copies_left(self, left_df):
         # When -r -, df_right should be a copy of df_left (independent object)
-        df_right = left_df.copy()   # simulate what execute() does
+        df_right = left_df.copy()  # simulate what execute() does
         df_right.iloc[0, 0] = 999  # mutate right copy
         assert left_df.iloc[0, 0] != 999  # left must be unaffected

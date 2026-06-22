@@ -19,7 +19,7 @@ import matplotlib.lines as mlines
 import numpy as np
 
 from stattools.commands.base import BaseCommand
-from stattools.common.io import io, check_cols
+from stattools.common.io import check_cols, io
 from stattools.common.plot import (
     add_figure_arguments,
     add_group_arguments,
@@ -32,6 +32,7 @@ from stattools.common.plot import (
     make_figure,
     make_grouplabel,
     save_or_show,
+    subgraph_groups,
     subgraph_layout,
 )
 
@@ -39,9 +40,11 @@ from stattools.common.plot import (
 # Fit overlay
 # ---------------------------------------------------------------------------
 
+
 def _fit_overlay(ax, x_series, y_series, args):
     """Fit a regression line and overlay it on ax. Prints summary to stdout."""
     import pandas as pd
+
     from stattools.commands.fit_cmd import regress_it
 
     df_fit = pd.DataFrame({"_x": x_series.values, "_y": y_series.values}).dropna()
@@ -81,9 +84,11 @@ def _fit_overlay(ax, x_series, y_series, args):
 # Single-axes scatter (reused per subplot)
 # ---------------------------------------------------------------------------
 
+
 def _scatter_ax(ax, df, args, title_suffix: str = ""):
     """Draw scatter on a single Axes, with optional --groupcol colouring."""
     import matplotlib.pyplot as plt
+
     xcol = args.xcol
     ycol = args.ycol
     legendloc = tuple(args.legendloc) if args.legendloc else "best"
@@ -91,8 +96,12 @@ def _scatter_ax(ax, df, args, title_suffix: str = ""):
     scatter_kw = dict(marker=getattr(args, "marker", "o"), alpha=0.7)
 
     if args.groupcol is not None:
-        for groupname, gdf in df.groupby(args.groupcol):
-            label = make_grouplabel(groupname, args.groupcol)
+        for groupname, gdf in subgraph_groups(
+            df, args.groupcol, getattr(args, "groupcolorder", None)
+        ):
+            label = make_grouplabel(
+                groupname, args.groupcol, getattr(args, "groupcolformat", None)
+            )
             kw = dict(scatter_kw)
             if args.sizecol:
                 kw["s"] = gdf[args.sizecol]
@@ -103,8 +112,9 @@ def _scatter_ax(ax, df, args, title_suffix: str = ""):
         if args.sizecol:
             kw["s"] = df[args.sizecol]
         if args.colorcol:
-            sc = ax.scatter(df[xcol], df[ycol], c=df[args.colorcol],
-                            cmap="viridis", **kw)
+            sc = ax.scatter(
+                df[xcol], df[ycol], c=df[args.colorcol], cmap="viridis", **kw
+            )
             plt.colorbar(sc, ax=ax, label=args.colorcol)
         else:
             label = args.legend or ""
@@ -117,9 +127,7 @@ def _scatter_ax(ax, df, args, title_suffix: str = ""):
 
     apply_limits(ax, args)
     apply_ticks(ax, args)
-    apply_labels(ax, args,
-                 default_xlabel=xcol or "",
-                 default_ylabel=ycol or "")
+    apply_labels(ax, args, default_xlabel=xcol or "", default_ylabel=ycol or "")
     if title_suffix:
         existing = ax.get_title()
         ax.set_title(f"{existing}  [{title_suffix}]" if existing else title_suffix)
@@ -179,23 +187,46 @@ class ScatCommand(BaseCommand):
         add_legend_arguments(parser)
 
         s = parser.add_argument_group("scatter options")
-        s.add_argument("-m", "--marker", default="o", metavar="MARKER",
-                       help="Matplotlib marker style (default: o).")
-        s.add_argument("--sizecol", default=None, metavar="COL",
-                       help="Column to use for point sizes (bubble chart).")
-        s.add_argument("--colorcol", default=None, metavar="COL",
-                       help="Column for continuous colour mapping.")
+        s.add_argument(
+            "-m",
+            "--marker",
+            default="o",
+            metavar="MARKER",
+            help="Matplotlib marker style (default: o).",
+        )
+        s.add_argument(
+            "--sizecol",
+            default=None,
+            metavar="COL",
+            help="Column to use for point sizes (bubble chart).",
+        )
+        s.add_argument(
+            "--colorcol",
+            default=None,
+            metavar="COL",
+            help="Column for continuous colour mapping.",
+        )
 
         f = parser.add_argument_group("fit options")
-        f.add_argument("--fit", action="store_true",
-                       help="Overlay an OLS regression line. "
-                            "Prints summary to stderr.")
-        f.add_argument("-r", "--robust", action="store_true",
-                       help="Use robust regression (RLM) for --fit.")
-        f.add_argument("--nointercept", action="store_true",
-                       help="Suppress intercept in --fit.")
-        f.add_argument("--pvalue", action="store_true",
-                       help="Add −log₁₀(p) to the fit legend label.")
+        f.add_argument(
+            "--fit",
+            action="store_true",
+            help="Overlay an OLS regression line. Prints summary to stderr.",
+        )
+        f.add_argument(
+            "-r",
+            "--robust",
+            action="store_true",
+            help="Use robust regression (RLM) for --fit.",
+        )
+        f.add_argument(
+            "--nointercept", action="store_true", help="Suppress intercept in --fit."
+        )
+        f.add_argument(
+            "--pvalue",
+            action="store_true",
+            help="Add −log₁₀(p) to the fit legend label.",
+        )
 
     def execute(self, args: argparse.Namespace) -> None:
         if not args.xcol or not args.ycol:
@@ -213,21 +244,27 @@ class ScatCommand(BaseCommand):
         # Use non-interactive backend when saving to file
         if args.file:
             import matplotlib
+
             matplotlib.use("Agg")
 
         import matplotlib.pyplot as plt
+
         if args.usetex:
             plt.rc("text", usetex=True)
 
         apply_style(args)
 
         if args.subgraphcol is not None:
-            groups = list(df.groupby(args.subgraphcol))
+            groups = subgraph_groups(
+                df, args.subgraphcol, getattr(args, "subgraphorder", None)
+            )
             nrows, ncols = subgraph_layout(len(groups), args.ncols)
             fig, axes = make_figure(args, nrows=nrows, ncols=ncols)
             for idx, (groupname, gdf) in enumerate(groups):
                 ax = axes[idx // ncols][idx % ncols]
-                suffix = make_grouplabel(groupname, args.subgraphcol)
+                suffix = make_grouplabel(
+                    groupname, args.subgraphcol, getattr(args, "subgraphformat", None)
+                )
                 _scatter_ax(ax, gdf, args, title_suffix=suffix)
             # Hide unused axes
             for idx in range(len(groups), nrows * ncols):

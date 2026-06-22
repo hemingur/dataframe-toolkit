@@ -13,10 +13,10 @@ import pytest
 
 from stattools.commands.interp_cmd import InterpCommand
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _tsv(df: pd.DataFrame) -> str:
     f = tempfile.NamedTemporaryFile(suffix=".tsv", mode="w", delete=False)
@@ -38,14 +38,28 @@ def _run(data_df: pd.DataFrame, ref_df: pd.DataFrame, **kwargs):
         groupcol=None,
         method="linear",
         fill="nan",
-        select=None, drop=None, move=None, na_rep=None, dropna=False,
-        postquery=[], cast=None, sortasc=None, sortdesc=None, sort=None,
-        expect=None, round=None, sigdig=None,
-        movetofront=None, movetoback=None,
-        deduplicate=None, noheader=False, removeheader=False,
-        output=None, digits=None, errortag="-",
-        backend="pandas", nrows=None, delimiter=None,
-        readasobject=None, prequery=[],
+        select=None,
+        drop=None,
+        move=None,
+        na_rep=None,
+        dropna=False,
+        postquery=[],
+        cast=None,
+        sortasc=None,
+        sortdesc=None,
+        sort=None,
+        round=None,
+        deduplicate=None,
+        noheader=False,
+        removeheader=False,
+        output=None,
+        digits=None,
+        errortag="-",
+        backend="pandas",
+        nrows=None,
+        delimiter=None,
+        readasobject=None,
+        prequery=[],
     )
     defaults.update(kwargs)
     args = argparse.Namespace(**defaults)
@@ -58,9 +72,9 @@ def _run(data_df: pd.DataFrame, ref_df: pd.DataFrame, **kwargs):
         sys.stdout = old
         os.unlink(data_file)
         os.unlink(ref_file)
-    lines = [l for l in buf.getvalue().splitlines() if l.strip()]
+    lines = [line for line in buf.getvalue().splitlines() if line.strip()]
     header = lines[0].split("\t")
-    rows = [dict(zip(header, l.split("\t"))) for l in lines[1:]]
+    rows = [dict(zip(header, line.split("\t"), strict=False)) for line in lines[1:]]
     # Replace empty strings (NaN in TSV) with float("nan") for convenience
     for r in rows:
         for k, v in r.items():
@@ -85,8 +99,8 @@ def data_df():
 # Basic interpolation
 # ---------------------------------------------------------------------------
 
-class TestInterpBasic:
 
+class TestInterpBasic:
     def test_column_added(self, data_df, linear_ref):
         rows = _run(data_df, linear_ref)
         assert "y" in rows[0]
@@ -128,8 +142,8 @@ class TestInterpBasic:
 # Out-of-range fill
 # ---------------------------------------------------------------------------
 
-class TestFill:
 
+class TestFill:
     def test_out_of_range_nan_default(self, linear_ref):
         data = pd.DataFrame({"x": [-1.0, 11.0]})
         rows = _run(data, linear_ref, fill="nan")
@@ -148,14 +162,14 @@ class TestFill:
 # Multiple value columns
 # ---------------------------------------------------------------------------
 
-class TestMultipleValCols:
 
+class TestMultipleValCols:
     def test_two_val_cols(self, data_df):
         ref = pd.DataFrame({"x": [0.0, 10.0], "y1": [0.0, 10.0], "y2": [0.0, 20.0]})
         rows = _run(data_df, ref, val=["y1", "y2"], destcol=["out1", "out2"])
         assert "out1" in rows[0]
         assert "out2" in rows[0]
-        assert float(rows[2]["out1"]) == pytest.approx(5.0)   # x=5, y1=5
+        assert float(rows[2]["out1"]) == pytest.approx(5.0)  # x=5, y1=5
         assert float(rows[2]["out2"]) == pytest.approx(10.0)  # x=5, y2=10
 
     def test_destcol_mismatch_raises(self, data_df, linear_ref):
@@ -167,8 +181,8 @@ class TestMultipleValCols:
 # Grouped interpolation
 # ---------------------------------------------------------------------------
 
-class TestGrouped:
 
+class TestGrouped:
     def _make_grouped_ref(self):
         """Two groups A and B with different linear curves."""
         df_a = pd.DataFrame({"group": "A", "x": [0.0, 10.0], "y": [0.0, 10.0]})
@@ -198,8 +212,8 @@ class TestGrouped:
 # Interpolation methods
 # ---------------------------------------------------------------------------
 
-class TestMethods:
 
+class TestMethods:
     def test_nearest_method(self):
         ref = pd.DataFrame({"x": [0.0, 10.0], "y": [0.0, 100.0]})
         data = pd.DataFrame({"x": [3.0, 7.0]})
@@ -211,7 +225,7 @@ class TestMethods:
     def test_cubic_method(self):
         # Cubic needs at least 4 points
         x = np.linspace(0, 10, 20)
-        ref = pd.DataFrame({"x": x, "y": x ** 2})
+        ref = pd.DataFrame({"x": x, "y": x**2})
         data = pd.DataFrame({"x": [5.0]})
         rows = _run(data, ref, method="cubic")
         assert float(rows[0]["y"]) == pytest.approx(25.0, abs=0.1)
@@ -221,8 +235,8 @@ class TestMethods:
 # Validation
 # ---------------------------------------------------------------------------
 
-class TestValidation:
 
+class TestValidation:
     def test_missing_xcol_raises(self, linear_ref):
         data = pd.DataFrame({"pos": [1.0, 2.0]})
         with pytest.raises(ValueError, match="no_col"):

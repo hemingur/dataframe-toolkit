@@ -7,10 +7,8 @@ expected statistical values are exactly known without extra dependencies.
 
 import argparse
 
-import numpy as np
 import pandas as pd
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # DataFrame fixtures
@@ -65,17 +63,41 @@ def two_group_two_col_df() -> pd.DataFrame:
 
 
 def make_args(**overrides) -> argparse.Namespace:
-    """Return an args Namespace with stat-command defaults.
+    """Return an args Namespace pre-filled with all standard I/O defaults.
 
-    Pass keyword arguments to override any field.  For example::
+    Covers every field added by ``io.parser_read`` and ``io.parser_output``.
+    Pass command-specific fields as keyword overrides::
 
         args = make_args(cols=["x"], groupcol=["group"])
+        args = make_args(samplesize=50, randomseed="42")
     """
     defaults = dict(
-        cols=["x"],
-        groupcol=None,
-        confidencelevel=95.0,
-        confidencemethod="linear",
+        # io.parser_read
+        DATAFILE=None,
+        backend="pandas",
+        noheader=False,
+        nrows=None,
+        delimiter=None,
+        readasobject=None,
+        prequery=[],
+        # io.parser_output
+        output=None,
+        digits=None,
+        drop=None,
+        move=None,
+        select=None,
+        cast=None,
+        round=None,
+        removeheader=False,
+        deduplicate=None,
+        postquery=[],
+        meta=[],
+        errortag="-",
+        sortasc=None,
+        sortdesc=None,
+        sort=None,
+        na_rep=None,
+        dropna=False,
     )
     defaults.update(overrides)
     return argparse.Namespace(**defaults)

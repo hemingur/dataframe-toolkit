@@ -21,11 +21,13 @@ duckdb = pytest.importorskip("duckdb", reason="duckdb not installed")
 
 @pytest.fixture
 def sample_df():
-    return pd.DataFrame({
-        "group":  ["A", "A", "B", "B", "B"],
-        "x":      [1.0, 3.0, 2.0, 4.0, 6.0],
-        "label":  ["foo", "bar", "foo", "baz", "foo"],
-    })
+    return pd.DataFrame(
+        {
+            "group": ["A", "A", "B", "B", "B"],
+            "x": [1.0, 3.0, 2.0, 4.0, 6.0],
+            "label": ["foo", "bar", "foo", "baz", "foo"],
+        }
+    )
 
 
 def _args(**overrides):
@@ -40,7 +42,6 @@ def _args(**overrides):
 
 
 class TestPandasQuery:
-
     def test_single_filter(self, sample_df):
         result = _pandas_query(sample_df, ["x > 2"])
         assert list(result["x"]) == [3.0, 4.0, 6.0]
@@ -73,7 +74,6 @@ class TestPandasQuery:
 
 
 class TestSqlQueryInMemory:
-
     def test_simple_where(self, sample_df):
         args = _args()
         # Pass df as a pre-registered source by patching DATAFILE to None
@@ -97,12 +97,16 @@ class TestSqlQueryInMemory:
             args = _args(DATAFILE=fname)
             result = _sql_query(
                 args,
-                "SELECT \"group\", AVG(x) AS mean FROM data GROUP BY \"group\" ORDER BY \"group\"",
+                'SELECT "group", AVG(x) AS mean FROM data GROUP BY "group" ORDER BY "group"',  # noqa: E501
                 "data",
             )
             assert list(result["group"]) == ["A", "B"]
-            assert result.loc[result["group"] == "A", "mean"].iloc[0] == pytest.approx(2.0)
-            assert result.loc[result["group"] == "B", "mean"].iloc[0] == pytest.approx(4.0)
+            assert result.loc[result["group"] == "A", "mean"].iloc[0] == pytest.approx(
+                2.0
+            )  # noqa: E501
+            assert result.loc[result["group"] == "B", "mean"].iloc[0] == pytest.approx(
+                4.0
+            )  # noqa: E501
         finally:
             os.unlink(fname)
 
@@ -114,7 +118,7 @@ class TestSqlQueryInMemory:
             args = _args(DATAFILE=fname)
             result = _sql_query(
                 args,
-                'SELECT *, ROW_NUMBER() OVER (PARTITION BY "group" ORDER BY x) AS rn FROM data',
+                'SELECT *, ROW_NUMBER() OVER (PARTITION BY "group" ORDER BY x) AS rn FROM data',  # noqa: E501
                 "data",
             )
             assert "rn" in result.columns
@@ -152,7 +156,6 @@ class TestSqlQueryInMemory:
 
 
 class TestSqlQueryNativeParquet:
-
     def test_parquet_where(self, sample_df):
         with tempfile.NamedTemporaryFile(suffix=".parquet", delete=False) as f:
             fname = f.name
@@ -172,7 +175,7 @@ class TestSqlQueryNativeParquet:
             args = _args(DATAFILE=fname)
             result = _sql_query(
                 args,
-                "SELECT \"group\", COUNT(*) AS n FROM data GROUP BY \"group\" ORDER BY \"group\"",
+                'SELECT "group", COUNT(*) AS n FROM data GROUP BY "group" ORDER BY "group"',  # noqa: E501
                 "data",
             )
             assert list(result["n"]) == [2, 3]
@@ -200,7 +203,6 @@ class TestSqlQueryNativeParquet:
 
 
 class TestQueryCommandValidation:
-
     def test_combined_q_and_sql_raises(self):
         cmd = QueryCommand()
         args = argparse.Namespace(

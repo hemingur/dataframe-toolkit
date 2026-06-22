@@ -19,14 +19,14 @@ Key features
   The left file defaults to stdin, making it parquet-pipe friendly.
 """
 
-import uuid
-import logging
 import argparse
+import logging
+import uuid
 
 import pandas as pd
 
 from stattools.commands.base import BaseCommand
-from stattools.common.io import io, check_cols
+from stattools.common.io import check_cols, io
 
 logger = logging.getLogger(__name__)
 
@@ -75,14 +75,14 @@ def _expand_select(
 
     try:
         idx = select.index("[:left:]")
-        select[idx: idx + 1] = list(left_cols)
+        select[idx : idx + 1] = list(left_cols)
         return ("", "_r")
     except ValueError:
         pass
 
     try:
         idx = select.index("[:right:]")
-        select[idx: idx + 1] = list(right_cols)
+        select[idx : idx + 1] = list(right_cols)
         return ("_l", "")
     except ValueError:
         pass
@@ -173,7 +173,8 @@ def _do_merge(
         )
     else:
         raise ValueError(
-            "Specify -k/--keys for common columns, or both -lo and -ro for mapped columns."
+            "Specify -k/--keys for common columns, "
+            "or both -lo and -ro for mapped columns."
         )
 
     df_merged = _filter_only(df_merged, df_left, df_right, args)
@@ -273,7 +274,8 @@ class MergeCommand(BaseCommand):
 
         g = parser.add_argument_group("merge options")
         g.add_argument(
-            "-l", "--leftfile",
+            "-l",
+            "--leftfile",
             default=None,
             metavar="FILE",
             help=(
@@ -282,7 +284,8 @@ class MergeCommand(BaseCommand):
             ),
         )
         g.add_argument(
-            "-r", "--rightfile",
+            "-r",
+            "--rightfile",
             default=None,
             metavar="FILE",
             help=(
@@ -292,28 +295,32 @@ class MergeCommand(BaseCommand):
             ),
         )
         g.add_argument(
-            "-k", "--keys",
+            "-k",
+            "--keys",
             nargs="+",
             default=None,
             metavar="COL",
             help="Column name(s) shared by both files on which to merge.",
         )
         g.add_argument(
-            "-lo", "--left_on",
+            "-lo",
+            "--left_on",
             nargs="+",
             default=None,
             metavar="COL",
             help="Left-file key column(s) when names differ from the right file.",
         )
         g.add_argument(
-            "-ro", "--right_on",
+            "-ro",
+            "--right_on",
             nargs="+",
             default=None,
             metavar="COL",
             help="Right-file key column(s) when names differ from the left file.",
         )
         g.add_argument(
-            "-t", "--type",
+            "-t",
+            "--type",
             choices=["inner", "left", "right", "outer", "cross"],
             default="inner",
             help="Join type (default: inner).",
@@ -323,8 +330,7 @@ class MergeCommand(BaseCommand):
             choices=["left", "right"],
             default=None,
             help=(
-                "Return rows exclusive to one side (anti-join).  "
-                "Implies --type outer."
+                "Return rows exclusive to one side (anti-join).  Implies --type outer."
             ),
         )
 

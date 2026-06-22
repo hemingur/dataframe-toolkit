@@ -1,69 +1,47 @@
 """Tests for stattools.commands.dataset_cmd."""
 
-import argparse
 import io as _io
 import sys
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
 
 from stattools.commands.dataset_cmd import (
     DatasetCommand,
-    _load_seaborn,
-    _load_statsmodels,
     _list_seaborn,
     _list_statsmodels,
+    _load_seaborn,
+    _load_statsmodels,
 )
-
+from tests.conftest import make_args
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 # Minimal iris-like DataFrame for mocking
-_IRIS_DF = pd.DataFrame({
-    "sepal_length": [5.1, 4.9, 4.7],
-    "sepal_width":  [3.5, 3.0, 3.2],
-    "species":      ["setosa", "setosa", "versicolor"],
-})
+_IRIS_DF = pd.DataFrame(
+    {
+        "sepal_length": [5.1, 4.9, 4.7],
+        "sepal_width": [3.5, 3.0, 3.2],
+        "species": ["setosa", "setosa", "versicolor"],
+    }
+)
 
-_TITANIC_DF = pd.DataFrame({
-    "survived": [0, 1, 1],
-    "pclass":   [3, 1, 3],
-    "sex":      ["male", "female", "female"],
-})
+_TITANIC_DF = pd.DataFrame(
+    {
+        "survived": [0, 1, 1],
+        "pclass": [3, 1, 3],
+        "sex": ["male", "female", "female"],
+    }
+)
 
 
 def _make_args(**kwargs):
-    defaults = dict(
-        NAME=None,
-        source=None,
-        list_datasets=False,
-        output=None,
-        select=None,
-        drop=None,
-        move=None,
-        na_rep=None,
-        dropna=False,
-        postquery=[],
-        cast=None,
-        sortasc=None,
-        sortdesc=None,
-        sort=None,
-        expect=None,
-        round=None,
-        sigdig=None,
-        movetofront=None,
-        movetoback=None,
-        deduplicate=None,
-        noheader=False,
-        removeheader=False,
-        digits=None,
-        errortag="-",
-    )
+    defaults = dict(NAME=None, source=None, list_datasets=False)
     defaults.update(kwargs)
-    return argparse.Namespace(**defaults)
+    return make_args(**defaults)
 
 
 def _capture_execute(args):
@@ -75,11 +53,11 @@ def _capture_execute(args):
         DatasetCommand().execute(args)
     finally:
         sys.stdout = old
-    lines = [l for l in buf.getvalue().splitlines() if l.strip()]
+    lines = [line for line in buf.getvalue().splitlines() if line.strip()]
     if not lines:
         return []
     header = lines[0].split("\t")
-    return [dict(zip(header, l.split("\t"))) for l in lines[1:]]
+    return [dict(zip(header, line.split("\t"), strict=False)) for line in lines[1:]]
 
 
 def _capture_raw(args):
@@ -98,8 +76,8 @@ def _capture_raw(args):
 # Unit tests: load helpers (mocked)
 # ---------------------------------------------------------------------------
 
-class TestLoadHelpers:
 
+class TestLoadHelpers:
     def test_load_seaborn_calls_sns(self):
         with patch("seaborn.load_dataset", return_value=_IRIS_DF) as mock_load:
             df = _load_seaborn("iris")
@@ -140,8 +118,8 @@ class TestLoadHelpers:
 # Unit tests: DatasetCommand.execute() (mocked)
 # ---------------------------------------------------------------------------
 
-class TestDatasetCommandMocked:
 
+class TestDatasetCommandMocked:
     def test_no_name_no_list_raises(self):
         args = _make_args(NAME=None, list_datasets=False)
         with pytest.raises(ValueError, match="--list"):
@@ -199,7 +177,7 @@ class TestDatasetCommandMocked:
             args = _make_args(list_datasets=True, source=["seaborn"])
             raw = _capture_raw(args)
         lines = raw.strip().splitlines()
-        names = [l.split("\t")[1] for l in lines[1:]]
+        names = [line.split("\t")[1] for line in lines[1:]]
         assert "iris" in names
         assert "tips" in names
 
@@ -237,8 +215,8 @@ class TestDatasetCommandMocked:
 # Integration tests: real bundled datasets (no network needed)
 # ---------------------------------------------------------------------------
 
-class TestDatasetIntegration:
 
+class TestDatasetIntegration:
     def test_seaborn_iris_loads(self):
         """seaborn iris is cached locally."""
         args = _make_args(NAME="iris", source=["seaborn"])
@@ -259,19 +237,19 @@ class TestDatasetIntegration:
         raw = _capture_raw(args)
         lines = raw.strip().splitlines()
         assert lines[0] == "source\tname\tdescription"
-        names = {l.split("\t")[1] for l in lines[1:]}
+        names = {line.split("\t")[1] for line in lines[1:]}
         assert "iris" in names
 
     def test_list_statsmodels_integration(self):
         args = _make_args(list_datasets=True, source=["statsmodels"])
         raw = _capture_raw(args)
-        names = {l.split("\t")[1] for l in raw.strip().splitlines()[1:]}
+        names = {line.split("\t")[1] for line in raw.strip().splitlines()[1:]}
         assert "longley" in names
 
     def test_list_all_sources_no_duplicate_headers(self):
         args = _make_args(list_datasets=True, source=["seaborn", "statsmodels"])
         raw = _capture_raw(args)
-        header_count = sum(1 for l in raw.splitlines() if l.startswith("source\t"))
+        header_count = sum(1 for ln in raw.splitlines() if ln.startswith("source\t"))
         assert header_count == 1
 
     def test_fallthrough_seaborn_to_statsmodels(self):

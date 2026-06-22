@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 
 from stattools.commands.base import BaseCommand
-from stattools.common.io import io, check_cols
+from stattools.common.io import check_cols, io
 from stattools.common.seed import normalize_seed
 
 logger = logging.getLogger(__name__)
@@ -105,14 +105,17 @@ file:
 
 def _ci(name: str, level: float, method: str):
     """Return a named percentile function for use as a pandas agg function."""
+
     def cifunction(a):
         return np.percentile(a, q=level, method=method)
+
     cifunction.__name__ = name
     return cifunction
 
 
 def _bitwise(op: str):
     """Return a named bitwise-reduce function."""
+
     def bitfunction(a):
         if op == "and":
             return np.bitwise_and.reduce(a)
@@ -120,11 +123,14 @@ def _bitwise(op: str):
             return np.bitwise_or.reduce(a)
         if op == "xor":
             return np.bitwise_xor.reduce(a)
+
     bitfunction.__name__ = op
     return bitfunction
 
 
-def _prepare_funcs(aggfuncs: list[str] | None, confidencelevel: float, confidencemethod: str):
+def _prepare_funcs(
+    aggfuncs: list[str] | None, confidencelevel: float, confidencemethod: str
+):
     """Convert aggfunc name strings into a pandas-compatible aggfunc argument.
 
     Returns:
@@ -146,8 +152,18 @@ def _prepare_funcs(aggfuncs: list[str] | None, confidencelevel: float, confidenc
             funcdict.setdefault(colname, [])
 
         if funcname in {
-            "count", "min", "max", "mean", "median", "mode",
-            "sum", "std", "var", "skew", "kurt", "prod",
+            "count",
+            "min",
+            "max",
+            "mean",
+            "median",
+            "mode",
+            "sum",
+            "std",
+            "var",
+            "skew",
+            "kurt",
+            "prod",
         }:
             func = funcname
         elif funcname == "cilo":
@@ -162,7 +178,9 @@ def _prepare_funcs(aggfuncs: list[str] | None, confidencelevel: float, confidenc
             try:
                 func = getattr(np, funcname)
             except AttributeError:
-                raise ValueError(f"Unknown aggregation function: {funcname!r}")
+                raise ValueError(  # noqa: E501
+                    f"Unknown aggregation function: {funcname!r}"
+                ) from None
 
         if funcdict and colname is None:
             raise ValueError(
@@ -207,9 +225,8 @@ def _do_pivot(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
         aggfunc=funcs if funcs is not None else "mean",
     )
 
-    pivoted.columns = _flatten_columns(
-        pivoted.columns.values if hasattr(pivoted.columns, "values") else pivoted.columns
-    )
+    cols = pivoted.columns
+    pivoted.columns = _flatten_columns(cols.values if hasattr(cols, "values") else cols)
 
     if getattr(args, "fillzero", False) and hasattr(pivoted.index, "levels"):
         pidx = pd.MultiIndex.from_product(
@@ -226,7 +243,6 @@ def _do_pivot(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
 
 
 class PivotCommand(BaseCommand):
-
     @property
     def name(self) -> str:
         return "pivot"
@@ -237,6 +253,7 @@ class PivotCommand(BaseCommand):
 
     def add_arguments(self, parser: argparse.ArgumentParser) -> None:
         import argparse as ap
+
         parser.formatter_class = ap.RawDescriptionHelpFormatter
         parser.epilog = _EPILOG
 
@@ -244,28 +261,32 @@ class PivotCommand(BaseCommand):
 
         g = parser.add_argument_group("pivot options")
         g.add_argument(
-            "-v", "--values",
+            "-v",
+            "--values",
             help="Value column(s) to aggregate.",
             nargs="+",
             required=True,
             metavar="COL",
         )
         g.add_argument(
-            "-i", "--index",
+            "-i",
+            "--index",
             help="Column(s) that become row labels in the pivot table.",
             nargs="*",
             default=[],
             metavar="COL",
         )
         g.add_argument(
-            "-g", "--groupcols",
+            "-g",
+            "--groupcols",
             help="Column(s) whose unique values are spread into new column headers.",
             nargs="*",
             default=[],
             metavar="COL",
         )
         g.add_argument(
-            "-f", "--aggfunc",
+            "-f",
+            "--aggfunc",
             help=(
                 "Aggregation function(s).  "
                 "Use bare names (mean std) or COL:FUNC pairs (sales:mean cost:sum).  "
@@ -276,8 +297,9 @@ class PivotCommand(BaseCommand):
             metavar="FUNC",
         )
         g.add_argument(
-            "-z", "--fillzero",
-            help="Reindex to all (index × columns) combinations and fill missing with 0.",
+            "-z",
+            "--fillzero",
+            help="Reindex to all (index × columns) combinations, fill missing with 0.",
             action="store_true",
         )
         g.add_argument(
@@ -297,14 +319,17 @@ class PivotCommand(BaseCommand):
         bs = parser.add_argument_group("bootstrap options")
         bs.add_argument(
             "--bootstrap",
-            help="Number of bootstrap samples.  Produces a single DataFrame with a samplenum column.",
+            help=(
+                "Number of bootstrap samples.  "
+                "Produces a single DataFrame with a samplenum column."
+            ),
             type=int,
             default=None,
             metavar="N",
         )
         bs.add_argument(
             "--randomseed",
-            help="Random seed.  Accepts an integer or an arbitrary string (hashed to uint32).",
+            help="Random seed.  Accepts an integer or a string (hashed to uint32).",
             default=None,
             metavar="SEED",
         )
@@ -360,8 +385,7 @@ class PivotCommand(BaseCommand):
         # ------------------------------------------------------------------
 
         logger.info(
-            f"Bootstrap pivot: {args.bootstrap} samples, "
-            f"seed={args.randomseed}"
+            f"Bootstrap pivot: {args.bootstrap} samples, seed={args.randomseed}"
         )
 
         # Determine sampling mode and build sampling set if needed.

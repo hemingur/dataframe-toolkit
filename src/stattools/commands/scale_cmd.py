@@ -24,16 +24,16 @@ dataframe and written once (cleaner than the old loop-with-removeheader
 approach).
 """
 
-import sys
-import logging
 import argparse
+import logging
+import sys
 
 import numpy as np
 import pandas as pd
 from scipy.stats import norm
 
 from stattools.commands.base import BaseCommand
-from stattools.common.io import io, check_cols
+from stattools.common.io import check_cols, io
 
 logger = logging.getLogger(__name__)
 
@@ -50,10 +50,10 @@ def scalecols(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
         x = df[col].astype(float)
 
         shift_val = {
-            "mean":  x.mean(),
-            "min":   x.min(),
+            "mean": x.mean(),
+            "min": x.min(),
             "first": float(x.iloc[0]),
-            "none":  0.0,
+            "none": 0.0,
         }[args.shift]
 
         shifted = x - shift_val
@@ -63,15 +63,17 @@ def scalecols(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
             continue
 
         scale_val = {
-            "std":  shifted.std(),
-            "sum":  shifted.sum(),
-            "max":  shifted.abs().max(),
+            "std": shifted.std(),
+            "sum": shifted.sum(),
+            "max": shifted.abs().max(),
             "mean": shifted.mean(),
         }[args.scale_by]
 
         if args.verbose:
-            print(f"{newcol}: shift={shift_val:.6g}  scale={scale_val:.6g}",
-                  file=sys.stderr)
+            print(
+                f"{newcol}: shift={shift_val:.6g}  scale={scale_val:.6g}",
+                file=sys.stderr,
+            )
 
         df[newcol] = shifted / scale_val if scale_val != 0 else shifted
 
@@ -183,14 +185,16 @@ class ScaleCommand(BaseCommand):
 
         g = parser.add_argument_group("column selection")
         g.add_argument(
-            "-c", "--cols",
+            "-c",
+            "--cols",
             nargs="+",
             metavar="COL",
             default=None,
             help="Column(s) to process.  Required for scale and rank modes.",
         )
         g.add_argument(
-            "-g", "--groupcol",
+            "-g",
+            "--groupcol",
             nargs="+",
             default=None,
             metavar="COL",
@@ -208,7 +212,7 @@ class ScaleCommand(BaseCommand):
             "--resid",
             action="store_true",
             help="Regression detrending: replace column with (intercept +) residuals. "
-                 "Requires -f/--formula.",
+            "Requires -f/--formula.",
         )
 
         sp = parser.add_argument_group("scale mode options")
@@ -236,7 +240,8 @@ class ScaleCommand(BaseCommand):
 
         dp = parser.add_argument_group("resid mode options")
         dp.add_argument(
-            "-f", "--formula",
+            "-f",
+            "--formula",
             default=None,
             metavar="FORMULA",
             help="R-style formula for regression detrending, e.g. 'y ~ x'.",
@@ -248,10 +253,11 @@ class ScaleCommand(BaseCommand):
         )
 
         parser.add_argument(
-            "-v", "--verbose",
+            "-v",
+            "--verbose",
             action="store_true",
             help="Print shift/scale values (scale mode) or full summary (resid mode) "
-                 "to stderr.",
+            "to stderr.",
         )
 
     def execute(self, args: argparse.Namespace) -> None:
@@ -280,10 +286,14 @@ class ScaleCommand(BaseCommand):
             parts = []
             for groupname, groupdf in df.groupby(args.groupcol):
                 if args.verbose:
-                    groupstr = ", ".join(
-                        f"{k}={v}" for k, v in zip(args.groupcol, groupname)
-                        if isinstance(groupname, tuple)
-                    ) or f"{args.groupcol[0]}={groupname}"
+                    groupstr = (
+                        ", ".join(
+                            f"{k}={v}"
+                            for k, v in zip(args.groupcol, groupname, strict=False)
+                            if isinstance(groupname, tuple)
+                        )
+                        or f"{args.groupcol[0]}={groupname}"
+                    )
                     print(f"Group: {groupstr}", file=sys.stderr)
                 parts.append(fn(groupdf.copy(), args))
             io.printdf(pd.concat(parts, ignore_index=True), args)

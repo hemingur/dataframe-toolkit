@@ -42,11 +42,12 @@ from __future__ import annotations
 import argparse
 import logging
 import math
-from typing import Optional
 
 import matplotlib
 import matplotlib.ticker as ticker
 import numpy as np
+import pandas as pd
+
 # matplotlib.pyplot is imported lazily (inside functions) so that
 # matplotlib.use() can be called in execute() before pyplot initialises
 # the backend.  Never add "import matplotlib.pyplot as plt" at module level.
@@ -74,9 +75,9 @@ WONG_PALETTE = [
 
 _FONT_PRESETS: dict[str, tuple[int, int, int]] = {
     #                  small  medium  large
-    "publication":    (6,     8,      9),
-    "screen":         (9,     11,     13),
-    "presentation":   (12,    14,     16),
+    "publication": (6, 8, 9),
+    "screen": (9, 11, 13),
+    "presentation": (12, 14, 16),
 }
 _DEFAULT_FONTSIZE = "screen"
 
@@ -94,9 +95,9 @@ def _auto_height(w: float) -> float:
 _SIZE_PRESETS: dict[str, tuple[float, float]] = {
     "single": (3.50, _auto_height(3.50)),
     "double": (7.20, _auto_height(7.20)),
-    "full":   (7.20, _auto_height(7.20)),
+    "full": (7.20, _auto_height(7.20)),
 }
-_DEFAULT_SIZE = "5x3.5"
+_DEFAULT_SIZE = "10x6"
 
 
 def parse_figsize(size_str: str) -> tuple[float, float]:
@@ -115,12 +116,14 @@ def parse_figsize(size_str: str) -> tuple[float, float]:
 # rcParams application
 # ---------------------------------------------------------------------------
 
+
 def apply_style(args: argparse.Namespace) -> None:
     """
     Apply font sizes, palette, and optional user stylesheets to rcParams.
     Call once before creating the figure.
     """
     import matplotlib.pyplot as plt
+
     preset = getattr(args, "fontsize", _DEFAULT_FONTSIZE)
     if preset not in _FONT_PRESETS:
         logger.warning("Unknown --fontsize %r; using 'screen'", preset)
@@ -128,19 +131,21 @@ def apply_style(args: argparse.Namespace) -> None:
 
     small, medium, large = _FONT_PRESETS[preset]
 
-    matplotlib.rcParams.update({
-        "font.family":            "sans-serif",
-        "font.sans-serif":        ["Arial", "Helvetica", "DejaVu Sans"],
-        "xtick.labelsize":        small,
-        "ytick.labelsize":        small,
-        "axes.labelsize":         medium,
-        "legend.fontsize":        medium,
-        "axes.titlesize":         large,
-        "legend.title_fontsize":  large,
-        "figure.dpi":             100,
-        "savefig.dpi":            300,
-        "axes.prop_cycle":        matplotlib.cycler(color=WONG_PALETTE),
-    })
+    matplotlib.rcParams.update(
+        {
+            "font.family": "sans-serif",
+            "font.sans-serif": ["Arial", "Helvetica", "DejaVu Sans"],
+            "xtick.labelsize": small,
+            "ytick.labelsize": small,
+            "axes.labelsize": medium,
+            "legend.fontsize": medium,
+            "axes.titlesize": large,
+            "legend.title_fontsize": large,
+            "figure.dpi": 100,
+            "savefig.dpi": 300,
+            "axes.prop_cycle": matplotlib.cycler(color=WONG_PALETTE),
+        }
+    )
 
     # Optional user stylesheets (applied after our base to allow overrides)
     styles = getattr(args, "styles", None) or []
@@ -156,6 +161,10 @@ def apply_style(args: argparse.Namespace) -> None:
 # Figure / axes creation
 # ---------------------------------------------------------------------------
 
+_MAX_SCREEN_W = 16.0  # inches — cap for interactive multi-panel figures
+_MAX_SCREEN_H = 10.0
+
+
 def make_figure(
     args: argparse.Namespace,
     nrows: int = 1,
@@ -166,15 +175,29 @@ def make_figure(
 
     Returns (fig, axes) where axes is always a 2-D numpy array of shape
     (nrows, ncols) for uniform indexing even when nrows=ncols=1.
+
+    For publication presets (single/double/full) the per-panel size is
+    respected exactly.  For freeform sizes (WxH, including the default)
+    the total figure is capped at _MAX_SCREEN_W × _MAX_SCREEN_H so that
+    large subplot grids remain at a comfortable screen size.
     """
     import matplotlib.pyplot as plt
+
     size_str = getattr(args, "size", _DEFAULT_SIZE)
     w, h = parse_figsize(size_str)
 
-    # Scale height proportionally when using a subplot grid
+    w_total = w * ncols
+    h_total = h * nrows
+
+    # Cap total size for freeform (non-preset) sizes so grids don't balloon.
+    if size_str not in _SIZE_PRESETS:
+        w_total = min(w_total, _MAX_SCREEN_W)
+        h_total = min(h_total, _MAX_SCREEN_H)
+
     fig, axes = plt.subplots(
-        nrows, ncols,
-        figsize=(w * ncols, h * nrows),
+        nrows,
+        ncols,
+        figsize=(w_total, h_total),
         squeeze=False,
     )
     return fig, axes
@@ -184,7 +207,8 @@ def make_figure(
 # Subplot grid for --subgraphcol
 # ---------------------------------------------------------------------------
 
-def subgraph_layout(n_groups: int, ncols_hint: Optional[int] = None) -> tuple[int, int]:
+
+def subgraph_layout(n_groups: int, ncols_hint: int | None = None) -> tuple[int, int]:
     """Return (nrows, ncols) for a grid of n_groups subplots."""
     if ncols_hint is not None:
         ncols = max(1, ncols_hint)
@@ -194,9 +218,36 @@ def subgraph_layout(n_groups: int, ncols_hint: Optional[int] = None) -> tuple[in
     return nrows, ncols
 
 
+def subgraph_groups(
+    df: pd.DataFrame,
+    cols: list[str],
+    order: list[str] | None = None,
+) -> list[tuple]:
+    """Return list of (key, subdf) pairs from df.groupby(cols).
+
+    If *order* is given the panels are sorted to match it; values not listed
+    appear at the end in their original groupby order.
+    """
+    groups = list(df.groupby(cols))
+    if order:
+        rank = {v: i for i, v in enumerate(order)}
+        n = len(order)
+
+        def _rank(g):
+            key = g[0]
+            # groupby with a list always returns tuple keys; unwrap single-col case
+            if isinstance(key, tuple) and len(key) == 1:
+                key = key[0]
+            return rank.get(str(key), n)
+
+        groups.sort(key=_rank)
+    return groups
+
+
 # ---------------------------------------------------------------------------
 # Axis helpers
 # ---------------------------------------------------------------------------
+
 
 def _to_float(s: str, fallback: float) -> float:
     try:
@@ -254,12 +305,16 @@ def apply_ticks(ax: matplotlib.axes.Axes, args: argparse.Namespace) -> None:
         ax.yaxis.set_minor_locator(ticker.MultipleLocator(yticks[1]))
 
 
-def apply_labels(ax: matplotlib.axes.Axes, args: argparse.Namespace,
-                 default_xlabel: str = "", default_ylabel: str = "") -> None:
+def apply_labels(
+    ax: matplotlib.axes.Axes,
+    args: argparse.Namespace,
+    default_xlabel: str = "",
+    default_ylabel: str = "",
+) -> None:
     """Apply title, xlabel, ylabel, defaulting to column names."""
     xlabel = getattr(args, "xlabel", None) or default_xlabel
     ylabel = getattr(args, "ylabel", None) or default_ylabel
-    title  = getattr(args, "title", "") or ""
+    title = getattr(args, "title", "") or ""
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
     ax.set_title(title)
@@ -269,12 +324,31 @@ def apply_labels(ax: matplotlib.axes.Axes, args: argparse.Namespace,
 # Group label
 # ---------------------------------------------------------------------------
 
-def make_grouplabel(groupname, groupcols: list[str] | None = None) -> str:
-    """Format a groupby key as a readable legend label."""
+
+def make_grouplabel(
+    groupname,
+    groupcols: list[str] | None = None,
+    fmt: str | None = None,
+) -> str:
+    """Format a groupby key as a legend label or subplot title.
+
+    Default: value(s) only, joined by "  " for multi-column groups.
+    With *fmt*: an f-string template where column names are the placeholders,
+    e.g. ``"{treatment} ({dose} mg)"`` for groupcols=["treatment", "dose"].
+    """
     if isinstance(groupname, tuple):
-        if groupcols and len(groupcols) == len(groupname):
-            return "  ".join(f"{k}={v}" for k, v in zip(groupcols, groupname))
-        return "-".join(str(x) for x in groupname)
+        vals = dict(zip(groupcols or [], groupname, strict=False)) if groupcols else {}
+    else:
+        vals = {groupcols[0]: groupname} if groupcols else {}
+
+    if fmt:
+        try:
+            return fmt.format(**vals)
+        except KeyError:
+            pass  # fall through to default if template references unknown key
+
+    if isinstance(groupname, tuple):
+        return "  ".join(str(v) for v in groupname)
     return str(groupname)
 
 
@@ -282,9 +356,11 @@ def make_grouplabel(groupname, groupcols: list[str] | None = None) -> str:
 # Save / show
 # ---------------------------------------------------------------------------
 
+
 def save_or_show(fig: matplotlib.figure.Figure, args: argparse.Namespace) -> None:
     """Save figure to --file (300 dpi) or display interactively."""
     import matplotlib.pyplot as plt
+
     outfile = getattr(args, "file", None)
     if outfile:
         fig.savefig(outfile, bbox_inches="tight", dpi=300)
@@ -293,6 +369,7 @@ def save_or_show(fig: matplotlib.figure.Figure, args: argparse.Namespace) -> Non
         backend = matplotlib.get_backend().lower()
         if backend in ("agg", "cairo", "pdf", "ps", "svg", "pgf"):
             import sys
+
             print(
                 f"Warning: no interactive display (backend: {backend}). "
                 "Use -f/--file to save the figure to a file.",
@@ -307,71 +384,183 @@ def save_or_show(fig: matplotlib.figure.Figure, args: argparse.Namespace) -> Non
 # Shared argparse argument groups
 # ---------------------------------------------------------------------------
 
+
 def add_xy_arguments(parser: argparse.ArgumentParser) -> None:
     """Add x/y column, label, limit, log-scale, margin, tick args."""
     g = parser.add_argument_group("axes")
-    g.add_argument("-x", "--xcol",   metavar="COL", help="X-axis column.")
-    g.add_argument("-y", "--ycol",   metavar="COL", help="Y-axis column.")
-    g.add_argument("-xl", "--xlabel", metavar="TEXT", default=None,
-                   help="X-axis label (default: column name).")
-    g.add_argument("-yl", "--ylabel", metavar="TEXT", default=None,
-                   help="Y-axis label (default: column name).")
-    g.add_argument("-xm", "--xlim", nargs=2, metavar=("LO", "HI"), default=None,
-                   help="X-axis limits.")
-    g.add_argument("-ym", "--ylim", nargs=2, metavar=("LO", "HI"), default=None,
-                   help="Y-axis limits.")
+    g.add_argument("-x", "--xcol", metavar="COL", help="X-axis column.")
+    g.add_argument("-y", "--ycol", metavar="COL", help="Y-axis column.")
+    g.add_argument(
+        "-xl",
+        "--xlabel",
+        metavar="TEXT",
+        default=None,
+        help="X-axis label (default: column name).",
+    )
+    g.add_argument(
+        "-yl",
+        "--ylabel",
+        metavar="TEXT",
+        default=None,
+        help="Y-axis label (default: column name).",
+    )
+    g.add_argument(
+        "-xm",
+        "--xlim",
+        nargs=2,
+        metavar=("LO", "HI"),
+        default=None,
+        help="X-axis limits.",
+    )
+    g.add_argument(
+        "-ym",
+        "--ylim",
+        nargs=2,
+        metavar=("LO", "HI"),
+        default=None,
+        help="Y-axis limits.",
+    )
     g.add_argument("-lx", "--logx", action="store_true", help="Logarithmic x axis.")
     g.add_argument("-ly", "--logy", action="store_true", help="Logarithmic y axis.")
-    g.add_argument("--xmargin", action="store_true", help="Add 1 %% margin to x limits.")
-    g.add_argument("--ymargin", action="store_true", help="Add 1 %% margin to y limits.")
-    g.add_argument("-xt", "--xticks", nargs=2, type=float, metavar=("MAJOR", "MINOR"),
-                   default=None, help="X-axis major and minor tick spacing.")
-    g.add_argument("-yt", "--yticks", nargs=2, type=float, metavar=("MAJOR", "MINOR"),
-                   default=None, help="Y-axis major and minor tick spacing.")
+    g.add_argument(
+        "--xmargin", action="store_true", help="Add 1 %% margin to x limits."
+    )
+    g.add_argument(
+        "--ymargin", action="store_true", help="Add 1 %% margin to y limits."
+    )
+    g.add_argument(
+        "-xt",
+        "--xticks",
+        nargs=2,
+        type=float,
+        metavar=("MAJOR", "MINOR"),
+        default=None,
+        help="X-axis major and minor tick spacing.",
+    )
+    g.add_argument(
+        "-yt",
+        "--yticks",
+        nargs=2,
+        type=float,
+        metavar=("MAJOR", "MINOR"),
+        default=None,
+        help="Y-axis major and minor tick spacing.",
+    )
 
 
 def add_figure_arguments(parser: argparse.ArgumentParser) -> None:
     """Add figure-level args: title, size, fontsize, styles, file."""
     g = parser.add_argument_group("figure")
-    g.add_argument("-t", "--title", default="", metavar="TEXT",
-                   help="Figure title.")
-    g.add_argument("--size", default=_DEFAULT_SIZE, metavar="PRESET|WxH",
-                   help="Figure size: single (3.5\"), double (7.2\"), full, or WxH "
-                        f"in inches (default: {_DEFAULT_SIZE}).")
-    g.add_argument("--fontsize",
-                   choices=list(_FONT_PRESETS),
-                   default=_DEFAULT_FONTSIZE,
-                   help="Font size preset (default: screen). "
-                        "small=tick labels, medium=axis labels/legend, "
-                        "large=title/legend title.")
-    g.add_argument("--styles", nargs="*", metavar="STYLE", default=None,
-                   help="Matplotlib stylesheets to apply (e.g. seaborn-v0_8).")
-    g.add_argument("-f", "--file", default=None, metavar="PATH",
-                   help="Save figure to file instead of displaying it. "
-                        "Format inferred from extension (.png, .pdf, .svg, …).")
-    g.add_argument("--usetex", action="store_true",
-                   help="Render text with LaTeX (requires a TeX installation).")
+    g.add_argument("-t", "--title", default="", metavar="TEXT", help="Figure title.")
+    g.add_argument(
+        "--size",
+        default=_DEFAULT_SIZE,
+        metavar="PRESET|WxH",
+        help='Figure size: single (3.5" col), double (7.2" col), or WxH '
+        f"in inches (default: {_DEFAULT_SIZE}).",
+    )
+    g.add_argument(
+        "--fontsize",
+        choices=list(_FONT_PRESETS),
+        default=_DEFAULT_FONTSIZE,
+        help="Font size preset (default: screen). "
+        "small=tick labels, medium=axis labels/legend, "
+        "large=title/legend title.",
+    )
+    g.add_argument(
+        "--styles",
+        nargs="*",
+        metavar="STYLE",
+        default=None,
+        help="Matplotlib stylesheets to apply (e.g. seaborn-v0_8).",
+    )
+    g.add_argument(
+        "-f",
+        "--file",
+        default=None,
+        metavar="PATH",
+        help="Save figure to file instead of displaying it. "
+        "Format inferred from extension (.png, .pdf, .svg, …).",
+    )
+    g.add_argument(
+        "--usetex",
+        action="store_true",
+        help="Render text with LaTeX (requires a TeX installation).",
+    )
 
 
 def add_group_arguments(parser: argparse.ArgumentParser) -> None:
     """Add --groupcol and --subgraphcol."""
     g = parser.add_argument_group("grouping")
-    g.add_argument("-g", "--groupcol", nargs="+", default=None, metavar="COL",
-                   help="Colour-code by this column (one series per value).")
-    g.add_argument("--subgraphcol", nargs="+", default=None, metavar="COL",
-                   help="Split into a subplot grid by this column.")
-    g.add_argument("--ncols", type=int, default=None, metavar="N",
-                   help="Number of columns in the subplot grid "
-                        "(default: min(groups, 3)).")
+    g.add_argument(
+        "-g",
+        "--groupcol",
+        nargs="+",
+        default=None,
+        metavar="COL",
+        help="Colour-code by this column (one series per value).",
+    )
+    g.add_argument(
+        "--groupcolorder",
+        nargs="+",
+        default=None,
+        metavar="VAL",
+        help="Series order for --groupcol (e.g. control treated …). "
+        "Values not listed appear last in their original order.",
+    )
+    g.add_argument(
+        "--subgraphcol",
+        nargs="+",
+        default=None,
+        metavar="COL",
+        help="Split into a subplot grid by this column.",
+    )
+    g.add_argument(
+        "--groupcolformat",
+        default=None,
+        metavar="TEMPLATE",
+        help="Legend label template for --groupcol. "
+        "Use {colname} placeholders, e.g. '{treatment} ({dose} mg)'.",
+    )
+    g.add_argument(
+        "--subgraphorder",
+        nargs="+",
+        default=None,
+        metavar="VAL",
+        help="Panel order for --subgraphcol (e.g. Jan Feb Mar …). "
+        "Values not listed appear last in their original order.",
+    )
+    g.add_argument(
+        "--subgraphformat",
+        default=None,
+        metavar="TEMPLATE",
+        help="Subplot title template for --subgraphcol. "
+        "Use {colname} placeholders, e.g. 'Month: {month}'.",
+    )
+    g.add_argument(
+        "--ncols",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Number of columns in the subplot grid (default: min(groups, 3)).",
+    )
 
 
 def add_legend_arguments(parser: argparse.ArgumentParser) -> None:
     """Add --legend / --legendtitle / --legendloc."""
     g = parser.add_argument_group("legend")
-    g.add_argument("--legend", default=None, metavar="TEXT",
-                   help="Legend label (when not using --groupcol).")
-    g.add_argument("--legendtitle", default=None, metavar="TEXT",
-                   help="Legend title.")
-    g.add_argument("--legendloc", nargs=2, type=float, metavar=("X", "Y"),
-                   default=None,
-                   help="Legend position as (x, y) in axes coordinates.")
+    g.add_argument(
+        "--legend",
+        default=None,
+        metavar="TEXT",
+        help="Legend label (when not using --groupcol).",
+    )
+    g.add_argument("--legendtitle", default=None, metavar="TEXT", help="Legend title.")
+    g.add_argument(
+        "--legendloc",
+        nargs=2,
+        type=float,
+        metavar=("X", "Y"),
+        default=None,
+        help="Legend position as (x, y) in axes coordinates.",
+    )

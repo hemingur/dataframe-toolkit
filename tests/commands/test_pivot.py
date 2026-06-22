@@ -6,9 +6,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from stattools.commands.pivot_cmd import _do_pivot, _prepare_funcs, _flatten_columns
+from stattools.commands.pivot_cmd import _do_pivot, _flatten_columns, _prepare_funcs
 from tests.conftest import make_args
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -18,32 +17,38 @@ from tests.conftest import make_args
 @pytest.fixture
 def long_df():
     """Simple long-format data: 2 regions × 2 products, one sales value each."""
-    return pd.DataFrame({
-        "region":  ["N", "N", "S", "S"],
-        "product": ["A", "B", "A", "B"],
-        "sales":   [10.0, 20.0, 30.0, 40.0],
-    })
+    return pd.DataFrame(
+        {
+            "region": ["N", "N", "S", "S"],
+            "product": ["A", "B", "A", "B"],
+            "sales": [10.0, 20.0, 30.0, 40.0],
+        }
+    )
 
 
 @pytest.fixture
 def two_value_df():
     """Two value columns for testing multi-value pivots."""
-    return pd.DataFrame({
-        "region":  ["N", "N", "S", "S"],
-        "product": ["A", "B", "A", "B"],
-        "sales":   [10.0, 20.0, 30.0, 40.0],
-        "cost":    [1.0,  2.0,  3.0,  4.0],
-    })
+    return pd.DataFrame(
+        {
+            "region": ["N", "N", "S", "S"],
+            "product": ["A", "B", "A", "B"],
+            "sales": [10.0, 20.0, 30.0, 40.0],
+            "cost": [1.0, 2.0, 3.0, 4.0],
+        }
+    )
 
 
 @pytest.fixture
 def multi_row_df():
     """Multiple rows per (region, product) cell for testing aggregation."""
-    return pd.DataFrame({
-        "region":  ["N", "N", "N", "N", "S", "S", "S", "S"],
-        "product": ["A", "A", "B", "B", "A", "A", "B", "B"],
-        "sales":   [10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0],
-    })
+    return pd.DataFrame(
+        {
+            "region": ["N", "N", "N", "N", "S", "S", "S", "S"],
+            "product": ["A", "A", "B", "B", "A", "A", "B", "B"],
+            "sales": [10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0],
+        }
+    )
 
 
 def _pivot_args(**overrides):
@@ -66,7 +71,6 @@ def _pivot_args(**overrides):
 
 
 class TestFlattenColumns:
-
     def test_plain_strings_unchanged(self):
         assert _flatten_columns(["a", "b"]) == ["a", "b"]
 
@@ -87,7 +91,6 @@ class TestFlattenColumns:
 
 
 class TestPrepareFuncs:
-
     def test_none_returns_none(self):
         assert _prepare_funcs(None, 95.0, "linear") is None
 
@@ -116,7 +119,7 @@ class TestPrepareFuncs:
         assert val == pytest.approx(expected)
 
     def test_mixed_syntax_raises(self):
-        # COL:FUNC item must come first to populate funcdict, then a bare item triggers the check
+        # COL:FUNC must come first; a bare item after that triggers the Mixed check
         with pytest.raises(ValueError, match="Mixed"):
             _prepare_funcs(["sales:mean", "std"], 95.0, "linear")
 
@@ -142,7 +145,6 @@ class TestPrepareFuncs:
 
 
 class TestDoPivotBasic:
-
     def test_schema_has_index_and_group_cols(self, long_df):
         result = _do_pivot(long_df, _pivot_args())
         assert "region" in result.columns
@@ -156,7 +158,7 @@ class TestDoPivotBasic:
         assert "B" in col_str
 
     def test_north_values(self, long_df):
-        # When values is a list pandas produces MultiIndex cols → flatten gives e.g. "sales_A"
+        # values as a list → MultiIndex cols → flatten gives e.g. "sales_A"
         result = _do_pivot(long_df, _pivot_args())
         n_row = result[result["region"] == "N"].iloc[0]
         col_a = [c for c in result.columns if c.endswith("A")][0]
@@ -173,14 +175,12 @@ class TestDoPivotBasic:
         assert s_row[col_b] == pytest.approx(40.0)
 
 
-
 # ---------------------------------------------------------------------------
 # _do_pivot — aggregation
 # ---------------------------------------------------------------------------
 
 
 class TestDoPivotAggregation:
-
     def test_mean_aggregation(self, multi_row_df):
         result = _do_pivot(multi_row_df, _pivot_args(aggfunc=["mean"]))
         n_row = result[result["region"] == "N"].iloc[0]
@@ -193,14 +193,14 @@ class TestDoPivotAggregation:
     def test_multiple_aggfuncs(self, multi_row_df):
         result = _do_pivot(multi_row_df, _pivot_args(aggfunc=["mean", "std"]))
         mean_cols = [c for c in result.columns if "mean" in c]
-        std_cols  = [c for c in result.columns if "std" in c]
+        std_cols = [c for c in result.columns if "std" in c]
         assert len(mean_cols) > 0
         assert len(std_cols) > 0
 
     def test_two_value_columns(self, two_value_df):
         result = _do_pivot(two_value_df, _pivot_args(values=["sales", "cost"]))
         sales_cols = [c for c in result.columns if "sales" in c]
-        cost_cols  = [c for c in result.columns if "cost" in c]
+        cost_cols = [c for c in result.columns if "cost" in c]
         assert len(sales_cols) > 0
         assert len(cost_cols) > 0
 
@@ -211,14 +211,15 @@ class TestDoPivotAggregation:
 
 
 class TestDoPivotFillZero:
-
     def test_fillzero_completes_sparse_table(self):
         """With a sparse table and --fillzero, missing cells become 0."""
-        df = pd.DataFrame({
-            "region":  ["N", "S"],
-            "product": ["A", "B"],   # only diagonal is populated
-            "sales":   [10.0, 40.0],
-        })
+        df = pd.DataFrame(
+            {
+                "region": ["N", "S"],
+                "product": ["A", "B"],  # only diagonal is populated
+                "sales": [10.0, 40.0],
+            }
+        )
         result = _do_pivot(df, _pivot_args(fillzero=True))
         # After fillzero both N and S rows should exist
         assert len(result) == 2
@@ -230,30 +231,45 @@ class TestDoPivotFillZero:
 
 
 class TestBootstrap:
-
     def test_bootstrap_produces_single_df(self, long_df):
         """Bootstrap should emit one concatenated DataFrame, not multiple blocks."""
+        import argparse
+        import sys
+
         from stattools.commands.pivot_cmd import PivotCommand
-        import argparse, io as sysio, sys
 
         cmd = PivotCommand()
         parser = argparse.ArgumentParser()
         cmd.add_arguments(parser)
-        args = parser.parse_args([
-            "-v", "sales", "-i", "region", "-g", "product",
-            "-f", "mean", "--bootstrap", "5", "--randomseed", "42",
-            "--fullsampling",
-        ])
+        args = parser.parse_args(
+            [
+                "-v",
+                "sales",
+                "-i",
+                "region",
+                "-g",
+                "product",
+                "-f",
+                "mean",
+                "--bootstrap",
+                "5",
+                "--randomseed",
+                "42",
+                "--fullsampling",
+            ]
+        )
         args.DATAFILE = None
 
         # Redirect stdout to capture TSV output
         import io as _io
+
         buf = _io.StringIO()
         old_stdout = sys.stdout
         sys.stdout = buf
 
         # Monkey-patch io.read to return long_df directly
         from stattools.common import io as common_io
+
         original_read = common_io.io.read
         common_io.io.read = lambda a: long_df
 

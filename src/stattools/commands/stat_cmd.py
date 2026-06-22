@@ -33,7 +33,7 @@ import numpy as np
 import pandas as pd
 
 from stattools.commands.base import BaseCommand
-from stattools.common.io import io, check_cols
+from stattools.common.io import check_cols, io
 from stattools.common.seed import normalize_seed
 
 logger = logging.getLogger("stattools")
@@ -42,8 +42,18 @@ _CI_METHODS = ["linear", "lower", "higher", "midpoint", "nearest"]
 
 # Canonical order of statistic columns in the output.
 _STAT_NAMES = [
-    "count", "sum", "mean", "std", "min", "max",
-    "median", "cilo", "cihi", "sem", "skew", "kurt",
+    "count",
+    "sum",
+    "mean",
+    "std",
+    "min",
+    "max",
+    "median",
+    "cilo",
+    "cihi",
+    "sem",
+    "skew",
+    "kurt",
 ]
 
 
@@ -51,12 +61,13 @@ _STAT_NAMES = [
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _samplefraction(x: str) -> float:
     """argparse type validator for --samplefrac."""
     try:
         x = float(x)
     except ValueError:
-        raise argparse.ArgumentTypeError(f"{x!r} is not a valid float")
+        raise argparse.ArgumentTypeError(f"{x!r} is not a valid float") from None
     if not (0.0 <= x <= 1.0):
         raise argparse.ArgumentTypeError(f"{x} is not in range [0.0, 1.0]")
     return x
@@ -68,6 +79,7 @@ def _ci(name: str, level: float, method: str):
     The function name is set explicitly so pandas uses it as the output
     column name rather than the generic ``<lambda>`` or ``cifunction``.
     """
+
     def cifunction(a):
         return np.percentile(a, q=level, method=method)
 
@@ -78,6 +90,7 @@ def _ci(name: str, level: float, method: str):
 # ---------------------------------------------------------------------------
 # Core computation
 # ---------------------------------------------------------------------------
+
 
 def _compute_stats(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
     """Return a dataframe of descriptive statistics.
@@ -94,19 +107,25 @@ def _compute_stats(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
     cihi_fn = _ci("cihi", conf_hi, args.confidencemethod)
 
     agg_funcs = [
-        "count", "sum", "mean", "std", "min", "max",
-        "median", cilo_fn, cihi_fn, "sem", "skew", "kurt",
+        "count",
+        "sum",
+        "mean",
+        "std",
+        "min",
+        "max",
+        "median",
+        cilo_fn,
+        cihi_fn,
+        "sem",
+        "skew",
+        "kurt",
     ]
 
     if groupcol is None:
         # Ungrouped — agg returns shape (n_stats, n_cols); transpose to
         # (n_cols, n_stats) then reset the column index to get a 'name' row.
         stats = (
-            df[cols]
-            .agg(agg_funcs)
-            .T
-            .reset_index()
-            .rename(columns={"index": "name"})
+            df[cols].agg(agg_funcs).T.reset_index().rename(columns={"index": "name"})
         )
         return stats[["name"] + _STAT_NAMES]
 
@@ -132,8 +151,7 @@ def _compute_stats(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
         # reset_index + rename: flatten to a plain DataFrame
         level_col = f"level_{len(groupcol)}"
         stats = (
-            stats
-            .swaplevel(0, 1, axis=1)
+            stats.swaplevel(0, 1, axis=1)
             .stack(future_stack=True)
             .reset_index()
             .rename(columns={level_col: name_col})
@@ -148,6 +166,7 @@ def _compute_stats(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
 # Command
 # ---------------------------------------------------------------------------
 
+
 class StatCommand(BaseCommand):
     """Compute descriptive statistics for one or more columns."""
 
@@ -159,14 +178,16 @@ class StatCommand(BaseCommand):
 
         g = parser.add_argument_group("statistics")
         g.add_argument(
-            "-c", "--cols",
+            "-c",
+            "--cols",
             help="Column(s) to compute statistics on",
             nargs="+",
             required=True,
             metavar="COL",
         )
         g.add_argument(
-            "-g", "--groupcol",
+            "-g",
+            "--groupcol",
             help="Group-by column(s)",
             nargs="+",
             default=None,
@@ -257,9 +278,9 @@ class StatCommand(BaseCommand):
                 if args.groupcol is None:
                     sample = df.sample(**sample_kwargs)
                 else:
-                    sample = df.groupby(
-                        args.groupcol, group_keys=False
-                    ).apply(lambda x: x.sample(**sample_kwargs))
+                    sample = df.groupby(args.groupcol, group_keys=False).apply(
+                        lambda x: x.sample(**sample_kwargs)
+                    )
 
                 result = _compute_stats(sample, args)
                 result["samplenum"] = i

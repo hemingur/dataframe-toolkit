@@ -13,34 +13,37 @@ import os
 import tempfile
 
 import matplotlib
+
 matplotlib.use("Agg")
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from stattools.commands.scat_cmd import ScatCommand
-from stattools.commands.line_cmd import LineCommand
 from stattools.commands.hist_cmd import HistCommand
-
+from stattools.commands.line_cmd import LineCommand
+from stattools.commands.scat_cmd import ScatCommand
 
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def simple_df():
     rng = np.random.default_rng(0)
     n = 30
-    return pd.DataFrame({
-        "x":     np.linspace(0, 10, n),
-        "y":     2 * np.linspace(0, 10, n) + rng.normal(0, 0.5, n),
-        "err":   rng.uniform(0.1, 0.5, n),
-        "size":  rng.uniform(10, 100, n),
-        "score": rng.uniform(0, 1, n),
-        "group": ["A"] * 15 + ["B"] * 15,
-        "cond":  (["X"] * 10 + ["Y"] * 10 + ["Z"] * 10),
-    })
+    return pd.DataFrame(
+        {
+            "x": np.linspace(0, 10, n),
+            "y": 2 * np.linspace(0, 10, n) + rng.normal(0, 0.5, n),
+            "err": rng.uniform(0.1, 0.5, n),
+            "size": rng.uniform(10, 100, n),
+            "score": rng.uniform(0, 1, n),
+            "group": ["A"] * 15 + ["B"] * 15,
+            "cond": (["X"] * 10 + ["Y"] * 10 + ["Z"] * 10),
+        }
+    )
 
 
 def _tsv(df):
@@ -62,27 +65,49 @@ def _png():
 def _base_read_args():
     """Minimal parser_read defaults needed by io.read()."""
     return dict(
-        backend="pandas", noheader=False, nrows=None,
-        delimiter=None, readasobject=None, prequery=[],
+        backend="pandas",
+        noheader=False,
+        nrows=None,
+        delimiter=None,
+        readasobject=None,
+        prequery=[],
     )
 
 
 def _scat_args(fname, outfile, **kwargs):
     base = dict(
         DATAFILE=fname,
-        xcol="x", ycol="y",
-        xlabel=None, ylabel=None,
-        xlim=None, ylim=None,
-        logx=False, logy=False,
-        xmargin=False, ymargin=False,
-        xticks=None, yticks=None,
-        title="", size="5x3.5", fontsize="screen",
-        styles=None, usetex=False,
+        xcol="x",
+        ycol="y",
+        xlabel=None,
+        ylabel=None,
+        xlim=None,
+        ylim=None,
+        logx=False,
+        logy=False,
+        xmargin=False,
+        ymargin=False,
+        xticks=None,
+        yticks=None,
+        title="",
+        size="5x3.5",
+        fontsize="screen",
+        styles=None,
+        usetex=False,
         file=outfile,
-        groupcol=None, subgraphcol=None, ncols=None,
-        legend=None, legendtitle=None, legendloc=None,
-        marker="o", sizecol=None, colorcol=None,
-        fit=False, robust=False, nointercept=False, pvalue=False,
+        groupcol=None,
+        subgraphcol=None,
+        ncols=None,
+        legend=None,
+        legendtitle=None,
+        legendloc=None,
+        marker="o",
+        sizecol=None,
+        colorcol=None,
+        fit=False,
+        robust=False,
+        nointercept=False,
+        pvalue=False,
         **_base_read_args(),
     )
     base.update(kwargs)
@@ -92,20 +117,39 @@ def _scat_args(fname, outfile, **kwargs):
 def _line_args(fname, outfile, **kwargs):
     base = dict(
         DATAFILE=fname,
-        xcol="x", ycol="y",
-        xlabel=None, ylabel=None,
-        xlim=None, ylim=None,
-        logx=False, logy=False,
-        xmargin=False, ymargin=False,
-        xticks=None, yticks=None,
-        title="", size="5x3.5", fontsize="screen",
-        styles=None, usetex=False,
+        xcol="x",
+        ycol="y",
+        xlabel=None,
+        ylabel=None,
+        xlim=None,
+        ylim=None,
+        logx=False,
+        logy=False,
+        xmargin=False,
+        ymargin=False,
+        xticks=None,
+        yticks=None,
+        title="",
+        size="5x3.5",
+        fontsize="screen",
+        styles=None,
+        usetex=False,
         file=outfile,
-        groupcol=None, subgraphcol=None, ncols=None,
-        legend=None, legendtitle=None, legendloc=None,
-        marker="", drawstyle="default",
-        yerr=None, yci=None,
-        fit=False, robust=False, weights=None, nointercept=False, pvalue=False,
+        groupcol=None,
+        subgraphcol=None,
+        ncols=None,
+        legend=None,
+        legendtitle=None,
+        legendloc=None,
+        marker="",
+        drawstyle="default",
+        yerr=None,
+        yci=None,
+        fit=False,
+        robust=False,
+        weights=None,
+        nointercept=False,
+        pvalue=False,
         **_base_read_args(),
     )
     base.update(kwargs)
@@ -117,17 +161,32 @@ def _hist_args(fname, outfile, **kwargs):
         DATAFILE=fname,
         xcol="x",
         weightcol=None,
-        xlabel=None, ylabel=None,
-        xlim=None, ylim=None,
-        logx=False, logy=False,
-        xmargin=False, ymargin=False,
-        title="", size="5x3.5", fontsize="screen",
-        styles=None, usetex=False,
+        xlabel=None,
+        ylabel=None,
+        xlim=None,
+        ylim=None,
+        logx=False,
+        logy=False,
+        xmargin=False,
+        ymargin=False,
+        title="",
+        size="5x3.5",
+        fontsize="screen",
+        styles=None,
+        usetex=False,
         file=outfile,
-        groupcol=None, subgraphcol=None, ncols=None,
-        legend=None, legendtitle=None, legendloc=None,
-        normed=False, cumulative=False, kde=False, stats=False,
-        bins=10, binwidth=None,
+        groupcol=None,
+        subgraphcol=None,
+        ncols=None,
+        legend=None,
+        legendtitle=None,
+        legendloc=None,
+        normed=False,
+        cumulative=False,
+        kde=False,
+        stats=False,
+        bins=10,
+        binwidth=None,
         **_base_read_args(),
     )
     base.update(kwargs)
@@ -143,8 +202,8 @@ def _assert_file_created(path):
 # ScatCommand
 # ---------------------------------------------------------------------------
 
-class TestScatCommand:
 
+class TestScatCommand:
     def test_basic_scatter(self, simple_df):
         fname = _tsv(simple_df)
         out = _png()
@@ -153,7 +212,8 @@ class TestScatCommand:
             _assert_file_created(out)
         finally:
             os.unlink(fname)
-            if os.path.exists(out): os.unlink(out)
+            if os.path.exists(out):
+                os.unlink(out)
 
     def test_groupcol(self, simple_df):
         fname = _tsv(simple_df)
@@ -163,7 +223,8 @@ class TestScatCommand:
             _assert_file_created(out)
         finally:
             os.unlink(fname)
-            if os.path.exists(out): os.unlink(out)
+            if os.path.exists(out):
+                os.unlink(out)
 
     def test_subgraphcol(self, simple_df):
         fname = _tsv(simple_df)
@@ -173,7 +234,8 @@ class TestScatCommand:
             _assert_file_created(out)
         finally:
             os.unlink(fname)
-            if os.path.exists(out): os.unlink(out)
+            if os.path.exists(out):
+                os.unlink(out)
 
     def test_subgraphcol_and_groupcol(self, simple_df):
         fname = _tsv(simple_df)
@@ -185,7 +247,8 @@ class TestScatCommand:
             _assert_file_created(out)
         finally:
             os.unlink(fname)
-            if os.path.exists(out): os.unlink(out)
+            if os.path.exists(out):
+                os.unlink(out)
 
     def test_sizecol(self, simple_df):
         fname = _tsv(simple_df)
@@ -195,7 +258,8 @@ class TestScatCommand:
             _assert_file_created(out)
         finally:
             os.unlink(fname)
-            if os.path.exists(out): os.unlink(out)
+            if os.path.exists(out):
+                os.unlink(out)
 
     def test_colorcol(self, simple_df):
         fname = _tsv(simple_df)
@@ -205,7 +269,8 @@ class TestScatCommand:
             _assert_file_created(out)
         finally:
             os.unlink(fname)
-            if os.path.exists(out): os.unlink(out)
+            if os.path.exists(out):
+                os.unlink(out)
 
     def test_publication_fontsize(self, simple_df):
         fname = _tsv(simple_df)
@@ -217,16 +282,15 @@ class TestScatCommand:
             _assert_file_created(out)
         finally:
             os.unlink(fname)
-            if os.path.exists(out): os.unlink(out)
+            if os.path.exists(out):
+                os.unlink(out)
 
     def test_missing_xcol_raises(self, simple_df):
         fname = _tsv(simple_df)
         out = _png()
         try:
             with pytest.raises(ValueError, match="no_such"):
-                ScatCommand().execute(
-                    _scat_args(fname, out, xcol="no_such")
-                )
+                ScatCommand().execute(_scat_args(fname, out, xcol="no_such"))
         finally:
             os.unlink(fname)
 
@@ -244,8 +308,8 @@ class TestScatCommand:
 # LineCommand
 # ---------------------------------------------------------------------------
 
-class TestLineCommand:
 
+class TestLineCommand:
     def test_basic_line(self, simple_df):
         fname = _tsv(simple_df)
         out = _png()
@@ -254,7 +318,8 @@ class TestLineCommand:
             _assert_file_created(out)
         finally:
             os.unlink(fname)
-            if os.path.exists(out): os.unlink(out)
+            if os.path.exists(out):
+                os.unlink(out)
 
     def test_groupcol(self, simple_df):
         fname = _tsv(simple_df)
@@ -264,7 +329,8 @@ class TestLineCommand:
             _assert_file_created(out)
         finally:
             os.unlink(fname)
-            if os.path.exists(out): os.unlink(out)
+            if os.path.exists(out):
+                os.unlink(out)
 
     def test_yerr(self, simple_df):
         fname = _tsv(simple_df)
@@ -274,7 +340,8 @@ class TestLineCommand:
             _assert_file_created(out)
         finally:
             os.unlink(fname)
-            if os.path.exists(out): os.unlink(out)
+            if os.path.exists(out):
+                os.unlink(out)
 
     def test_subgraphcol(self, simple_df):
         fname = _tsv(simple_df)
@@ -284,7 +351,8 @@ class TestLineCommand:
             _assert_file_created(out)
         finally:
             os.unlink(fname)
-            if os.path.exists(out): os.unlink(out)
+            if os.path.exists(out):
+                os.unlink(out)
 
     def test_missing_ycol_raises(self, simple_df):
         fname = _tsv(simple_df)
@@ -309,8 +377,8 @@ class TestLineCommand:
 # HistCommand
 # ---------------------------------------------------------------------------
 
-class TestHistCommand:
 
+class TestHistCommand:
     def test_basic_hist(self, simple_df):
         fname = _tsv(simple_df)
         out = _png()
@@ -319,7 +387,8 @@ class TestHistCommand:
             _assert_file_created(out)
         finally:
             os.unlink(fname)
-            if os.path.exists(out): os.unlink(out)
+            if os.path.exists(out):
+                os.unlink(out)
 
     def test_normed(self, simple_df):
         fname = _tsv(simple_df)
@@ -329,7 +398,8 @@ class TestHistCommand:
             _assert_file_created(out)
         finally:
             os.unlink(fname)
-            if os.path.exists(out): os.unlink(out)
+            if os.path.exists(out):
+                os.unlink(out)
 
     def test_cumulative(self, simple_df):
         fname = _tsv(simple_df)
@@ -339,7 +409,8 @@ class TestHistCommand:
             _assert_file_created(out)
         finally:
             os.unlink(fname)
-            if os.path.exists(out): os.unlink(out)
+            if os.path.exists(out):
+                os.unlink(out)
 
     def test_kde(self, simple_df):
         fname = _tsv(simple_df)
@@ -349,7 +420,8 @@ class TestHistCommand:
             _assert_file_created(out)
         finally:
             os.unlink(fname)
-            if os.path.exists(out): os.unlink(out)
+            if os.path.exists(out):
+                os.unlink(out)
 
     def test_groupcol(self, simple_df):
         fname = _tsv(simple_df)
@@ -359,19 +431,19 @@ class TestHistCommand:
             _assert_file_created(out)
         finally:
             os.unlink(fname)
-            if os.path.exists(out): os.unlink(out)
+            if os.path.exists(out):
+                os.unlink(out)
 
     def test_groupcol_kde(self, simple_df):
         fname = _tsv(simple_df)
         out = _png()
         try:
-            HistCommand().execute(
-                _hist_args(fname, out, groupcol=["group"], kde=True)
-            )
+            HistCommand().execute(_hist_args(fname, out, groupcol=["group"], kde=True))
             _assert_file_created(out)
         finally:
             os.unlink(fname)
-            if os.path.exists(out): os.unlink(out)
+            if os.path.exists(out):
+                os.unlink(out)
 
     def test_subgraphcol(self, simple_df):
         fname = _tsv(simple_df)
@@ -381,7 +453,8 @@ class TestHistCommand:
             _assert_file_created(out)
         finally:
             os.unlink(fname)
-            if os.path.exists(out): os.unlink(out)
+            if os.path.exists(out):
+                os.unlink(out)
 
     def test_stats_flag(self, simple_df):
         fname = _tsv(simple_df)
@@ -391,7 +464,8 @@ class TestHistCommand:
             _assert_file_created(out)
         finally:
             os.unlink(fname)
-            if os.path.exists(out): os.unlink(out)
+            if os.path.exists(out):
+                os.unlink(out)
 
     def test_binwidth(self, simple_df):
         fname = _tsv(simple_df)
@@ -401,7 +475,8 @@ class TestHistCommand:
             _assert_file_created(out)
         finally:
             os.unlink(fname)
-            if os.path.exists(out): os.unlink(out)
+            if os.path.exists(out):
+                os.unlink(out)
 
     def test_missing_xcol_raises(self, simple_df):
         fname = _tsv(simple_df)

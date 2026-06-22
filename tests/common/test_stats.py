@@ -9,19 +9,18 @@ import pytest
 import scipy.stats as ss
 
 from stattools.common.stats import (
-    pval2se,
-    t2pval,
-    chi2_to_neglogp,
-    neglogp_to_chi2,
-    pval_to_chi2,
     binom_test,
-    fisher_test,
-    fisher_OR,
-    boschloo_test,
     boschloo_OR,
+    boschloo_test,
+    chi2_to_neglogp,
+    fisher_OR,
+    fisher_test,
     generalized_poisson_nll,
+    neglogp_to_chi2,
+    pval2se,
+    pval_to_chi2,
+    t2pval,
 )
-
 
 # ---------------------------------------------------------------------------
 # pval2se
@@ -29,7 +28,6 @@ from stattools.common.stats import (
 
 
 class TestPval2se:
-
     def test_known_values(self):
         # effect=1.96, p=0.05 → se ≈ 1.0
         se = pval2se([1.96, 0.05])
@@ -46,7 +44,6 @@ class TestPval2se:
 
 
 class TestT2pval:
-
     def test_t_zero_gives_pval_one(self):
         assert t2pval([0.0, 10]) == pytest.approx(1.0)
 
@@ -65,13 +62,15 @@ class TestT2pval:
 
 
 class TestChi2NeglogpRoundTrip:
-
-    @pytest.mark.parametrize("chi2,df", [
-        (3.84, 1),   # classic chi2 at p=0.05
-        (10.0, 2),
-        (50.0, 5),
-        (200.0, 1),  # high chi2 — exercises logsf path
-    ])
+    @pytest.mark.parametrize(
+        "chi2,df",
+        [
+            (3.84, 1),  # classic chi2 at p=0.05
+            (10.0, 2),
+            (50.0, 5),
+            (200.0, 1),  # high chi2 — exercises logsf path
+        ],
+    )
     def test_round_trip(self, chi2, df):
         neglogp = chi2_to_neglogp([chi2, df])
         recovered = neglogp_to_chi2([neglogp, df])
@@ -95,7 +94,6 @@ class TestChi2NeglogpRoundTrip:
 
 
 class TestBinomTest:
-
     def test_fair_coin_centre(self):
         # 50 heads out of 100 — should not be significant
         p = binom_test([50, 100, 0.5])
@@ -113,7 +111,6 @@ class TestBinomTest:
 
 
 class TestFisherTest:
-
     def test_independent_table(self):
         # perfectly balanced 2×2 table → p should be large
         p = fisher_test([10, 10, 10, 10])
@@ -132,14 +129,13 @@ class TestFisherTest:
 
     def test_matches_scipy(self):
         a, b, c, d = 8, 2, 1, 5
-        expected_p  = ss.fisher_exact([[a, b], [c, d]])[1]
+        expected_p = ss.fisher_exact([[a, b], [c, d]])[1]
         expected_or = ss.fisher_exact([[a, b], [c, d]])[0]
         assert fisher_test([a, b, c, d]) == pytest.approx(expected_p)
         assert fisher_OR([a, b, c, d]) == pytest.approx(expected_or)
 
 
 class TestBoschloo:
-
     def test_independent_not_significant(self):
         p = boschloo_test([5, 5, 5, 5])
         assert p > 0.05
@@ -167,7 +163,6 @@ class TestBoschloo:
 
 
 class TestGeneralizedPoissonNll:
-
     def test_positive_nll(self):
         # NLL should be positive (it's -log P, and P < 1)
         result = generalized_poisson_nll([3, 2.0, 0.5])
