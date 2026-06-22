@@ -381,3 +381,172 @@ class TestDescribeExecute:
         df = pd.DataFrame({"x": [np.nan, np.nan, np.nan]})
         result = _run(df)
         assert "all_missing" in str(result.iloc[0]["notes"])
+
+    def test_corr_threshold_custom(self, capsys):
+        """--corr-threshold filters correlations at the specified level."""
+        # x and y are perfectly correlated; z has a weaker relationship
+        df = pd.DataFrame(
+            {
+                "x": [1.0, 2.0, 3.0, 4.0],
+                "y": [2.0, 4.0, 6.0, 8.0],
+                "z": [1.0, 1.1, 0.9, 1.05],  # very weak correlation with x
+            }
+        )
+        # With low threshold, x↔y pair should appear in stderr
+        _run(df, summary=True, correlations=True, corr_threshold=0.5)
+        captured = capsys.readouterr()
+        assert "x" in captured.err and "y" in captured.err
+
+    def test_corr_threshold_excludes_below(self, capsys):
+        """Pairs below --corr-threshold must not appear in the summary."""
+        df = pd.DataFrame(
+            {
+                "x": [1.0, 2.0, 3.0, 4.0],
+                "y": [2.0, 4.0, 6.0, 8.0],
+            }
+        )
+        # Set threshold above 1.0 — nothing should be reported
+        _run(df, summary=True, correlations=True, corr_threshold=1.01)
+        captured = capsys.readouterr()
+        assert "correlation" not in captured.err.lower()
+
+    def test_boolean_column_profiled(self):
+        """Boolean columns are typed 'boolean' and fill top/top_freq_pct."""
+        col = pd.Series([True, True, False], name="flag")
+        row = _profile_col(col, 3)
+        assert row["type"] == "boolean"
+        assert row["top"] in ("True", "False")
+        assert not math.isnan(row["top_freq_pct"])
+        assert math.isnan(row["mean"])
+
+
+# ---------------------------------------------------------------------------
+# _profile_col — additional edge cases
+# ---------------------------------------------------------------------------
+
+
+class TestProfileColEdgeCases:
+    def test_fewer_than_4_values_skew_nan(self):
+        """With < 4 valid values skew and kurtosis should remain NaN."""
+        col = pd.Series([1.0, 2.0, 3.0], name="x")  # exactly 3 values
+        row = _profile_col(col, 3)
+        assert math.isnan(row["skew"])
+        assert math.isnan(row["kurtosis"])
+
+    def test_fewer_than_4_no_outlier_flag(self):
+        """IQR outlier check is also skipped when < 4 values."""
+        col = pd.Series([1.0, 1000.0, 2.0], name="x")
+        row = _profile_col(col, 3)
+        assert "outliers_iqr" not in row["notes"]
+
+    def test_possible_id_requires_no_missing(self):
+        # 3 unique values but one NaN → n_missing=1, so n_missing != 0, should NOT fire
+        col = pd.Series([1.0, 2.0, 3.0, np.nan], name="id")
+        row = _profile_col(col, 4)
+        assert "possible_id" not in row["notes"]
+
+    def test_constant_flag_categorical(self):
+        col = pd.Series(["cat", "cat", "cat"], name="label")
+        row = _profile_col(col, 3)
+        assert "constant" in row["notes"]
+
+    def test_heavy_tailed_flag(self):
+        """A distribution with very high kurtosis triggers heavy_tailed."""
+        # Manually craft a series with extreme values to force high kurtosis
+        base = [0.0] * 100
+        extreme = [1000.0, -1000.0, 1000.0, -1000.0]
+        col = pd.Series(base + extreme, name="x")
+        row = _profile_col(col, len(col))
+        assert "heavy_tailed" in row["notes"]
+
+    def test_bimodal_hint_flag(self):
+        """Two well-separated modes should trigger bimodal_hint."""
+        rng = np.random.default_rng(0)
+        # Mix of two Gaussians far apart
+        cluster_a = rng.normal(loc=-5.0, scale=0.5, size=100)
+        cluster_b = rng.normal(loc=5.0, scale=0.5, size=100)
+        col = pd.Series(np.concatenate([cluster_a, cluster_b]), name="x")
+        row = _profile_col(col, len(col))
+        assert "bimodal_hint" in row["notes"]
+
+    def test_numeric_zero_iqr_no_outlier_flag(self):
+        """IQR == 0 (all same value except one) should not crash, and the flag
+        should only appear when iqr > 0."""
+        # All zeros → IQR == 0 → the condition `iqr > 0` prevents the check
+        col = pd.Series([0.0] * 20 + [100.0], name="x")
+        row = _profile_col(col, 21)
+        # IQR is 0 so outlier detection is skipped
+        assert "outliers_iqr" not in row["notes"]
+
+
+# ---------------------------------------------------------------------------
+# _generate_summary — additional flag coverage
+# ---------------------------------------------------------------------------
+
+
+class TestGenerateSummaryAdditional:
+    def _profile(
+        self, notes_map: dict, missing_map: dict | None = None
+    ) -> pd.DataFrame:
+        rows = []
+        for name, (col_type, notes) in notes_map.items():
+            pct = (missing_map or {}).get(name, 0.0)
+            rows.append(
+                {"name": name, "type": col_type, "missing_pct": pct, "notes": notes}
+            )
+        return pd.DataFrame(rows)
+
+    def test_constant_column_mentioned(self):
+        profile = self._profile({"label": ("categorical", "constant")})
+        text = _generate_summary(profile, [], 10, 1)
+        assert "constant" in text.lower()
+        assert "label" in text
+
+    def test_near_constant_mentioned(self):
+        profile = self._profile({"tag": ("categorical", "near_constant")})
+        text = _generate_summary(profile, [], 100, 1)
+        assert "near_constant" in text.lower() or "near-constant" in text.lower()
+        assert "tag" in text
+
+    def test_high_cardinality_mentioned(self):
+        profile = self._profile({"id_col": ("categorical", "high_cardinality")})
+        text = _generate_summary(profile, [], 200, 1)
+        assert "high_cardinality" in text.lower() or "cardinality" in text.lower()
+        assert "id_col" in text
+
+    def test_left_skewed_in_distribution_line(self):
+        profile = self._profile({"returns": ("numeric", "left_skewed")})
+        text = _generate_summary(profile, [], 500, 1)
+        assert "left-skewed" in text
+        assert "returns" in text
+
+    def test_heavy_tailed_in_distribution_line(self):
+        profile = self._profile({"x": ("numeric", "heavy_tailed")})
+        text = _generate_summary(profile, [], 500, 1)
+        assert "heavy-tailed" in text
+
+    def test_bimodal_hint_in_distribution_line(self):
+        profile = self._profile({"x": ("numeric", "bimodal_hint")})
+        text = _generate_summary(profile, [], 500, 1)
+        assert "bimodal" in text.lower()
+
+    def test_high_missing_in_summary(self):
+        profile = self._profile(
+            {"sparse": ("numeric", "high_missing")},
+            missing_map={"sparse": 45.0},
+        )
+        text = _generate_summary(profile, [], 100, 1)
+        assert "sparse" in text
+        assert "45.0%" in text
+
+    def test_approx_normal_in_distribution_line(self):
+        profile = self._profile({"normal_col": ("numeric", "approx_normal")})
+        text = _generate_summary(profile, [], 500, 1)
+        assert "normal" in text.lower()
+        assert "normal_col" in text
+
+    def test_no_distribution_line_for_categorical(self):
+        """Categorical columns should not appear in the Distributions line."""
+        profile = self._profile({"cat": ("categorical", "")})
+        text = _generate_summary(profile, [], 50, 1)
+        assert "Distributions" not in text

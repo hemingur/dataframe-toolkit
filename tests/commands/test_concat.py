@@ -173,3 +173,54 @@ class TestConcatEdgeCases:
                 ConcatCommand().execute(args)
             finally:
                 mod.io.read = original_read
+
+    def test_duplicate_stdin_reversed_order_raises(self):
+        """... then - should also be rejected (two stdin sources)."""
+        import stattools.commands.concat_cmd as mod
+
+        original_read = mod.io.read
+        mod.io.read = lambda args: pd.DataFrame({"x": [1]})
+        try:
+            with pytest.raises(ValueError, match="stdin"):
+                args = _make_args(DATAFILES=["...", "-"])
+                ConcatCommand().execute(args)
+        finally:
+            mod.io.read = original_read
+
+
+class TestConcatFill:
+    def test_fill_float_value(self):
+        """fill='0.5' should be parsed as float and applied to NaN cells."""
+        a = pd.DataFrame({"x": [1.0], "y": [2.0]})
+        b = pd.DataFrame({"x": [3.0]})
+        result = _run({"a.tsv": a, "b.tsv": b}, ["a.tsv", "b.tsv"], fill="0.5")
+        assert float(result.loc[1, "y"]) == pytest.approx(0.5)
+
+    def test_fill_integer_coercion(self):
+        """fill='1' should coerce to int 1, not the string '1'."""
+        a = pd.DataFrame({"x": [1], "y": [10]})
+        b = pd.DataFrame({"x": [2]})
+        result = _run({"a.tsv": a, "b.tsv": b}, ["a.tsv", "b.tsv"], fill="1")
+        assert float(result.loc[1, "y"]) == pytest.approx(1.0)
+
+    def test_fill_and_sourcecol_together(self):
+        """--fill and --sourcecol can be used simultaneously."""
+        a = pd.DataFrame({"x": [1], "extra": [99]})
+        b = pd.DataFrame({"x": [2]})
+        result = _run(
+            {"a.tsv": a, "b.tsv": b},
+            ["a.tsv", "b.tsv"],
+            fill="0",
+            sourcecol="src",
+        )
+        assert "src" in result.columns
+        # b had no 'extra' column — fill should have replaced the NaN
+        assert float(result.loc[1, "extra"]) == pytest.approx(0.0)
+        assert result.loc[1, "src"] == "b.tsv"
+
+    def test_no_fill_preserves_nan(self):
+        """Without --fill, missing columns stay as NaN."""
+        a = pd.DataFrame({"x": [1], "y": [2]})
+        b = pd.DataFrame({"x": [3]})
+        result = _run({"a.tsv": a, "b.tsv": b}, ["a.tsv", "b.tsv"])
+        assert pd.isna(result.loc[1, "y"])

@@ -301,3 +301,97 @@ def test_list_flag_prints_tsv(capsys):
     df = pd.read_csv(__import__("io").StringIO(out), sep="\t")
     assert set(df.columns) == {"name", "type", "parameters"}
     assert len(df) > 100
+
+
+def test_list_flag_bypasses_destcol_requirement(capsys):
+    """--list must succeed even when destcol and dist are None."""
+    cmd = RandvarCommand()
+    args = _make_args(list=True, destcol=None, dist=None)
+    cmd.execute(args)
+    out = capsys.readouterr().out
+    df = pd.read_csv(__import__("io").StringIO(out), sep="\t")
+    assert "name" in df.columns
+
+
+def test_list_distributions_sorted():
+    """Distribution names within each type should be sorted."""
+    df = _list_distributions()
+    cont = df[df["type"] == "continuous"]["name"].tolist()
+    disc = df[df["type"] == "discrete"]["name"].tolist()
+    assert cont == sorted(cont)
+    assert disc == sorted(disc)
+
+
+def test_list_distributions_both_types_present():
+    """Both continuous and discrete types must appear in the listing."""
+    df = _list_distributions()
+    assert set(df["type"].unique()) == {"continuous", "discrete"}
+
+
+# ---------------------------------------------------------------------------
+# _parse_parameters — additional edge cases
+# ---------------------------------------------------------------------------
+
+
+def test_parse_parameters_negative_float():
+    result = _parse_parameters("loc:-3.5,scale:1.0")
+    assert result == {"loc": -3.5, "scale": 1.0}
+
+
+def test_parse_parameters_fractional_shape():
+    result = _parse_parameters("a:0.5,b:2.0")
+    assert result["a"] == pytest.approx(0.5)
+    assert result["b"] == pytest.approx(2.0)
+
+
+# ---------------------------------------------------------------------------
+# RandvarCommand.execute — append mode, additional distributions
+# ---------------------------------------------------------------------------
+
+
+def test_append_beta_in_unit_interval():
+    """Beta samples must lie in [0, 1]."""
+    df = pd.DataFrame({"a": range(200)})
+    result = _run_on_df(df, dist="beta", parameters="a:2,b:5", randomseed="10")
+    assert (result["x"] >= 0).all()
+    assert (result["x"] <= 1).all()
+
+
+def test_append_discrete_poisson_nonnegative():
+    """Poisson samples appended to an existing frame must be non-negative integers."""
+    df = pd.DataFrame({"a": range(50)})
+    result = _run_on_df(df, dist="poisson", parameters="mu:4", randomseed="20")
+    assert len(result) == 50
+    assert (result["x"] >= 0).all()
+    # Values should all be integers (no fractional parts)
+    assert (result["x"] == result["x"].round()).all()
+
+
+def test_append_custom_destcol_on_existing_df():
+    """Append mode respects --destcol even when reading a real DataFrame."""
+    df = pd.DataFrame({"score": [0.1, 0.5, 0.9]})
+    result = _run_on_df(df, dist="uniform", destcol="noise", randomseed="0")
+    assert "score" in result.columns
+    assert "noise" in result.columns
+    assert len(result) == 3
+
+
+def test_standalone_beta_in_unit_interval(capsys):
+    """Standalone beta samples must be in [0, 1]."""
+    cmd = RandvarCommand()
+    args = _make_args(nsamples=500, dist="beta", parameters="a:2,b:3", randomseed="77")
+    cmd.execute(args)
+    out = capsys.readouterr().out
+    df = pd.read_csv(__import__("io").StringIO(out), sep="\t")
+    assert (df["x"] >= 0).all()
+    assert (df["x"] <= 1).all()
+
+
+def test_standalone_uniform_mean_approx_half(capsys):
+    """Large uniform sample should have mean close to 0.5."""
+    cmd = RandvarCommand()
+    args = _make_args(nsamples=2000, dist="uniform", randomseed="123")
+    cmd.execute(args)
+    out = capsys.readouterr().out
+    df = pd.read_csv(__import__("io").StringIO(out), sep="\t")
+    assert df["x"].mean() == pytest.approx(0.5, abs=0.05)
