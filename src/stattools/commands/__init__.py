@@ -43,32 +43,54 @@ from stattools.commands.test_cmd import TestCommand
 # from stattools.commands.fisher    import FisherCommand  # superseded by eval's
 #                                                         # fisher_test/fisher_OR
 
-command_list = [
-    PrintCommand(),
-    CleanCommand(),
-    StatCommand(),
-    PivotCommand(),
-    EvalCommand(),
-    MergeCommand(),
-    QueryCommand(),
-    FitCommand(),
-    ScaleCommand(),
-    ScatCommand(),
-    LineCommand(),
-    HistCommand(),
-    MeltCommand(),
-    FuncCommand(),
-    InterpCommand(),
-    DatasetCommand(),
-    AnnotateCommand(),
-    ConcatCommand(),
-    SampleCommand(),
-    DescribeCommand(),
-    TestCommand(),
-    RandvarCommand(),
+COMMAND_GROUPS: list[tuple[str, list]] = [
+    (
+        "Data transformation",
+        [
+            EvalCommand(),
+            QueryCommand(),
+            MergeCommand(),
+            ConcatCommand(),
+            MeltCommand(),
+            PivotCommand(),
+            FuncCommand(),
+            ScaleCommand(),
+            InterpCommand(),
+        ],
+    ),
+    (
+        "Statistics",
+        [
+            StatCommand(),
+            FitCommand(),
+            TestCommand(),
+            DescribeCommand(),
+            RandvarCommand(),
+        ],
+    ),
+    (
+        "Plots",
+        [
+            ScatCommand(),
+            LineCommand(),
+            HistCommand(),
+        ],
+    ),
+    (
+        "Utilities",
+        [
+            DatasetCommand(),
+            SampleCommand(),
+            AnnotateCommand(),
+            PrintCommand(),
+            CleanCommand(),
+        ],
+    ),
 ]
 
-# HelpCommand receives the live list so it can introspect any peer.
-help_command = HelpCommand(command_list)
+command_list = [cmd for _, cmds in COMMAND_GROUPS for cmd in cmds]
+
+# HelpCommand receives the live list and groups so it can introspect any peer.
+help_command = HelpCommand(command_list, COMMAND_GROUPS)
 
 COMMANDS = command_list + [help_command]

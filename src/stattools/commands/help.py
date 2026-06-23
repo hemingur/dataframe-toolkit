@@ -16,10 +16,13 @@ class HelpCommand(BaseCommand):
     name = "help"
     help = "Show detailed help for a subcommand"
 
-    def __init__(self, available_commands: list[BaseCommand] | None = None) -> None:
-        # Receives the live command list from commands/__init__.py so it can
-        # introspect any peer command without circular imports.
+    def __init__(
+        self,
+        available_commands: list[BaseCommand] | None = None,
+        command_groups: list[tuple[str, list[BaseCommand]]] | None = None,
+    ) -> None:
         self.available_commands: list[BaseCommand] = available_commands or []
+        self.command_groups: list[tuple[str, list[BaseCommand]]] = command_groups or []
 
     def add_arguments(self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument(
@@ -31,10 +34,15 @@ class HelpCommand(BaseCommand):
 
     def execute(self, args: argparse.Namespace) -> None:
         if args.command_name is None:
-            # List all commands
-            print("Available commands:")
-            for cmd in self.available_commands:
-                print(f"  {cmd.name:<16} {cmd.help}")
+            if self.command_groups:
+                for header, cmds in self.command_groups:
+                    print(f"\n{header}:")
+                    for cmd in cmds:
+                        print(f"  {cmd.name:<16} {cmd.help}")
+            else:
+                print("Available commands:")
+                for cmd in self.available_commands:
+                    print(f"  {cmd.name:<16} {cmd.help}")
             print("\nUse 'dfstat help <command>' for detailed help on a command.")
             return
 
