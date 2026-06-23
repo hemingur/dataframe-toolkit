@@ -42,6 +42,7 @@ logging.basicConfig(
     format="%(asctime)s %(module)s %(levelname)s at line %(lineno)d: %(message)s",
     level=logging.INFO,
 )
+logging.getLogger("matplotlib.font_manager").setLevel(logging.WARNING)
 
 # ---------------------------------------------------------------------------
 # Parquet-pipe temp directory
