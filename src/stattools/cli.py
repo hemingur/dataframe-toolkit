@@ -10,6 +10,7 @@ import argparse
 import logging
 import sys
 
+from stattools import __version__
 from stattools.commands import COMMANDS
 from stattools.common.io import DFSTAT_TMPDIR
 
@@ -31,6 +32,8 @@ def main() -> None:
             "Run 'dfstat clean' to remove any leftover pipe files."
         ),
     )
+
+    parser.add_argument("--version", action="version", version=f"dfstat {__version__}")
 
     subparsers = parser.add_subparsers(dest="command", metavar="COMMAND")
     subparsers.required = True
@@ -55,6 +58,7 @@ def main() -> None:
         sys.exit(1)
     except Exception as exc:
         import traceback
+
         print(
             f"Unexpected error ({type(exc).__name__}): {exc}\n"
             "Please report this with the full traceback below.",
