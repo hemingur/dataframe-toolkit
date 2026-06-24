@@ -1,8 +1,21 @@
 [project]
 name = "stattools"
 version = "0.2.0"
-description = "DataFrame analysis and manipulation toolkit"
+description = "A command-line toolkit for DataFrame analysis and manipulation"
 readme = "README.md"
+authors = [
+    { name = "Gunnar Pálsson", email = "hemingur@gmail.com" }
+]
+license = { text = "MIT" }
+keywords = ["dataframe", "statistics", "data analysis", "CLI", "TSV", "pandas"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Utilities",
+    "Programming Language :: Python :: 3",
+]
 requires-python = ">=3.12"
 dependencies = [
     "pandas>=2.1",
@@ -15,6 +28,10 @@ dependencies = [
     "seaborn>=0.12",
     "tqdm>=4.65",
 ]
+
+[project.urls]
+Homepage = "https://github.com/hemingur/stattools"
+Repository = "https://github.com/hemingur/stattools"
 
 [project.scripts]
 dfstat = "stattools.cli:main"
