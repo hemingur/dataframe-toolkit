@@ -72,6 +72,10 @@ def grouped_df():
 
 
 class TestSchema:
+    pytestmark = pytest.mark.filterwarnings(
+        "ignore:Precision loss occurred:RuntimeWarning"
+    )
+
     def test_ungrouped_columns(self, different_df):
         result = _run_test(different_df, make_args())
         assert list(result.columns) == ["pvalue"]
@@ -120,6 +124,7 @@ class TestStudentT:
         result = _run_test(different_df, make_args(test="student_t"))
         assert result["pvalue"].iloc[0] == pytest.approx(expected)
 
+    @pytest.mark.filterwarnings("ignore:Precision loss occurred:RuntimeWarning")
     def test_grouped_x_identical(self, grouped_df):
         result = _run_test(grouped_df, make_args(test="student_t", groups=["group"]))
         x_row = result[result["group"] == "X"]
@@ -129,6 +134,7 @@ class TestStudentT:
             0
         ] == pytest.approx(1.0)  # noqa: E501
 
+    @pytest.mark.filterwarnings("ignore:Precision loss occurred:RuntimeWarning")
     def test_grouped_y_different(self, grouped_df):
         result = _run_test(grouped_df, make_args(test="student_t", groups=["group"]))
         y_row = result[result["group"] == "Y"]
