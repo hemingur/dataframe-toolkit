@@ -5,7 +5,7 @@ Port of dfcorr.py: pairwise column correlations with optional grouping,
 analytical confidence intervals (Pearson), and BCa bootstrap inference.
 
 Bootstrap mode (--bootstrap N) produces a single summary row per pair with:
-  p_boot      — permutation p-value (fraction of |r_null| >= |r_obs|)
+  p_perm      — permutation p-value (fraction of |r_null| >= |r_obs|)
   ci_boot_lo  — BCa 95% CI lower bound (all methods)
   ci_boot_hi  — BCa 95% CI upper bound (all methods)
 """
@@ -40,10 +40,10 @@ def _compute_correlation(a: np.ndarray, b: np.ndarray, method_fn, ci: bool) -> t
     return row
 
 
-# Maximum number of jackknife leave-one-out iterations used to estimate
-# the BCa acceleration factor.  scipy.stats.bootstrap materialises an
-# (n × n-1) array for this step, which OOMs at large n.  Capping at 500
-# gives an accurate acceleration estimate with O(1) peak memory.
+# BCa jackknife acceleration is estimated from leave-one-out resamples.
+# scipy.stats.bootstrap materialises an (n × n-1) array for this step,
+# which OOMs at large n.  We stream one leave-one-out at a time and cap
+# at _MAX_JACK observations so peak memory is O(min(n, _MAX_JACK)).
 _MAX_JACK = 500
 
 
@@ -55,13 +55,11 @@ def _bootstrap_stats(
     rng: np.random.Generator,
     confidence: float = 0.95,
 ) -> tuple[float, float, float]:
-    """Return (p_boot, ci_boot_lo, ci_boot_hi).
+    """Return (p_perm, ci_boot_lo, ci_boot_hi).
 
-    p_boot:       permutation test p-value (shuffle b, build null distribution).
-    ci_boot_lo/hi: BCa 95% CI computed without scipy.stats.bootstrap so that
-                  the jackknife is streamed one leave-one-out at a time —
-                  O(n) peak memory regardless of data size.
-    Falls back to percentile CI when BCa is degenerate (zero-variance statistic).
+    p_perm:       permutation p-value (fraction of |r_null| >= |r_obs|).
+    ci_boot_lo/hi: BCa 95% CI with streaming jackknife (O(n) peak memory).
+                  Falls back to percentile CI when BCa is degenerate.
     """
     n = len(a)
     r_obs = method_fn(a, b).statistic
@@ -72,7 +70,7 @@ def _bootstrap_stats(
     for _ in range(n_boot):
         if abs(method_fn(a, rng.permutation(b)).statistic) >= r_obs_abs:
             n_extreme += 1
-    p_boot = n_extreme / n_boot
+    p_perm = n_extreme / n_boot
 
     # --- bootstrap distribution (resample with replacement) -----------------
     theta_boot = np.empty(n_boot)
@@ -81,8 +79,6 @@ def _bootstrap_stats(
         theta_boot[i] = method_fn(a[idx], b[idx]).statistic
 
     # --- BCa acceleration via streaming jackknife ---------------------------
-    # Use a random subsample of leave-one-out indices when n > _MAX_JACK so
-    # that the jackknife is O(min(n, _MAX_JACK)) function calls, not O(n).
     if n <= _MAX_JACK:
         jack_indices = np.arange(n)
     else:
@@ -122,7 +118,7 @@ def _bootstrap_stats(
         ci_lo = float(np.percentile(theta_boot, 100.0 * a1))
         ci_hi = float(np.percentile(theta_boot, 100.0 * a2))
 
-    return p_boot, ci_lo, ci_hi
+    return p_perm, ci_lo, ci_hi
 
 
 def _corr(
@@ -137,7 +133,7 @@ def _corr(
     if ci:
         header += ["cilo", "cihi"]
     if args.bootstrap is not None:
-        header += ["p_boot", "ci_boot_lo", "ci_boot_hi"]
+        header += ["p_perm", "ci_boot_lo", "ci_boot_hi"]
 
     rows = []
 
@@ -179,16 +175,27 @@ METHODS (--method)
 
 CONFIDENCE INTERVAL (--ci)
 --------------------------
-  Adds cilo and cihi columns using the analytical formula.
-  Only available for Pearson; silently ignored for other methods.
-  For Spearman/Kendall use --bootstrap to get BCa CIs.
+  Adds cilo and cihi columns using the analytical Fisher z-transform formula.
+  Only available for Pearson; silently ignored for Spearman/Kendall.
+  Use --bootstrap to get non-parametric CIs for any method.
 
 BOOTSTRAP (--bootstrap N)
 --------------------------
-  Adds three summary columns to the (single) output row per pair:
-    p_boot      Non-parametric p-value via permutation test.
-    ci_boot_lo  BCa 95% CI lower bound (all methods).
-    ci_boot_hi  BCa 95% CI upper bound (all methods).
+  Runs N bootstrap resamples and N permutation draws, adding three columns:
+
+    p_perm      Permutation p-value: fraction of |r_null| >= |r_obs| when b
+                is repeatedly shuffled to break the pairing with a.  This is
+                a non-parametric test of the null hypothesis r = 0.
+
+    ci_boot_lo  BCa (bias-corrected and accelerated) 95% CI lower bound.
+    ci_boot_hi  BCa 95% CI upper bound.
+
+  BCa corrects for both bias (z0) and skewness (acceleration factor a_hat)
+  in the bootstrap distribution.  The acceleration factor is estimated via a
+  streaming jackknife: leave-one-out statistics are computed one at a time
+  (capped at 500 observations when n > 500) so peak memory is O(n) rather
+  than O(n^2).  Falls back to percentile CI if BCa is degenerate.
+
   Use --randomseed for reproducibility.
 
 EXAMPLES
@@ -248,13 +255,13 @@ class CorrCommand(BaseCommand):
             type=int,
             default=None,
             metavar="N",
-            help="Bootstrap N resamples; adds p_boot and BCa CI columns.",
+            help="Bootstrap N resamples; adds p_perm and BCa CI columns.",
         )
         g.add_argument(
             "--randomseed",
             default=None,
             metavar="SEED",
-            help="Random seed for bootstrap (integer or string).",
+            help="Random seed for bootstrap/permutation (integer or string).",
         )
 
     def execute(self, args: argparse.Namespace) -> None:

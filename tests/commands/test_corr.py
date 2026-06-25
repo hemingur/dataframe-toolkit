@@ -87,7 +87,7 @@ class TestSchema:
 
     def test_bootstrap_columns_added(self, perfect_df):
         result = _corr(perfect_df, _args(bootstrap=50), _rng())
-        assert "p_boot" in result.columns
+        assert "p_perm" in result.columns
         assert "ci_boot_lo" in result.columns
         assert "ci_boot_hi" in result.columns
 
@@ -209,14 +209,14 @@ class TestGrouping:
 
 
 class TestBootstrap:
-    def test_p_boot_in_range(self, perfect_df):
+    def test_p_perm_in_range(self, perfect_df):
         result = _corr(perfect_df, _args(bootstrap=200), _rng())
-        p = result["p_boot"].iloc[0]
+        p = result["p_perm"].iloc[0]
         assert 0.0 <= p <= 1.0
 
-    def test_perfectly_correlated_p_boot_small(self, perfect_df):
+    def test_perfectly_correlated_p_perm_small(self, perfect_df):
         result = _corr(perfect_df, _args(bootstrap=500), _rng(1))
-        assert result["p_boot"].iloc[0] < 0.05
+        assert result["p_perm"].iloc[0] < 0.05
 
     def test_ci_boot_ordered(self, perfect_df):
         result = _corr(perfect_df, _args(bootstrap=200), _rng())
