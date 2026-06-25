@@ -55,16 +55,10 @@ def _bootstrap_stats(
     rng: np.random.Generator,
     confidence: float = 0.95,
 ) -> tuple[float, float, float]:
-    """Return (p_perm, ci_boot_lo, ci_boot_hi).
-
-    p_perm:       permutation p-value (fraction of |r_null| >= |r_obs|).
-    ci_boot_lo/hi: BCa 95% CI with streaming jackknife (O(n) peak memory).
-                  Falls back to percentile CI when BCa is degenerate.
-    """
+    """Return (p_perm, ci_boot_lo, ci_boot_hi) via permutation test and BCa CI."""
     n = len(a)
     r_obs = method_fn(a, b).statistic
 
-    # --- permutation test ---------------------------------------------------
     r_obs_abs = abs(r_obs)
     n_extreme = 0
     for _ in range(n_boot):
@@ -72,13 +66,11 @@ def _bootstrap_stats(
             n_extreme += 1
     p_perm = n_extreme / n_boot
 
-    # --- bootstrap distribution (resample with replacement) -----------------
     theta_boot = np.empty(n_boot)
     for i in range(n_boot):
         idx = rng.integers(0, n, size=n)
         theta_boot[i] = method_fn(a[idx], b[idx]).statistic
 
-    # --- BCa acceleration via streaming jackknife ---------------------------
     if n <= _MAX_JACK:
         jack_indices = np.arange(n)
     else:
@@ -96,7 +88,6 @@ def _bootstrap_stats(
     denom = np.sum(diff**2)
     a_hat = np.sum(diff**3) / (6.0 * denom**1.5) if denom > 1e-20 else 0.0
 
-    # --- BCa bias correction ------------------------------------------------
     prop = np.clip((theta_boot < r_obs).mean(), 1e-10, 1 - 1e-10)
     z0 = ss.norm.ppf(prop)
 
@@ -126,6 +117,9 @@ def _corr(
 ) -> pd.DataFrame:
     method_fn = _METHOD_FUNC[args.method]
     pairs = [c.split(":", maxsplit=1) for c in args.cols]
+    bad = [c for c, p in zip(args.cols, pairs, strict=False) if len(p) != 2]
+    if bad:
+        raise ValueError(f"-c pairs must be col1:col2, got: {bad}")
 
     ci = args.ci and args.method == "pearson"
 
@@ -145,7 +139,9 @@ def _corr(
             if args.bootstrap is None:
                 rows.append((*prefix, col1, col2, *cr))
             else:
-                boot = _bootstrap_stats(a, b, method_fn, args.bootstrap, rng)
+                boot = _bootstrap_stats(
+                    a, b, method_fn, args.bootstrap, rng, args.confidence / 100.0
+                )
                 rows.append((*prefix, col1, col2, *cr, *boot))
 
     if args.groups:
@@ -187,9 +183,10 @@ BOOTSTRAP (--bootstrap N)
                 is repeatedly shuffled to break the pairing with a.  This is
                 a non-parametric test of the null hypothesis r = 0.
 
-    ci_boot_lo  BCa (bias-corrected and accelerated) 95% CI lower bound.
-    ci_boot_hi  BCa 95% CI upper bound.
+    ci_boot_lo  BCa (bias-corrected and accelerated) CI lower bound.
+    ci_boot_hi  BCa CI upper bound.
 
+  The CI level defaults to 95% and is controlled by --confidence.
   BCa corrects for both bias (z0) and skewness (acceleration factor a_hat)
   in the bootstrap distribution.  The acceleration factor is estimated via a
   streaming jackknife: leave-one-out statistics are computed one at a time
@@ -256,6 +253,13 @@ class CorrCommand(BaseCommand):
             default=None,
             metavar="N",
             help="Bootstrap N resamples; adds p_perm and BCa CI columns.",
+        )
+        g.add_argument(
+            "--confidence",
+            type=float,
+            default=95.0,
+            metavar="PCT",
+            help="CI level in percent for BCa bootstrap bounds (default: 95.0).",
         )
         g.add_argument(
             "--randomseed",

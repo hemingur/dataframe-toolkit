@@ -20,6 +20,7 @@ def _args(**kwargs):
         method="pearson",
         ci=False,
         bootstrap=None,
+        confidence=95.0,
         randomseed=None,
     )
     defaults.update(kwargs)
@@ -286,3 +287,21 @@ class TestNaN:
             result = _corr(perfect_df, _args(method=method), _rng())
             pval = result["pvalue"].iloc[0]
             assert 0.0 <= pval <= 1.0, f"{method}: pvalue={pval}"
+
+
+# ---------------------------------------------------------------------------
+# Input validation
+# ---------------------------------------------------------------------------
+
+
+class TestValidation:
+    def test_malformed_pair_raises(self, perfect_df):
+        with pytest.raises(ValueError, match="col1:col2"):
+            _corr(perfect_df, _args(cols=["ab"]), _rng())
+
+    def test_confidence_affects_ci_width(self, perfect_df):
+        r95 = _corr(perfect_df, _args(bootstrap=200, confidence=95.0), _rng(1))
+        r50 = _corr(perfect_df, _args(bootstrap=200, confidence=50.0), _rng(1))
+        width95 = r95["ci_boot_hi"].iloc[0] - r95["ci_boot_lo"].iloc[0]
+        width50 = r50["ci_boot_hi"].iloc[0] - r50["ci_boot_lo"].iloc[0]
+        assert width95 >= width50

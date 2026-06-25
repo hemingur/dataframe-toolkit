@@ -16,7 +16,6 @@ def _args(**kwargs):
         suffix="",
         template=None,
         noclobber=False,
-        separator="\t",
         output=None,
         noheader=False,
     )

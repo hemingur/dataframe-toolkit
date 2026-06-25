@@ -63,6 +63,9 @@ OPTIONS
 -------
   --noclobber   Skip files that already exist instead of overwriting.
 
+  Note: -o/--output is not used by split; output paths are always determined
+  by -p/--prefix, -s/--suffix, or --template.
+
 EXAMPLES
 --------
   dfstat split data.tsv -g group

@@ -46,14 +46,15 @@ def _wstat(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
 
     def _add_cols(sub: pd.DataFrame, prefix: tuple = ()) -> None:
         for c, w in zip(args.cols, weights, strict=False):
-            ws = ssw.DescrStatsW(sub[c], sub[w])
+            pair = sub[[c, w]].dropna()
+            ws = ssw.DescrStatsW(pair[c], pair[w])
             q = ws.quantile(probs)
             rows.append(
                 (
                     *prefix,
                     c,
                     w,
-                    ws.sum_weights,
+                    float(ws.sum_weights),
                     ws.sum,
                     ws.mean,
                     ws.std,

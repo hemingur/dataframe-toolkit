@@ -16,11 +16,7 @@ from stattools.common.io import check_cols, io
 
 
 def _parse_binspec(binspec: str) -> list[float]:
-    """Parse a binspec string into a list of bin edges.
-
-    Accepts either 'min:max:step' (generates via np.arange) or a
-    comma-separated list of explicit float edges.
-    """
+    """Parse 'min:max:step' or 'e1,e2,...,eN' into a list of bin edges."""
     if "," in binspec:
         return [float(x) for x in binspec.split(",")]
     parts = binspec.split(":")
@@ -44,7 +40,7 @@ def _binx(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
 
     if args.usevalue is not None:
         frac = {"l": 0.0, "m": 0.5, "u": 1.0}[args.usevalue]
-        edges = bins + [bins[-1]]  # sentinel so the last bin's upper edge is accessible
+        edges = bins
 
         def _to_edge(idx: float) -> float:
             if pd.isna(idx):

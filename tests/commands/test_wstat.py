@@ -184,3 +184,14 @@ class TestEdgeCases:
         df = pd.DataFrame({"x": [5.0], "w": [2.0]})
         result = _wstat(df, _args())
         assert result["wmean"].iloc[0] == pytest.approx(5.0)
+
+    def test_nan_in_data_excluded(self):
+        df = pd.DataFrame({"x": [1.0, float("nan"), 3.0], "w": [1.0, 1.0, 1.0]})
+        result = _wstat(df, _args())
+        assert result["totalweight"].iloc[0] == pytest.approx(2.0)
+        assert result["wmean"].iloc[0] == pytest.approx(2.0)
+
+    def test_nan_in_weight_excluded(self):
+        df = pd.DataFrame({"x": [1.0, 2.0, 3.0], "w": [1.0, float("nan"), 1.0]})
+        result = _wstat(df, _args())
+        assert result["totalweight"].iloc[0] == pytest.approx(2.0)
