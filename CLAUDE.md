@@ -179,7 +179,7 @@ Original scripts live in `/home/gunnar/projects/python_projects/df/src/df/`.
 | —                | dataset           | new       |
 | dfsample.py      | sample            | ported    |
 | dfcat.py         | concat            | ported    |
-| dfsplit.py       | split             | pending   |
+| dfsplit.py       | split             | ported    |
 | dfcorr.py        | corr              | ported    |
 | dftest.py        | test              | ported    |
 | dfwstat.py       | wstat             | ported    |

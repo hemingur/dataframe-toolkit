@@ -29,13 +29,12 @@ from stattools.commands.randvar_cmd import RandvarCommand
 from stattools.commands.sample_cmd import SampleCommand
 from stattools.commands.scale_cmd import ScaleCommand
 from stattools.commands.scat_cmd import ScatCommand
+from stattools.commands.split_cmd import SplitCommand
 from stattools.commands.stat_cmd import StatCommand
 from stattools.commands.test_cmd import TestCommand
 from stattools.commands.wstat_cmd import WstatCommand
 
 # Ported subcommands — uncomment as each one is added:
-# from stattools.commands.split     import SplitCommand
-# from stattools.commands.wstat     import WstatCommand
 # from stattools.commands.segid     import SegidCommand
 # from stattools.commands.info      import InfoCommand
 # from stattools.commands.transpose import TransposeCommand
@@ -85,6 +84,7 @@ COMMAND_GROUPS: list[tuple[str, list]] = [
         [
             DatasetCommand(),
             SampleCommand(),
+            SplitCommand(),
             AnnotateCommand(),
             PrintCommand(),
             CleanCommand(),
