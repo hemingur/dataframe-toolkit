@@ -10,6 +10,7 @@ from stattools.commands.annotate_cmd import AnnotateCommand
 from stattools.commands.binx_cmd import BinxCommand
 from stattools.commands.clean_cmd import CleanCommand
 from stattools.commands.concat_cmd import ConcatCommand
+from stattools.commands.corr_cmd import CorrCommand
 from stattools.commands.dataset_cmd import DatasetCommand
 from stattools.commands.describe_cmd import DescribeCommand
 from stattools.commands.eval_cmd import EvalCommand
@@ -33,7 +34,6 @@ from stattools.commands.test_cmd import TestCommand
 
 # Ported subcommands — uncomment as each one is added:
 # from stattools.commands.split     import SplitCommand
-# from stattools.commands.corr      import CorrCommand
 # from stattools.commands.wstat     import WstatCommand
 # from stattools.commands.segid     import SegidCommand
 # from stattools.commands.info      import InfoCommand
@@ -65,6 +65,7 @@ COMMAND_GROUPS: list[tuple[str, list]] = [
             StatCommand(),
             FitCommand(),
             TestCommand(),
+            CorrCommand(),
             DescribeCommand(),
             RandvarCommand(),
         ],
