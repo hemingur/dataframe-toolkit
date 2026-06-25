@@ -7,6 +7,7 @@
 #   That's it — cli.py discovers commands solely through this COMMANDS list.
 
 from stattools.commands.annotate_cmd import AnnotateCommand
+from stattools.commands.binx_cmd import BinxCommand
 from stattools.commands.clean_cmd import CleanCommand
 from stattools.commands.concat_cmd import ConcatCommand
 from stattools.commands.dataset_cmd import DatasetCommand
@@ -34,7 +35,6 @@ from stattools.commands.test_cmd import TestCommand
 # from stattools.commands.split     import SplitCommand
 # from stattools.commands.corr      import CorrCommand
 # from stattools.commands.wstat     import WstatCommand
-# from stattools.commands.binx      import BinxCommand
 # from stattools.commands.segid     import SegidCommand
 # from stattools.commands.info      import InfoCommand
 # from stattools.commands.transpose import TransposeCommand
@@ -56,6 +56,7 @@ COMMAND_GROUPS: list[tuple[str, list]] = [
             FuncCommand(),
             ScaleCommand(),
             InterpCommand(),
+            BinxCommand(),
         ],
     ),
     (
