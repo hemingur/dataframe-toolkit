@@ -40,53 +40,87 @@ def _compute_correlation(a: np.ndarray, b: np.ndarray, method_fn, ci: bool) -> t
     return row
 
 
+# Maximum number of jackknife leave-one-out iterations used to estimate
+# the BCa acceleration factor.  scipy.stats.bootstrap materialises an
+# (n × n-1) array for this step, which OOMs at large n.  Capping at 500
+# gives an accurate acceleration estimate with O(1) peak memory.
+_MAX_JACK = 500
+
+
 def _bootstrap_stats(
     a: np.ndarray,
     b: np.ndarray,
     method_fn,
-    n: int,
+    n_boot: int,
     rng: np.random.Generator,
+    confidence: float = 0.95,
 ) -> tuple[float, float, float]:
     """Return (p_boot, ci_boot_lo, ci_boot_hi).
 
-    p_boot uses a permutation test (shuffle b, build null distribution).
-    CIs use BCa bootstrap on paired resamples (falls back to percentile
-    if BCa cannot be computed, e.g. zero-variance statistic).
+    p_boot:       permutation test p-value (shuffle b, build null distribution).
+    ci_boot_lo/hi: BCa 95% CI computed without scipy.stats.bootstrap so that
+                  the jackknife is streamed one leave-one-out at a time —
+                  O(n) peak memory regardless of data size.
+    Falls back to percentile CI when BCa is degenerate (zero-variance statistic).
     """
-    r_obs = abs(method_fn(a, b).statistic)
+    n = len(a)
+    r_obs = method_fn(a, b).statistic
 
-    # Permutation p-value: shuffle b to break pairing
-    n_extreme = sum(
-        1 for _ in range(n) if abs(method_fn(a, rng.permutation(b)).statistic) >= r_obs
-    )
-    p_boot = n_extreme / n
+    # --- permutation test ---------------------------------------------------
+    r_obs_abs = abs(r_obs)
+    n_extreme = 0
+    for _ in range(n_boot):
+        if abs(method_fn(a, rng.permutation(b)).statistic) >= r_obs_abs:
+            n_extreme += 1
+    p_boot = n_extreme / n_boot
 
-    # BCa CI via scipy.stats.bootstrap on paired data
-    def _stat(x, y):
-        return method_fn(x, y).statistic
+    # --- bootstrap distribution (resample with replacement) -----------------
+    theta_boot = np.empty(n_boot)
+    for i in range(n_boot):
+        idx = rng.integers(0, n, size=n)
+        theta_boot[i] = method_fn(a[idx], b[idx]).statistic
 
-    for bca_method in ("BCa", "percentile"):
-        try:
-            boot = ss.bootstrap(
-                (a, b),
-                statistic=_stat,
-                n_resamples=n,
-                method=bca_method,
-                paired=True,
-                vectorized=False,
-                random_state=rng,
-            )
-            ci_lo = boot.confidence_interval.low
-            ci_hi = boot.confidence_interval.high
-            if np.isnan(ci_lo) or np.isnan(ci_hi):
-                raise ValueError("degenerate CI")
-            if bca_method == "percentile":
-                logger.warning("BCa CI failed; fell back to percentile method.")
-            break
-        except Exception:  # noqa: BLE001
-            continue
+    # --- BCa acceleration via streaming jackknife ---------------------------
+    # Use a random subsample of leave-one-out indices when n > _MAX_JACK so
+    # that the jackknife is O(min(n, _MAX_JACK)) function calls, not O(n).
+    if n <= _MAX_JACK:
+        jack_indices = np.arange(n)
     else:
-        ci_lo = ci_hi = float("nan")
+        jack_indices = rng.choice(n, size=_MAX_JACK, replace=False)
+
+    theta_jack = np.empty(len(jack_indices))
+    mask = np.ones(n, dtype=bool)
+    for j, i in enumerate(jack_indices):
+        mask[i] = False
+        theta_jack[j] = method_fn(a[mask], b[mask]).statistic
+        mask[i] = True
+
+    jmean = theta_jack.mean()
+    diff = jmean - theta_jack
+    denom = np.sum(diff**2)
+    a_hat = np.sum(diff**3) / (6.0 * denom**1.5) if denom > 1e-20 else 0.0
+
+    # --- BCa bias correction ------------------------------------------------
+    prop = np.clip((theta_boot < r_obs).mean(), 1e-10, 1 - 1e-10)
+    z0 = ss.norm.ppf(prop)
+
+    alpha = (1.0 - confidence) / 2.0
+    z_lo, z_hi = ss.norm.ppf(alpha), ss.norm.ppf(1.0 - alpha)
+
+    def _adj(z: float) -> float:
+        denom = 1.0 - a_hat * (z0 + z)
+        if abs(denom) < 1e-10:
+            return float("nan")
+        return ss.norm.cdf(z0 + (z0 + z) / denom)
+
+    a1, a2 = _adj(z_lo), _adj(z_hi)
+
+    if np.isnan(a1) or np.isnan(a2):
+        ci_lo = float(np.percentile(theta_boot, 100.0 * alpha))
+        ci_hi = float(np.percentile(theta_boot, 100.0 * (1.0 - alpha)))
+    else:
+        ci_lo = float(np.percentile(theta_boot, 100.0 * a1))
+        ci_hi = float(np.percentile(theta_boot, 100.0 * a2))
 
     return p_boot, ci_lo, ci_hi
 
