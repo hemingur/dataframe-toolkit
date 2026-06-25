@@ -38,24 +38,30 @@ dfstat stat data.tsv -c value -g group -o \
 
 ### Data transformation
 
-| Command  | Description                                                                          |
-|----------|--------------------------------------------------------------------------------------|
-| `eval`   | Add or modify columns: eval expressions, string/path functions, statistical ops      |
-| `query`  | Filter rows with pandas query expressions or SQL (`--sql` via DuckDB)                |
-| `merge`  | Join two tables on key columns (inner/left/right/outer)                              |
-| `melt`   | Reshape wide-to-long (`pd.melt`)                                                     |
-| `pivot`  | Reshape long-to-wide with per-cell aggregation                                       |
-| `func`   | Column transforms: cumsum, group mean/sum/min/max/count/median/std, rank, qcut:N     |
-| `scale`  | Normalise: z-score, min-shift, sum/max/mean scaling, Blom rank, regression residuals |
-| `interp` | Interpolate values from a reference curve into a table (1-D lookup)                  |
+| Command   | Description                                                                          |
+|-----------|--------------------------------------------------------------------------------------|
+| `eval`    | Add or modify columns: eval expressions, string/path functions, statistical ops      |
+| `query`   | Filter rows with pandas query expressions or SQL (`--sql` via DuckDB)                |
+| `merge`   | Join two tables on key columns (inner/left/right/outer)                              |
+| `concat`  | Concatenate two or more tables row-wise                                              |
+| `melt`    | Reshape wide-to-long (`pd.melt`)                                                     |
+| `pivot`   | Reshape long-to-wide with per-cell aggregation                                       |
+| `func`    | Column transforms: cumsum, group mean/sum/min/max/count/median/std, rank, qcut:N     |
+| `scale`   | Normalise: z-score, min-shift, sum/max/mean scaling, Blom rank, regression residuals |
+| `interp`  | Interpolate values from a reference curve into a table (1-D lookup)                  |
+| `binx`    | Assign bin indices to a column based on explicit or generated edges                  |
 
 ### Statistics
 
-| Command | Description                                                                                         |
-|---------|-----------------------------------------------------------------------------------------------------|
-| `stat`  | Descriptive statistics (count/mean/std/CI/SEM/skew/kurtosis) with grouping and bootstrap            |
-| `fit`   | OLS/robust/weighted regression via R-style formulas; tidy table, `--summary`, `--anova`             |
-| `test`  | P-values between column pairs: t-test, Mann-Whitney, Wilcoxon, KS, correlations, bootstrap; groups  |
+| Command    | Description                                                                                         |
+|------------|-----------------------------------------------------------------------------------------------------|
+| `stat`     | Descriptive statistics (count/mean/std/CI/SEM/skew/kurtosis) with grouping and bootstrap            |
+| `wstat`    | Weighted descriptive statistics (wmean, wstd, weighted quantile CI)                                 |
+| `fit`      | OLS/robust/weighted regression via R-style formulas; tidy table, `--summary`, `--anova`             |
+| `test`     | P-values between column pairs: t-test, Mann-Whitney, Wilcoxon, KS, correlations, bootstrap; groups  |
+| `corr`     | Pairwise column correlations (Pearson/Spearman/Kendall) with optional BCa bootstrap CI              |
+| `describe` | Quick column-level summary (dtype, n, n_unique, n_null, sample values)                              |
+| `randvar`  | Sample from a distribution and append as a new column (norm, alpha, beta, …)                        |
 
 ### Plots
 
@@ -75,6 +81,8 @@ publication-quality output.
 | Command    | Description                                                              |
 |------------|--------------------------------------------------------------------------|
 | `dataset`  | Load a curated example dataset from seaborn, statsmodels, or pydataset   |
+| `sample`   | Random row sampling (with or without replacement, by count or fraction)   |
+| `split`    | Split a dataframe into one file per group                                 |
 | `annotate` | Read and write provenance metadata (genome, source, …) in parquet files  |
 | `print`    | Read any dfstat input (TSV, stdin, `...` parquet pipe) and write TSV     |
 | `clean`    | Remove leftover temp parquet pipe files from interrupted pipelines       |
@@ -176,7 +184,7 @@ dfstat annotate scaled.parquet   # genome and source still present
 ## Dependencies
 
 - `pandas`, `numpy`, `scipy` — core data handling and statistics
-- `statsmodels` — regression (`fit`, `scale --resid`)
+- `statsmodels` — regression (`fit`, `scale --resid`, `wstat`)
 - `duckdb` — SQL queries (`query --sql`)
 - `matplotlib`, `seaborn` — plots
-- `polars`, `pyarrow` — parquet I/O backend
+- `pyarrow` — parquet I/O backend
