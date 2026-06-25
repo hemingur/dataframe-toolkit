@@ -180,10 +180,10 @@ Original scripts live in `/home/gunnar/projects/python_projects/df/src/df/`.
 | dfsample.py      | sample            | ported    |
 | dfcat.py         | concat            | ported    |
 | dfsplit.py       | split             | pending   |
-| dfcorr.py        | corr              | pending   |
+| dfcorr.py        | corr              | ported    |
 | dftest.py        | test              | ported    |
-| dfwstat.py       | wstat             | pending   |
-| dfbinx.py        | binx              | pending   |
+| dfwstat.py       | wstat             | ported    |
+| dfbinx.py        | binx              | ported    |
 | dfsegid.py       | segid             | pending   |
 | dfrvs.py         | randvar           | ported    |
 | dfinfo.py        | info              | pending   |
