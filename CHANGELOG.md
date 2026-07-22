@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.5.0] — 2026-07-22
+
+### Added
+- New subcommand: `info` — per-column dtype/null/memory overview (TSV), with `--summary` for dataset-level totals. Redesigned from the legacy `dfinfo.py`, which just printed pandas' `df.info()` as text; complements `describe`'s statistical profiling.
+- New subcommand: `transpose` — flips rows and columns; original column names land in a new `--keycol` column (default: `column`).
+- New subcommand: `segid` — assigns a segment ID that increments on each value change in a column, for grouping contiguous runs. `--ignore VALUE` excludes matching rows (segid 0) without breaking a run spanning across them.
+
+### Fixed
+- `segid`'s run-change detection uses `.ne(.shift())` instead of the legacy `.diff().ne(0)` — `diff()` computes subtraction, which the current pandas/pyarrow string dtype doesn't support, so the original approach would crash on categorical/string columns (the most common real use case).
+
+### Changed
+- `segid`'s `--ignore` now defaults to `None` (segments every row) instead of the legacy script's magic sentinel string (`'1415926535'`, digits of pi) standing in for "nothing ignored".
+
 ## [0.4.1] — 2026-07-22
 
 ### Added
