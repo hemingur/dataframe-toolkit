@@ -186,7 +186,7 @@ Original scripts live in `~/projects/python_projects/df/src/df/`.
 | dfbinx.py        | binx              | ported    |
 | dfsegid.py       | segid             | pending   |
 | dfrvs.py         | randvar           | ported    |
-| dfinfo.py        | info              | pending   |
+| dfinfo.py        | info              | ported    |
 | dftpos.py        | transpose         | pending   |
 | dfcolor.py       | color             | pending   |
 | dffisher.py      | fisher            | pending*  |

@@ -18,6 +18,7 @@ from dftk.commands.fit_cmd import FitCommand
 from dftk.commands.func_cmd import FuncCommand
 from dftk.commands.help import HelpCommand
 from dftk.commands.hist_cmd import HistCommand
+from dftk.commands.info_cmd import InfoCommand
 from dftk.commands.interp_cmd import InterpCommand
 from dftk.commands.line_cmd import LineCommand
 from dftk.commands.melt_cmd import MeltCommand
@@ -36,7 +37,6 @@ from dftk.commands.wstat_cmd import WstatCommand
 
 # Ported subcommands — uncomment as each one is added:
 # from dftk.commands.segid     import SegidCommand
-# from dftk.commands.info      import InfoCommand
 # from dftk.commands.transpose import TransposeCommand
 # from dftk.commands.color     import ColorCommand
 # from dftk.commands.wavelet   import WaveletCommand
@@ -68,6 +68,7 @@ COMMAND_GROUPS: list[tuple[str, list]] = [
             TestCommand(),
             CorrCommand(),
             DescribeCommand(),
+            InfoCommand(),
             RandvarCommand(),
         ],
     ),
