@@ -13,8 +13,20 @@ statistical modelling and publication-quality figures.
 ## Installation
 
 ```bash
-uv tool install git+https://github.com/hemingur/dataframe-toolkit.git
+uv tool install dataframe-toolkit
 dftk --help
+```
+
+Or with `pip`:
+
+```bash
+pip install dataframe-toolkit
+```
+
+To install the latest `main` branch directly from GitHub:
+
+```bash
+uv tool install git+https://github.com/hemingur/dataframe-toolkit.git
 ```
 
 To install from a local clone:

@@ -44,11 +44,7 @@ jobs:
         with:
           repository-url: https://test.pypi.org/legacy/
 
-  # Disabled until the real PyPI pending publisher is registered and a
-  # TestPyPI dry-run install has been verified. Remove the `if: false`
-  # line below to re-enable.
   publish-pypi:
-    if: false
     needs: build
     runs-on: ubuntu-latest
     environment:

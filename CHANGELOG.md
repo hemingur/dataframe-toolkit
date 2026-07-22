@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.1] — 2026-07-22
+
+### Added
+- First public release on PyPI (`pip install dataframe-toolkit` / `uv tool install dataframe-toolkit`)
+- GitHub Actions publish workflow (trusted publishing / OIDC, no stored tokens): builds on GitHub Release, publishes to TestPyPI and PyPI
+
 ## [0.4.0] — 2026-07-22
 
 ### Changed
