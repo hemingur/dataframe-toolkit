@@ -256,7 +256,9 @@ def _to_float(s: str, fallback: float) -> float:
         return fallback
 
 
-def _collect_visible_y(ax: matplotlib.axes.Axes, xmin: float, xmax: float) -> np.ndarray | None:
+def _collect_visible_y(
+    ax: matplotlib.axes.Axes, xmin: float, xmax: float
+) -> np.ndarray | None:
     """Gather y-values of all plotted artists whose x falls within [xmin, xmax].
 
     Covers Line2D (line plots, KDE curves, errorbar caps), PathCollection
