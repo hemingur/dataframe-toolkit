@@ -13,7 +13,10 @@ statistical modelling and publication-quality figures.
 **No data file handy?** Every example below uses `dftk dataset` to pull in a
 small, real dataset, so you can copy-paste any of them and run them right
 now. Run `dftk dataset --list` to browse everything available (dozens of
-datasets from seaborn, statsmodels, and pydataset).
+datasets from seaborn, statsmodels, and pydataset). `dftk dataset NAME`
+searches all three sources in that order and returns the first match, so
+`--source` is optional — pass it only to disambiguate a name that exists in
+more than one source, or to restrict the search.
 
 ## Installation
 
