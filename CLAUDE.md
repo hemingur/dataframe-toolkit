@@ -3,7 +3,7 @@
 ## Project overview
 
 `stattools` is a rewrite/port of the legacy `df` package located at
-`/home/gunnar/projects/python_projects/df/src/df/`.  Each original `df*.py`
+`~/projects/python_projects/df/src/df/`.  Each original `df*.py`
 script becomes a `dfstat <subcommand>` in stattools.  When porting, consult the
 original script for algorithm details and edge cases, but redesign the CLI
 interface where it was confusing (e.g. `interp_cmd` renamed left/right to
@@ -159,7 +159,7 @@ The `--meta KEY=VALUE` flag (available on all commands via `parser_output`) embe
 
 ## Ported / pending subcommands
 
-Original scripts live in `/home/gunnar/projects/python_projects/df/src/df/`.
+Original scripts live in `~/projects/python_projects/df/src/df/`.
 
 | Original script  | dfstat subcommand | Status    |
 |------------------|-------------------|-----------|
@@ -192,5 +192,6 @@ Original scripts live in `/home/gunnar/projects/python_projects/df/src/df/`.
 | dffisher.py      | fisher            | pending*  |
 | dfbspl.py        | —                 | pending   |
 | dfrsfit.py       | —                 | pending   |
+| dfwtpwr.py       | wavelet           | pending   |
 
 \* `fisher_test`, `fisher_OR`, and `boschloo_test` are already available as functions in `eval` — a dedicated port is likely unnecessary.

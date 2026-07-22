@@ -104,7 +104,7 @@ Examples of what to record:
 
 # Persistent Agent Memory
 
-You have a persistent, file-based memory system at `/home/gunnar/projects/python_projects/stattools/.claude/agent-memory/stattools-code-reviewer/`. This directory will be created on first write — use the Write tool directly.
+You have a persistent, file-based memory system at `~/projects/python_projects/stattools/.claude/agent-memory/stattools-code-reviewer/`. This directory will be created on first write — use the Write tool directly.
 
 ## Types of memory
 
