@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.2] — 2026-07-22
+
+### Fixed
+- `-xm`/`--xlim` on `scat`/`line`/`hist` no longer leaves the y-axis fixed to the full-dataset autoscale. Matplotlib computes y-limits from all plotted data when the artists are created, before `-xm` narrows the x range; `apply_limits()` now recomputes y-limits from only the data visible within the new x range (unless `-ym` is given explicitly).
+- `--xmargin`/`--ymargin` were silently discarded when combined with an explicit `-xm`/`-ym`, because margins were applied before limits. Margins now apply after limits.
+
 ## [0.5.1] — 2026-07-22
 
 ### Fixed
