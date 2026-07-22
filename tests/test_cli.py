@@ -85,6 +85,28 @@ class TestStatCLI:
         assert "samplenum" in df.columns
         assert set(df["samplenum"]) == {1, 2, 3}
 
+    def test_bootstrap_with_groupcol_keeps_group_column(self):
+        """Regression: pandas 3.0's groupby(...).apply() used to silently drop
+        the grouping column, crashing -g combined with --bootstrap."""
+        df = _run(
+            [
+                "stat",
+                "-",
+                "-c",
+                "value",
+                "-g",
+                "group",
+                "--bootstrap",
+                "3",
+                "--randomseed",
+                "42",
+            ],
+            _GROUPED_TSV,
+        )
+        assert "group" in df.columns
+        assert set(df["group"]) == {"A", "B"}
+        assert len(df) == 6  # 2 groups x 3 bootstrap samples
+
     def test_confidence_level(self):
         """--confidencelevel changes cilo/cihi bounds."""
         df_95 = _run(["stat", "-", "-c", "x"], _SIMPLE_TSV)

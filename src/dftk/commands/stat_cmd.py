@@ -21,9 +21,11 @@ into ``dftk pivot`` to aggregate across samples.
 Example
 -------
     dftk stat data.tsv -c height weight -g sex
+
+    # Empirical bootstrap CI: resample, then collapse with percentile aggfuncs
     dftk stat data.tsv -c value -g group --bootstrap 1000 --randomseed 42 -o \\
-        | dftk pivot -i group -v value_mean -o \\
-        | dftk print
+        | dftk pivot ... -i group -v mean -f mean cilo cihi -o \\
+        | dftk print ...
 """
 
 import argparse
@@ -278,9 +280,12 @@ class StatCommand(BaseCommand):
                 if args.groupcol is None:
                     sample = df.sample(**sample_kwargs)
                 else:
-                    sample = df.groupby(args.groupcol, group_keys=False).apply(
-                        lambda x: x.sample(**sample_kwargs)
-                    )
+                    # [df.columns.tolist()] re-selection works around a pandas 3.0
+                    # groupby(...).apply() change that otherwise drops the
+                    # grouping column from the result.
+                    sample = df.groupby(args.groupcol, group_keys=False)[
+                        df.columns.tolist()
+                    ].apply(lambda x: x.sample(**sample_kwargs))
 
                 result = _compute_stats(sample, args)
                 result["samplenum"] = i
