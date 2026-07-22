@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.5.1] — 2026-07-22
+
+### Fixed
+- `stat -g ... --bootstrap ...` crashed with a `KeyError` on the group column — pandas 3.0 changed `groupby(cols, group_keys=False).apply(fn)` to drop the grouping column from the result unless explicitly reselected. `pivot`'s own `--bootstrap` path already worked around this; applied the same fix to `stat`.
+
+### Changed
+- Rewrote README examples to be self-contained and verified runnable: every example now uses `dftk dataset` instead of an unspecified `data.tsv`, and every command block was actually executed end-to-end before being committed.
+- Fixed a systemic `-` vs `...` mixup across nearly all piped `-o` examples in the README (and in `stat_cmd.py`'s own module docstring) — `-` reads literal TSV from stdin, `...` reads a parquet path from stdin written by a previous `-o`; using the wrong one fails with a pandas/pyarrow error that doesn't point at the actual mistake.
+- Documented that `dftk dataset NAME` searches all sources (seaborn, statsmodels, pydataset) in order and returns the first match — `--source` is optional.
+- Added `info`/`transpose`/`segid` to the README's subcommand tables (implemented in 0.5.0 but never documented there).
+
 ## [0.5.0] — 2026-07-22
 
 ### Added
