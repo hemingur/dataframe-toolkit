@@ -1,5 +1,5 @@
 """
-Tests for stattools.commands.stat._compute_stats.
+Tests for dftk.commands.stat._compute_stats.
 
 Strategy: synthetic datasets with exactly known properties.  Expected values
 are computed from numpy/pandas directly so the tests verify the function's
@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from stattools.commands.stat_cmd import _STAT_NAMES, _compute_stats
+from dftk.commands.stat_cmd import _STAT_NAMES, _compute_stats
 from tests.conftest import make_args
 
 # ---------------------------------------------------------------------------
@@ -293,7 +293,7 @@ class TestEdgeCases:
         df = pd.DataFrame({"name": ["A", "A", "B"], "value": [1.0, 2.0, 3.0]})
         import logging
 
-        with caplog.at_level(logging.WARNING, logger="stattools"):
+        with caplog.at_level(logging.WARNING, logger="dftk"):
             result = _compute_stats(df, _stat_args(cols=["value"], groupcol=["name"]))
         assert "name_mangled" in result.columns
         assert "name" in caplog.text

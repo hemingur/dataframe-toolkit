@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
 bench_pipeline.py — wall-clock benchmark comparing TSV stdin/stdout vs
-parquet intermediate files across multi-step dfstat pipelines.
+parquet intermediate files across multi-step dftk pipelines.
 
 Usage
 -----
-    cd stattools
+    cd dftk
     python tests/bench_pipeline.py
     python tests/bench_pipeline.py --rows 2000000
     python tests/bench_pipeline.py --rows 500000 --runs 3
@@ -53,12 +53,12 @@ PIPELINES: list[Pipeline] = [
             "  Inter-stage TSV has many columns × many rows — parquet wins big."
         ),
         stages=[
-            "dfstat randvar -n {N} -d x1 --dist norm --randomseed 11",
-            "dfstat randvar - -d x2 --dist norm --parameters loc:2,scale:0.5 --randomseed 22",  # noqa: E501
-            "dfstat randvar - -d x3 --dist uniform --parameters loc:-1,scale:2 --randomseed 33",  # noqa: E501
-            "dfstat randvar - -d g --dist randint --parameters low:0,high:4 --randomseed 44",  # noqa: E501
-            "dfstat eval - -f 'prod = x1 * x2' -f 'norm_x3 = x3 / (abs(x3) + 1.0)'",
-            "dfstat melt - -i g -d feature -v value",
+            "dftk randvar -n {N} -d x1 --dist norm --randomseed 11",
+            "dftk randvar - -d x2 --dist norm --parameters loc:2,scale:0.5 --randomseed 22",  # noqa: E501
+            "dftk randvar - -d x3 --dist uniform --parameters loc:-1,scale:2 --randomseed 33",  # noqa: E501
+            "dftk randvar - -d g --dist randint --parameters low:0,high:4 --randomseed 44",  # noqa: E501
+            "dftk eval - -f 'prod = x1 * x2' -f 'norm_x3 = x3 / (abs(x3) + 1.0)'",
+            "dftk melt - -i g -d feature -v value",
         ],
         rows=1_000_000,
     ),
@@ -70,10 +70,10 @@ PIPELINES: list[Pipeline] = [
             "  Large ingest; tiny pivot output — tests read cost."
         ),
         stages=[
-            "dfstat randvar -n {N} -d x --dist norm --randomseed 55",
-            "dfstat randvar - -d grp --dist randint --parameters low:0,high:5 --randomseed 66",  # noqa: E501
-            "dfstat func - -c x -t qcut:10 -d decile",
-            "dfstat pivot - -v x -i decile -g grp -f count",
+            "dftk randvar -n {N} -d x --dist norm --randomseed 55",
+            "dftk randvar - -d grp --dist randint --parameters low:0,high:5 --randomseed 66",  # noqa: E501
+            "dftk func - -c x -t qcut:10 -d decile",
+            "dftk pivot - -v x -i decile -g grp -f count",
         ],
         rows=2_000_000,
     ),
@@ -85,11 +85,11 @@ PIPELINES: list[Pipeline] = [
             "  Three large inter-stage transfers, tiny output."
         ),
         stages=[
-            "dfstat randvar -n {N} -d a --dist norm --parameters loc:0,scale:1 --randomseed 77",  # noqa: E501
-            "dfstat randvar - -d b --dist norm --parameters loc:5,scale:2 --randomseed 88",  # noqa: E501
-            "dfstat randvar - -d g --dist randint --parameters low:0,high:3 --randomseed 99",  # noqa: E501
-            "dfstat eval - -f 'diff = a - b' -f 'ratio = a / (abs(b) + 0.001)'",
-            "dfstat stat - -c diff ratio -g g",
+            "dftk randvar -n {N} -d a --dist norm --parameters loc:0,scale:1 --randomseed 77",  # noqa: E501
+            "dftk randvar - -d b --dist norm --parameters loc:5,scale:2 --randomseed 88",  # noqa: E501
+            "dftk randvar - -d g --dist randint --parameters low:0,high:3 --randomseed 99",  # noqa: E501
+            "dftk eval - -f 'diff = a - b' -f 'ratio = a / (abs(b) + 0.001)'",
+            "dftk stat - -c diff ratio -g g",
         ],
         rows=3_000_000,
     ),
@@ -101,17 +101,17 @@ PIPELINES: list[Pipeline] = [
             "  Designed to push inter-stage transfer toward ~1 GB TSV."
         ),
         stages=[
-            "dfstat randvar -n {N} -d v1 --dist norm --randomseed 101",
-            "dfstat randvar - -d v2 --dist norm --parameters loc:1,scale:1 --randomseed 102",  # noqa: E501
-            "dfstat randvar - -d v3 --dist norm --parameters loc:-1,scale:2 --randomseed 103",  # noqa: E501
-            "dfstat randvar - -d v4 --dist uniform --parameters loc:0,scale:10 --randomseed 104",  # noqa: E501
-            "dfstat randvar - -d v5 --dist norm --randomseed 105",
-            "dfstat randvar - -d g --dist randint --parameters low:0,high:5 --randomseed 106",  # noqa: E501
-            "dfstat randvar - -d q --dist randint --parameters low:1,high:5 --randomseed 107",  # noqa: E501
-            "dfstat eval - -f 'sum5 = v1 + v2 + v3 + v4 + v5'"
+            "dftk randvar -n {N} -d v1 --dist norm --randomseed 101",
+            "dftk randvar - -d v2 --dist norm --parameters loc:1,scale:1 --randomseed 102",  # noqa: E501
+            "dftk randvar - -d v3 --dist norm --parameters loc:-1,scale:2 --randomseed 103",  # noqa: E501
+            "dftk randvar - -d v4 --dist uniform --parameters loc:0,scale:10 --randomseed 104",  # noqa: E501
+            "dftk randvar - -d v5 --dist norm --randomseed 105",
+            "dftk randvar - -d g --dist randint --parameters low:0,high:5 --randomseed 106",  # noqa: E501
+            "dftk randvar - -d q --dist randint --parameters low:1,high:5 --randomseed 107",  # noqa: E501
+            "dftk eval - -f 'sum5 = v1 + v2 + v3 + v4 + v5'"
             " -f 'absratio = abs(v1) / (abs(v2) + 0.001)'"
             " -f 'interact = v3 * v4'",
-            "dfstat pivot - -v sum5 absratio interact -i g -g q -f mean",
+            "dftk pivot - -v sum5 absratio interact -i g -g q -f mean",
         ],
         rows=5_000_000,
     ),

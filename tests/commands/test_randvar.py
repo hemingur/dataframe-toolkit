@@ -1,16 +1,16 @@
 """
-Tests for stattools.commands.randvar_cmd.
+Tests for dftk.commands.randvar_cmd.
 """
 
 import pandas as pd
 import pytest
 
-from stattools.commands.randvar_cmd import (
+from dftk.commands.randvar_cmd import (
     RandvarCommand,
     _list_distributions,
     _parse_parameters,
 )
-from stattools.common.seed import normalize_seed
+from dftk.common.seed import normalize_seed
 from tests.conftest import make_args
 
 
@@ -210,7 +210,7 @@ def test_standalone_custom_destcol(capsys):
 
 def _run_on_df(df: pd.DataFrame, **kwargs) -> pd.DataFrame:
     """Run RandvarCommand on *df* via monkeypatched io.read."""
-    import stattools.commands.randvar_cmd as mod
+    import dftk.commands.randvar_cmd as mod
 
     original_read = mod.io.read
     mod.io.read = lambda args: df.copy()

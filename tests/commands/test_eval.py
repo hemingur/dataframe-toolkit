@@ -1,5 +1,5 @@
 """
-Tests for stattools.commands.eval_cmd._eval and helper functions.
+Tests for dftk.commands.eval_cmd._eval and helper functions.
 """
 
 import numpy as np
@@ -7,7 +7,7 @@ import pandas as pd
 import pytest
 from scipy import special as _sp
 
-from stattools.commands.eval_cmd import _eval, _parse_formula
+from dftk.commands.eval_cmd import _eval, _parse_formula
 from tests.conftest import make_args
 
 # ---------------------------------------------------------------------------

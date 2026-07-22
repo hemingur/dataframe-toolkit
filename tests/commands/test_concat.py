@@ -1,4 +1,4 @@
-"""Tests for stattools.commands.concat_cmd."""
+"""Tests for dftk.commands.concat_cmd."""
 
 import io as _io
 import sys
@@ -6,7 +6,7 @@ import sys
 import pandas as pd
 import pytest
 
-from stattools.commands.concat_cmd import ConcatCommand
+from dftk.commands.concat_cmd import ConcatCommand
 from tests.conftest import make_args
 
 
@@ -18,7 +18,7 @@ def _make_args(**kwargs):
 
 def _run(dataframes: dict, file_list: list[str], **kwargs) -> pd.DataFrame:
     """Run ConcatCommand with a mapping of filename→DataFrame."""
-    import stattools.commands.concat_cmd as mod
+    import dftk.commands.concat_cmd as mod
 
     original_read = mod.io.read
 
@@ -124,7 +124,7 @@ class TestConcatEdgeCases:
         assert len(result) == 3
 
     def test_empty_file_skipped(self, tmp_path):
-        import stattools.commands.concat_cmd as mod
+        import dftk.commands.concat_cmd as mod
 
         original_read = mod.io.read
         calls = []
@@ -150,7 +150,7 @@ class TestConcatEdgeCases:
         assert len(result) == 1
 
     def test_all_empty_raises(self):
-        import stattools.commands.concat_cmd as mod
+        import dftk.commands.concat_cmd as mod
 
         original_read = mod.io.read
         mod.io.read = lambda args: (_ for _ in ()).throw(pd.errors.EmptyDataError)
@@ -165,7 +165,7 @@ class TestConcatEdgeCases:
         with pytest.raises(ValueError, match="stdin"):
             args = _make_args(DATAFILES=["-", "..."])
             # Don't need to run fully — the check is in execute before any read
-            import stattools.commands.concat_cmd as mod
+            import dftk.commands.concat_cmd as mod
 
             original_read = mod.io.read
             mod.io.read = lambda args: pd.DataFrame({"x": [1]})
@@ -176,7 +176,7 @@ class TestConcatEdgeCases:
 
     def test_duplicate_stdin_reversed_order_raises(self):
         """... then - should also be rejected (two stdin sources)."""
-        import stattools.commands.concat_cmd as mod
+        import dftk.commands.concat_cmd as mod
 
         original_read = mod.io.read
         mod.io.read = lambda args: pd.DataFrame({"x": [1]})

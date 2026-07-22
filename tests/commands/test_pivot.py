@@ -1,12 +1,12 @@
 """
-Tests for stattools.commands.pivot_cmd._do_pivot and _prepare_funcs.
+Tests for dftk.commands.pivot_cmd._do_pivot and _prepare_funcs.
 """
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from stattools.commands.pivot_cmd import _do_pivot, _flatten_columns, _prepare_funcs
+from dftk.commands.pivot_cmd import _do_pivot, _flatten_columns, _prepare_funcs
 from tests.conftest import make_args
 
 # ---------------------------------------------------------------------------
@@ -236,7 +236,7 @@ class TestBootstrap:
         import argparse
         import sys
 
-        from stattools.commands.pivot_cmd import PivotCommand
+        from dftk.commands.pivot_cmd import PivotCommand
 
         cmd = PivotCommand()
         parser = argparse.ArgumentParser()
@@ -268,7 +268,7 @@ class TestBootstrap:
         sys.stdout = buf
 
         # Monkey-patch io.read to return long_df directly
-        from stattools.common import io as common_io
+        from dftk.common import io as common_io
 
         original_read = common_io.io.read
         common_io.io.read = lambda a: long_df

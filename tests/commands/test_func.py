@@ -1,4 +1,4 @@
-"""Tests for stattools.commands.func_cmd."""
+"""Tests for dftk.commands.func_cmd."""
 
 import argparse
 import io as _io
@@ -9,7 +9,7 @@ import tempfile
 import pandas as pd
 import pytest
 
-from stattools.commands.func_cmd import FuncCommand
+from dftk.commands.func_cmd import FuncCommand
 
 
 @pytest.fixture

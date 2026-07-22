@@ -1,5 +1,5 @@
 """
-Tests for stattools.commands.fit_cmd.
+Tests for dftk.commands.fit_cmd.
 """
 
 import argparse
@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from stattools.commands.fit_cmd import (
+from dftk.commands.fit_cmd import (
     FitCommand,
     regress_it,
     res2df,

@@ -1,5 +1,5 @@
 """
-Shared pytest fixtures for stattools tests.
+Shared pytest fixtures for dftk tests.
 
 All datasets are synthetic — constructed from numpy/pandas directly so that
 expected statistical values are exactly known without extra dependencies.

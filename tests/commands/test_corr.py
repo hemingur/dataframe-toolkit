@@ -1,11 +1,11 @@
-"""Tests for stattools.commands.corr_cmd._corr and _bootstrap_stats."""
+"""Tests for dftk.commands.corr_cmd._corr and _bootstrap_stats."""
 
 import numpy as np
 import pandas as pd
 import pytest
 import scipy.stats as ss
 
-from stattools.commands.corr_cmd import METHODS, _bootstrap_stats, _corr
+from dftk.commands.corr_cmd import METHODS, _bootstrap_stats, _corr
 from tests.conftest import make_args
 
 

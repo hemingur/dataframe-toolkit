@@ -1,5 +1,5 @@
 """
-Tests for stattools.common.stats — row-wise statistical functions.
+Tests for dftk.common.stats — row-wise statistical functions.
 """
 
 import math
@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 import scipy.stats as ss
 
-from stattools.common.stats import (
+from dftk.common.stats import (
     binom_test,
     boschloo_OR,
     boschloo_test,

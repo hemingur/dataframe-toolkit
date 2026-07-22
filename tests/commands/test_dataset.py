@@ -1,4 +1,4 @@
-"""Tests for stattools.commands.dataset_cmd."""
+"""Tests for dftk.commands.dataset_cmd."""
 
 import io as _io
 import sys
@@ -7,7 +7,7 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 
-from stattools.commands.dataset_cmd import (
+from dftk.commands.dataset_cmd import (
     DatasetCommand,
     _list_seaborn,
     _list_statsmodels,

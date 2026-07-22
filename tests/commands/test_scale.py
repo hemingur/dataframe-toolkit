@@ -1,5 +1,5 @@
 """
-Tests for stattools.commands.scale_cmd.
+Tests for dftk.commands.scale_cmd.
 """
 
 import argparse
@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from stattools.commands.scale_cmd import ScaleCommand, rankcols, residcols, scalecols
+from dftk.commands.scale_cmd import ScaleCommand, rankcols, residcols, scalecols
 
 # ---------------------------------------------------------------------------
 # Fixtures

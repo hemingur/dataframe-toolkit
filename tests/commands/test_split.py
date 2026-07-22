@@ -1,11 +1,11 @@
-"""Tests for stattools.commands.split_cmd._split and _make_filename."""
+"""Tests for dftk.commands.split_cmd._split and _make_filename."""
 
 import os
 
 import pandas as pd
 import pytest
 
-from stattools.commands.split_cmd import _make_filename, _split
+from dftk.commands.split_cmd import _make_filename, _split
 from tests.conftest import make_args
 
 

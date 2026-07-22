@@ -1,7 +1,7 @@
 """
-CLI integration tests for dfstat.
+CLI integration tests for dftk.
 
-These tests invoke the package via `python -m stattools.cli` so they exercise
+These tests invoke the package via `python -m dftk.cli` so they exercise
 argument parsing, command dispatch, and I/O in a real subprocess.  Each test
 feeds TSV on stdin and parses TSV from stdout, making them independent of any
 installed entry-point.
@@ -16,18 +16,18 @@ import pytest
 
 
 def _run(args: list[str], stdin_tsv: str = "") -> pd.DataFrame:
-    """Run `dfstat <args>` with stdin_tsv fed to stdin.
+    """Run `dftk <args>` with stdin_tsv fed to stdin.
 
     Returns the parsed TSV output as a DataFrame.
     Raises AssertionError if the process exits non-zero.
     """
     result = subprocess.run(
-        [sys.executable, "-m", "stattools.cli"] + args,
+        [sys.executable, "-m", "dftk.cli"] + args,
         input=stdin_tsv.encode(),
         capture_output=True,
     )
     assert result.returncode == 0, (
-        f"dfstat exited {result.returncode}\n"
+        f"dftk exited {result.returncode}\n"
         f"stderr: {result.stderr.decode()}"
     )
     return pd.read_csv(io.BytesIO(result.stdout), sep="\t")
@@ -116,7 +116,7 @@ class TestHelpCLI:
 
     def test_help_lists_commands(self):
         result = subprocess.run(
-            [sys.executable, "-m", "stattools.cli", "help"],
+            [sys.executable, "-m", "dftk.cli", "help"],
             capture_output=True,
         )
         assert result.returncode == 0
@@ -126,7 +126,7 @@ class TestHelpCLI:
 
     def test_help_stat(self):
         result = subprocess.run(
-            [sys.executable, "-m", "stattools.cli", "help", "stat"],
+            [sys.executable, "-m", "dftk.cli", "help", "stat"],
             capture_output=True,
         )
         assert result.returncode == 0

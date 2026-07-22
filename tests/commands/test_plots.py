@@ -1,5 +1,5 @@
 """
-Tests for dfstat scat, line, hist commands.
+Tests for dftk scat, line, hist commands.
 
 All tests use matplotlib Agg backend and save to a temp file to avoid
 any display requirements.  Tests verify:
@@ -20,9 +20,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from stattools.commands.hist_cmd import HistCommand
-from stattools.commands.line_cmd import LineCommand
-from stattools.commands.scat_cmd import ScatCommand
+from dftk.commands.hist_cmd import HistCommand
+from dftk.commands.line_cmd import LineCommand
+from dftk.commands.scat_cmd import ScatCommand
 
 # ---------------------------------------------------------------------------
 # Shared helpers

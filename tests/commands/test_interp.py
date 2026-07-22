@@ -1,4 +1,4 @@
-"""Tests for stattools.commands.interp_cmd."""
+"""Tests for dftk.commands.interp_cmd."""
 
 import argparse
 import io as _io
@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from stattools.commands.interp_cmd import InterpCommand
+from dftk.commands.interp_cmd import InterpCommand
 
 # ---------------------------------------------------------------------------
 # Helpers

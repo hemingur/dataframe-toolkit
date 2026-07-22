@@ -1,18 +1,18 @@
-# stattools — CLAUDE.md
+# dftk — CLAUDE.md
 
 ## Project overview
 
-`stattools` is a rewrite/port of the legacy `df` package located at
+`dftk` (package `dataframe-toolkit`) is a rewrite/port of the legacy `df` package located at
 `~/projects/python_projects/df/src/df/`.  Each original `df*.py`
-script becomes a `dfstat <subcommand>` in stattools.  When porting, consult the
+script becomes a `dftk <subcommand>` in dftk.  When porting, consult the
 original script for algorithm details and edge cases, but redesign the CLI
 interface where it was confusing (e.g. `interp_cmd` renamed left/right to
 data/ref).
 
-`stattools` is a CLI toolkit for DataFrame analysis and manipulation, exposed as a single entry-point:
+`dftk` is a CLI toolkit for DataFrame analysis and manipulation, exposed as a single entry-point:
 
 ```text
-dfstat <subcommand> [options] [DATAFILE]
+dftk <subcommand> [options] [DATAFILE]
 ```
 
 Built with Python 3.12+, pandas 2.x, numpy, scipy, statsmodels, duckdb, seaborn/matplotlib.
@@ -23,22 +23,22 @@ Package manager: **uv**. Run tests with `pytest` (no special flags needed).
 ## Project layout
 
 ```text
-src/stattools/
+src/dftk/
   cli.py                    # Entry-point; discovers commands from commands/COMMANDS list
   commands/
     __init__.py             # COMMANDS registry — import class here + add instance to command_list
     base.py                 # BaseCommand ABC (name, help, add_arguments, execute)
-    eval_cmd.py             # dfstat eval   — formula / constant / string functions
-    stat_cmd.py             # dfstat stat   — descriptive statistics
-    pivot_cmd.py            # dfstat pivot  — pivot / reshape
-    merge_cmd.py            # dfstat merge  — join two files
-    query_cmd.py            # dfstat query  — SQL-style filter (duckdb)
-    fit_cmd.py              # dfstat fit    — curve fitting / regression
-    scale_cmd.py            # dfstat scale  — normalisation / scaling
-    func_cmd.py             # dfstat func   — column transforms (cumsum, rank, qcut, groupby aggs)
-    interp_cmd.py           # dfstat interp — interpolate values from a reference curve
-    dataset_cmd.py          # dfstat dataset  — load bundled/seaborn/statsmodels example datasets
-    annotate_cmd.py         # dfstat annotate — read/write parquet provenance metadata
+    eval_cmd.py             # dftk eval   — formula / constant / string functions
+    stat_cmd.py             # dftk stat   — descriptive statistics
+    pivot_cmd.py            # dftk pivot  — pivot / reshape
+    merge_cmd.py            # dftk merge  — join two files
+    query_cmd.py            # dftk query  — SQL-style filter (duckdb)
+    fit_cmd.py              # dftk fit    — curve fitting / regression
+    scale_cmd.py            # dftk scale  — normalisation / scaling
+    func_cmd.py             # dftk func   — column transforms (cumsum, rank, qcut, groupby aggs)
+    interp_cmd.py           # dftk interp — interpolate values from a reference curve
+    dataset_cmd.py          # dftk dataset  — load bundled/seaborn/statsmodels example datasets
+    annotate_cmd.py         # dftk annotate — read/write parquet provenance metadata
     melt_cmd.py, scat_cmd.py, line_cmd.py, hist_cmd.py, print_cmd.py, clean_cmd.py, ...
   common/
     io.py                   # io.read(args), io.printdf(df, args) — TSV in/out
@@ -58,7 +58,7 @@ tests/
 
 ## Adding a new subcommand
 
-1. Create `src/stattools/commands/<name>_cmd.py` with a class inheriting `BaseCommand`.
+1. Create `src/dftk/commands/<name>_cmd.py` with a class inheriting `BaseCommand`.
 2. Implement `name`, `help`, `add_arguments(parser)`, `execute(args)`.
 3. Import the class in `commands/__init__.py` and append an instance to `command_list`.
 4. Write tests in `tests/commands/test_<name>.py`.
@@ -132,7 +132,7 @@ Three formula modes:
 ## annotate_cmd / parquet metadata
 
 Parquet files store arbitrary key-value string pairs in the file-level schema metadata.
-dfstat uses this for provenance tracking.
+dftk uses this for provenance tracking.
 
 Key functions in `common/io.py`:
 
@@ -161,7 +161,7 @@ The `--meta KEY=VALUE` flag (available on all commands via `parser_output`) embe
 
 Original scripts live in `~/projects/python_projects/df/src/df/`.
 
-| Original script  | dfstat subcommand | Status    |
+| Original script  | dftk subcommand   | Status    |
 |------------------|-------------------|-----------|
 | dfstat.py        | stat              | ported    |
 | dfeval.py        | eval              | ported    |

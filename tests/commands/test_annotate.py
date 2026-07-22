@@ -1,12 +1,12 @@
-"""Tests for stattools.commands.annotate_cmd and parquet metadata I/O."""
+"""Tests for dftk.commands.annotate_cmd and parquet metadata I/O."""
 
 import argparse
 
 import pandas as pd
 import pytest
 
-from stattools.commands.annotate_cmd import AnnotateCommand, _read_meta, _write_meta
-from stattools.common.io import _read_parquet_meta, _write_parquet
+from dftk.commands.annotate_cmd import AnnotateCommand, _read_meta, _write_meta
+from dftk.common.io import _read_parquet_meta, _write_parquet
 
 # ---------------------------------------------------------------------------
 # Fixtures

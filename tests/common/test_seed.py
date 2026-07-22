@@ -1,8 +1,8 @@
 """
-Tests for stattools.common.seed.normalize_seed.
+Tests for dftk.common.seed.normalize_seed.
 """
 
-from stattools.common.seed import normalize_seed
+from dftk.common.seed import normalize_seed
 
 
 class TestNormalizeSeed:

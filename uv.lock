@@ -173,6 +173,51 @@ wheels = [
 ]
 
 [[package]]
+name = "dataframe-toolkit"
+version = "0.3.1"
+source = { editable = "." }
+dependencies = [
+    { name = "duckdb" },
+    { name = "matplotlib" },
+    { name = "numpy" },
+    { name = "pandas" },
+    { name = "pyarrow" },
+    { name = "scipy" },
+    { name = "seaborn" },
+    { name = "statsmodels" },
+    { name = "tqdm" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pre-commit" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "duckdb", specifier = ">=0.8" },
+    { name = "matplotlib", specifier = ">=3.7" },
+    { name = "numpy", specifier = ">=1.24" },
+    { name = "pandas", specifier = ">=2.1" },
+    { name = "pyarrow", specifier = ">=12.0" },
+    { name = "scipy", specifier = ">=1.10" },
+    { name = "seaborn", specifier = ">=0.12" },
+    { name = "statsmodels", specifier = ">=0.14" },
+    { name = "tqdm", specifier = ">=4.65" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pre-commit", specifier = ">=4.6.0" },
+    { name = "pytest", specifier = ">=8.0" },
+    { name = "pytest-cov", specifier = ">=7.1.0" },
+    { name = "ruff", specifier = ">=0.15.12" },
+]
+
+[[package]]
 name = "distlib"
 version = "0.4.3"
 source = { registry = "https://pypi.org/simple" }
@@ -952,51 +997,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/34/0e/2408735aca9e764643196212f9069912100151414dd617d39ffc72d77eee/statsmodels-0.14.6-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:3414e40c073d725007a6603a18247ab7af3467e1af4a5e5a24e4c27bc26673b4", size = 10337587, upload-time = "2025-12-05T23:13:37.597Z" },
     { url = "https://files.pythonhosted.org/packages/0f/36/4d44f7035ab3c0b2b6a4c4ebb98dedf36246ccbc1b3e2f51ebcd7ac83abb/statsmodels-0.14.6-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:a518d3f9889ef920116f9fa56d0338069e110f823926356946dae83bc9e33e19", size = 10363350, upload-time = "2025-12-05T23:13:53.08Z" },
     { url = "https://files.pythonhosted.org/packages/26/33/f1652d0c59fa51de18492ee2345b65372550501ad061daa38f950be390b6/statsmodels-0.14.6-cp314-cp314-win_amd64.whl", hash = "sha256:151b73e29f01fe619dbce7f66d61a356e9d1fe5e906529b78807df9189c37721", size = 9588010, upload-time = "2025-12-05T23:14:07.28Z" },
-]
-
-[[package]]
-name = "stattools"
-version = "0.3.1"
-source = { editable = "." }
-dependencies = [
-    { name = "duckdb" },
-    { name = "matplotlib" },
-    { name = "numpy" },
-    { name = "pandas" },
-    { name = "pyarrow" },
-    { name = "scipy" },
-    { name = "seaborn" },
-    { name = "statsmodels" },
-    { name = "tqdm" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "pre-commit" },
-    { name = "pytest" },
-    { name = "pytest-cov" },
-    { name = "ruff" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "duckdb", specifier = ">=0.8" },
-    { name = "matplotlib", specifier = ">=3.7" },
-    { name = "numpy", specifier = ">=1.24" },
-    { name = "pandas", specifier = ">=2.1" },
-    { name = "pyarrow", specifier = ">=12.0" },
-    { name = "scipy", specifier = ">=1.10" },
-    { name = "seaborn", specifier = ">=0.12" },
-    { name = "statsmodels", specifier = ">=0.14" },
-    { name = "tqdm", specifier = ">=4.65" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "pre-commit", specifier = ">=4.6.0" },
-    { name = "pytest", specifier = ">=8.0" },
-    { name = "pytest-cov", specifier = ">=7.1.0" },
-    { name = "ruff", specifier = ">=0.15.12" },
 ]
 
 [[package]]

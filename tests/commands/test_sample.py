@@ -1,4 +1,4 @@
-"""Tests for stattools.commands.sample_cmd."""
+"""Tests for dftk.commands.sample_cmd."""
 
 import io as _io
 import sys
@@ -6,7 +6,7 @@ import sys
 import pandas as pd
 import pytest
 
-from stattools.commands.sample_cmd import SampleCommand
+from dftk.commands.sample_cmd import SampleCommand
 from tests.conftest import make_args
 
 
@@ -19,7 +19,7 @@ def _make_args(**kwargs):
 
 
 def _run(df: pd.DataFrame, **kwargs) -> pd.DataFrame:
-    import stattools.commands.sample_cmd as mod
+    import dftk.commands.sample_cmd as mod
 
     original_read = mod.io.read
     mod.io.read = lambda args: df.copy()
@@ -222,7 +222,7 @@ class TestSampleEdgeCases:
 
     def test_string_seed_in_stderr(self, capsys):
         """A non-numeric string seed should be printed as its hashed integer."""
-        from stattools.common.seed import normalize_seed
+        from dftk.common.seed import normalize_seed
 
         df = pd.DataFrame({"x": range(20)})
         _run(df, samplesize=5, randomseed="hello")

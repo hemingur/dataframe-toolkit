@@ -1,10 +1,10 @@
-"""Tests for stattools.commands.binx_cmd._binx and _parse_binspec."""
+"""Tests for dftk.commands.binx_cmd._binx and _parse_binspec."""
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from stattools.commands.binx_cmd import _binx, _parse_binspec
+from dftk.commands.binx_cmd import _binx, _parse_binspec
 from tests.conftest import make_args
 
 

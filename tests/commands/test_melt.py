@@ -1,4 +1,4 @@
-"""Tests for stattools.commands.melt_cmd."""
+"""Tests for dftk.commands.melt_cmd."""
 
 import argparse
 import io as _io
@@ -7,7 +7,7 @@ import sys
 import pandas as pd
 import pytest
 
-from stattools.commands.melt_cmd import MeltCommand
+from dftk.commands.melt_cmd import MeltCommand
 
 
 @pytest.fixture

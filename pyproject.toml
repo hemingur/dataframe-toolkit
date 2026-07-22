@@ -1,5 +1,5 @@
 [project]
-name = "stattools"
+name = "dataframe-toolkit"
 version = "0.3.1"
 description = "A command-line toolkit for DataFrame analysis and manipulation"
 readme = "README.md"
@@ -30,15 +30,18 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/hemingur/stattools"
-Repository = "https://github.com/hemingur/stattools"
+Homepage = "https://github.com/hemingur/dataframe-toolkit"
+Repository = "https://github.com/hemingur/dataframe-toolkit"
 
 [project.scripts]
-dfstat = "stattools.cli:main"
+dftk = "dftk.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.10.4,<0.11.0"]
 build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "dftk"
 
 [dependency-groups]
 dev = [
@@ -66,4 +69,4 @@ select = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["stattools"]
+known-first-party = ["dftk"]

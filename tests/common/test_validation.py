@@ -9,7 +9,7 @@ import logging
 import pandas as pd
 import pytest
 
-from stattools.common.io import check_cols, io
+from dftk.common.io import check_cols, io
 
 # ---------------------------------------------------------------------------
 # check_cols() unit tests
@@ -77,7 +77,7 @@ class TestStatColumnValidation:
             DATAFILE=None,
         )
         with pytest.raises(ValueError, match="nonexistent"):
-            from stattools.common.io import check_cols
+            from dftk.common.io import check_cols
 
             check_cols(df, args.cols, "-c/--cols")
 

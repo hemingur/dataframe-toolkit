@@ -1,10 +1,10 @@
-"""Tests for stattools.commands.wstat_cmd._wstat."""
+"""Tests for dftk.commands.wstat_cmd._wstat."""
 
 import pandas as pd
 import pytest
 import statsmodels.stats.weightstats as ssw
 
-from stattools.commands.wstat_cmd import _wstat
+from dftk.commands.wstat_cmd import _wstat
 from tests.conftest import make_args
 
 

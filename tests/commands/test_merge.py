@@ -1,5 +1,5 @@
 """
-Tests for stattools.commands.merge_cmd._do_merge and helper functions.
+Tests for dftk.commands.merge_cmd._do_merge and helper functions.
 """
 
 import argparse
@@ -7,7 +7,7 @@ import argparse
 import pandas as pd
 import pytest
 
-from stattools.commands.merge_cmd import (
+from dftk.commands.merge_cmd import (
     MergeCommand,
     _do_merge,
     _expand_select,

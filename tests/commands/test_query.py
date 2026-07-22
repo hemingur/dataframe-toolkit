@@ -1,5 +1,5 @@
 """
-Tests for stattools.commands.query_cmd.
+Tests for dftk.commands.query_cmd.
 """
 
 import argparse
@@ -9,7 +9,7 @@ import tempfile
 import pandas as pd
 import pytest
 
-from stattools.commands.query_cmd import QueryCommand, _pandas_query, _sql_query
+from dftk.commands.query_cmd import QueryCommand, _pandas_query, _sql_query
 
 duckdb = pytest.importorskip("duckdb", reason="duckdb not installed")
 

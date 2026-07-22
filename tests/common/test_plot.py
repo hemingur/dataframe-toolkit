@@ -1,5 +1,5 @@
 """
-Tests for stattools.common.plot infrastructure.
+Tests for dftk.common.plot infrastructure.
 """
 
 import argparse
@@ -9,7 +9,7 @@ import pytest
 
 matplotlib.use("Agg")  # non-interactive for all tests in this file
 
-from stattools.common.plot import (
+from dftk.common.plot import (
     WONG_PALETTE,
     apply_style,
     make_figure,

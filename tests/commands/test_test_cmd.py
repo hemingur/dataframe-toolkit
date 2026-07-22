@@ -1,5 +1,5 @@
 """
-Tests for stattools.commands.test_cmd._run_test.
+Tests for dftk.commands.test_cmd._run_test.
 
 Strategy: synthetic datasets with exactly known properties.  Where possible,
 expected p-values are computed from scipy directly so tests verify orchestration
@@ -15,7 +15,7 @@ import pandas as pd
 import pytest
 import scipy.stats as ss
 
-from stattools.commands.test_cmd import TESTS, _bootstrap, _run_test
+from dftk.commands.test_cmd import TESTS, _bootstrap, _run_test
 
 # ---------------------------------------------------------------------------
 # Helpers

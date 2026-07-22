@@ -1,10 +1,10 @@
-# dfstat — DataFrame analysis and manipulation toolkit
+# dftk — DataFrame analysis and manipulation toolkit
 
-`dfstat` is a command-line toolkit for exploratory data analysis on TSV files.
+`dftk` is a command-line toolkit for exploratory data analysis on TSV files.
 Each subcommand reads tabular data, performs one operation, and writes TSV to
 stdout, making it easy to chain commands in pipelines.
 
-`dfstat` was developed during computational genomics research as a fast,
+`dftk` was developed during computational genomics research as a fast,
 composable alternative to writing one-off pandas scripts. It is designed
 for analysts who live in the terminal and want a consistent, pipeable toolkit
 for the full data analysis pipeline — from initial exploration through
@@ -13,25 +13,25 @@ statistical modelling and publication-quality figures.
 ## Installation
 
 ```bash
-uv tool install git+https://github.com/hemingur/stattools.git
-dfstat --help
+uv tool install git+https://github.com/hemingur/dataframe-toolkit.git
+dftk --help
 ```
 
 To install from a local clone:
 
 ```bash
-git clone https://github.com/hemingur/stattools.git
-cd stattools
+git clone https://github.com/hemingur/dataframe-toolkit.git
+cd dataframe-toolkit
 uv tool install .
 ```
 
 ## Quick example
 
 ```bash
-dfstat stat data.tsv -c height weight -g sex
-dfstat stat data.tsv -c value -g group -o \
-  | dfstat pivot -i group -v value_mean -o \
-  | dfstat print
+dftk stat data.tsv -c height weight -g sex
+dftk stat data.tsv -c value -g group -o \
+  | dftk pivot -i group -v value_mean -o \
+  | dftk print
 ```
 
 ## Subcommands
@@ -84,9 +84,9 @@ publication-quality output.
 | `sample`   | Random row sampling (with or without replacement, by count or fraction)   |
 | `split`    | Split a dataframe into one file per group                                 |
 | `annotate` | Read and write provenance metadata (genome, source, …) in parquet files  |
-| `print`    | Read any dfstat input (TSV, stdin, `...` parquet pipe) and write TSV     |
+| `print`    | Read any dftk input (TSV, stdin, `...` parquet pipe) and write TSV     |
 | `clean`    | Remove leftover temp parquet pipe files from interrupted pipelines       |
-| `help`     | List all subcommands or show full help for one: `dfstat help stat`       |
+| `help`     | List all subcommands or show full help for one: `dftk help stat`       |
 
 ## Common patterns
 
@@ -94,37 +94,37 @@ publication-quality output.
 
 ```bash
 # z-score within group, then fit a model
-dfstat scale data.tsv -c expr -g condition -o \
-  | dfstat fit - -f "expr_z ~ time + batch" -g condition
+dftk scale data.tsv -c expr -g condition -o \
+  | dftk fit - -f "expr_z ~ time + batch" -g condition
 ```
 
 ### Group summary then plot
 
 ```bash
-dfstat stat results.tsv -c value -g group -o \
-  | dfstat line - -x group -y value_mean --yerr value_sem -f fig.png
+dftk stat results.tsv -c value -g group -o \
+  | dftk line - -x group -y value_mean --yerr value_sem -f fig.png
 ```
 
 ### Wide-to-long then plot overlaid histograms
 
 ```bash
-dfstat melt data.tsv -i sample -d gene -v expression \
-  | dfstat hist - -x expression -g gene -k -f dist.png
+dftk melt data.tsv -i sample -d gene -v expression \
+  | dftk hist - -x expression -g gene -k -f dist.png
 ```
 
 ### Interpolation (standard curve lookup)
 
 ```bash
-dfstat interp samples.tsv --ref stdcurve.tsv \
+dftk interp samples.tsv --ref stdcurve.tsv \
     -x fluorescence -v concentration -d conc_ng_ul
 ```
 
 ### Bootstrap confidence intervals
 
 ```bash
-dfstat stat data.tsv -c value -g group --bootstrap 1000 --randomseed 42 -o \
-  | dfstat pivot -i group -v value_mean -f mean -o \
-  | dfstat stat - -c group_A group_B
+dftk stat data.tsv -c value -g group --bootstrap 1000 --randomseed 42 -o \
+  | dftk pivot -i group -v value_mean -f mean -o \
+  | dftk stat - -c group_A group_B
 ```
 
 ## Input/output
@@ -153,20 +153,20 @@ any new `--meta` values.
 
 ```bash
 # Tag a file at creation
-dfstat eval raw.tsv -f "z = x + y" -o results.parquet \
+dftk eval raw.tsv -f "z = x + y" -o results.parquet \
     --meta genome=hg38 --meta source=gwas_2024
 
 # Inspect annotations
-dfstat annotate results.parquet
+dftk annotate results.parquet
 # genome   hg38
 # source   gwas_2024
 
 # Add or update an annotation in-place
-dfstat annotate results.parquet --set step=qc_filtered
+dftk annotate results.parquet --set step=qc_filtered
 
 # Annotations survive piping
-dfstat eval results.parquet -f "z_scaled = z / 2" -o | dfstat scale ... -c z -o scaled.parquet
-dfstat annotate scaled.parquet   # genome and source still present
+dftk eval results.parquet -f "z_scaled = z / 2" -o | dftk scale ... -c z -o scaled.parquet
+dftk annotate scaled.parquet   # genome and source still present
 ```
 
 ## Figure options (plot commands)

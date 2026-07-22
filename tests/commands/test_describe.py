@@ -1,4 +1,4 @@
-"""Tests for stattools.commands.describe_cmd."""
+"""Tests for dftk.commands.describe_cmd."""
 
 import io as _io
 import math
@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from stattools.commands.describe_cmd import (
+from dftk.commands.describe_cmd import (
     DescribeCommand,
     _col_type,
     _correlations,
@@ -26,7 +26,7 @@ def _make_args(**kwargs):
 
 def _run(df: pd.DataFrame, **kwargs) -> pd.DataFrame:
     """Run DescribeCommand on *df* and return the profile DataFrame."""
-    import stattools.commands.describe_cmd as mod
+    import dftk.commands.describe_cmd as mod
 
     original_read = mod.io.read
     mod.io.read = lambda args: df.copy()

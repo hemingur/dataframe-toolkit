@@ -1,12 +1,12 @@
 """
-Tests for stattools.common.seq — DNA/sequence utility functions.
+Tests for dftk.common.seq — DNA/sequence utility functions.
 """
 
 import math
 
 import pytest
 
-from stattools.common.seq import (
+from dftk.common.seq import (
     at_gc_ratio,
     count_motif,
     gc_content,
