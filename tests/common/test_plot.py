@@ -11,6 +11,7 @@ matplotlib.use("Agg")  # non-interactive for all tests in this file
 
 from dftk.common.plot import (
     WONG_PALETTE,
+    apply_limits,
     apply_style,
     make_figure,
     make_grouplabel,
@@ -134,6 +135,69 @@ class TestMakeGrouplabel:
 
     def test_numeric(self):
         assert make_grouplabel(42) == "42"
+
+
+def _limit_args(**kwargs):
+    defaults = dict(
+        xlim=None, ylim=None, logx=False, logy=False, xmargin=False, ymargin=False
+    )
+    defaults.update(kwargs)
+    return argparse.Namespace(**defaults)
+
+
+class TestApplyLimitsRescalesY:
+    """--xlim (-xm) should recompute y-limits from only the now-visible data,
+    not leave them fixed to the pre-restriction autoscale."""
+
+    def test_scatter_ylim_recomputed_to_visible_range(self):
+        import matplotlib.pyplot as plt
+
+        fig, ax = plt.subplots()
+        ax.scatter([0, 1, 2, 3, 4], [1, 2, 3, 1000, 5])
+        apply_limits(ax, _limit_args(xlim=["0", "2"]))
+        ymin, ymax = ax.get_ylim()
+        assert ymax < 100  # the outlier at x=3 must not be included
+        assert ymin < 1 and ymax > 3
+        plt.close(fig)
+
+    def test_line_ylim_recomputed_to_visible_range(self):
+        import matplotlib.pyplot as plt
+
+        fig, ax = plt.subplots()
+        ax.plot([0, 1, 2, 3, 4], [1, 2, 3, 1000, 5])
+        apply_limits(ax, _limit_args(xlim=["0", "2"]))
+        ymin, ymax = ax.get_ylim()
+        assert ymax < 100
+        plt.close(fig)
+
+    def test_hist_ylim_recomputed_to_visible_bars(self):
+        import matplotlib.pyplot as plt
+
+        fig, ax = plt.subplots()
+        ax.bar([0, 1, 2, 3], [5, 5, 5, 500], width=1, align="edge")
+        apply_limits(ax, _limit_args(xlim=["0", "2"]))
+        ymin, ymax = ax.get_ylim()
+        assert ymax < 100
+        plt.close(fig)
+
+    def test_explicit_ylim_is_not_overridden(self):
+        import matplotlib.pyplot as plt
+
+        fig, ax = plt.subplots()
+        ax.scatter([0, 1, 2, 3, 4], [1, 2, 3, 1000, 5])
+        apply_limits(ax, _limit_args(xlim=["0", "2"], ylim=["-10", "10"]))
+        assert ax.get_ylim() == (-10.0, 10.0)
+        plt.close(fig)
+
+    def test_no_xlim_leaves_full_autoscale(self):
+        import matplotlib.pyplot as plt
+
+        fig, ax = plt.subplots()
+        ax.scatter([0, 1, 2, 3, 4], [1, 2, 3, 1000, 5])
+        full_ylim = ax.get_ylim()
+        apply_limits(ax, _limit_args())
+        assert ax.get_ylim() == full_ylim
+        plt.close(fig)
 
 
 class TestWongPalette:

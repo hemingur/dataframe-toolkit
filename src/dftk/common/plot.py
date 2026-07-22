@@ -256,8 +256,78 @@ def _to_float(s: str, fallback: float) -> float:
         return fallback
 
 
+def _collect_visible_y(ax: matplotlib.axes.Axes, xmin: float, xmax: float) -> np.ndarray | None:
+    """Gather y-values of all plotted artists whose x falls within [xmin, xmax].
+
+    Covers Line2D (line plots, KDE curves, errorbar caps), PathCollection
+    (scatter offsets), LineCollection (errorbar whiskers), and Rectangle
+    patches (histogram bars) — every artist type dftk's plot commands emit.
+    """
+    ys = []
+
+    for line in ax.get_lines():
+        x = np.asarray(line.get_xdata(orig=False), dtype=float)
+        y = np.asarray(line.get_ydata(orig=False), dtype=float)
+        mask = (x >= xmin) & (x <= xmax) & np.isfinite(y)
+        if mask.any():
+            ys.append(y[mask])
+
+    for coll in ax.collections:
+        offsets = coll.get_offsets()
+        if offsets is not None and len(offsets):
+            arr = np.asarray(offsets, dtype=float)
+            x, y = arr[:, 0], arr[:, 1]
+            mask = (x >= xmin) & (x <= xmax) & np.isfinite(y)
+            if mask.any():
+                ys.append(y[mask])
+        elif hasattr(coll, "get_segments"):
+            for seg in coll.get_segments():
+                seg = np.asarray(seg, dtype=float)
+                if seg.size == 0:
+                    continue
+                x, y = seg[:, 0], seg[:, 1]
+                if np.any((x >= xmin) & (x <= xmax)):
+                    finite_y = y[np.isfinite(y)]
+                    if finite_y.size:
+                        ys.append(finite_y)
+
+    for patch in ax.patches:
+        try:
+            x0, width = patch.get_x(), patch.get_width()
+            y0, height = patch.get_y(), patch.get_height()
+        except AttributeError:
+            continue
+        lo, hi = (x0, x0 + width) if width >= 0 else (x0 + width, x0)
+        if hi < xmin or lo > xmax:
+            continue
+        ys.append(np.array([y0, y0 + height], dtype=float))
+
+    if not ys:
+        return None
+    return np.concatenate(ys)
+
+
+def _rescale_y_to_visible(ax: matplotlib.axes.Axes, xmin: float, xmax: float) -> None:
+    """Recompute y-limits from data visible within [xmin, xmax], with a 5% pad."""
+    visible_y = _collect_visible_y(ax, xmin, xmax)
+    if visible_y is None or visible_y.size == 0:
+        return
+    y0, y1 = visible_y.min(), visible_y.max()
+    if y0 == y1:
+        pad = abs(y0) * 0.05 or 0.5
+    else:
+        pad = (y1 - y0) * 0.05
+    ax.set_ylim(y0 - pad, y1 + pad)
+
+
 def apply_limits(ax: matplotlib.axes.Axes, args: argparse.Namespace) -> None:
-    """Apply --xlim / --ylim / --logx / --logy / --xmargin / --ymargin."""
+    """Apply --xlim / --ylim / --logx / --logy / --xmargin / --ymargin.
+
+    When --xlim narrows the view, matplotlib's autoscaled y-limits still
+    reflect the *full* dataset — they were fixed when the data was plotted,
+    before the x range was restricted. Unless --ylim pins the y-axis
+    explicitly, recompute it from only the data now visible within --xlim.
+    """
     xlim = getattr(args, "xlim", None)
     ylim = getattr(args, "ylim", None)
     logx = getattr(args, "logx", False)
@@ -270,6 +340,13 @@ def apply_limits(ax: matplotlib.axes.Axes, args: argparse.Namespace) -> None:
     if logy:
         ax.set_yscale("log")
 
+    if xlim is not None:
+        xmin, xmax = ax.get_xlim()
+        xmin, xmax = _to_float(xlim[0], xmin), _to_float(xlim[1], xmax)
+        ax.set_xlim(xmin, xmax)
+        if ylim is None:
+            _rescale_y_to_visible(ax, xmin, xmax)
+
     if xmargin:
         xmin, xmax = ax.get_xlim()
         r = xmax - xmin
@@ -279,12 +356,6 @@ def apply_limits(ax: matplotlib.axes.Axes, args: argparse.Namespace) -> None:
         r = ymax - ymin
         ax.set_ylim(ymin - 0.01 * r, ymax + 0.01 * r)
 
-    if xlim is not None:
-        xmin, xmax = ax.get_xlim()
-        ax.set_xlim(
-            _to_float(xlim[0], xmin),
-            _to_float(xlim[1], xmax),
-        )
     if ylim is not None:
         ymin, ymax = ax.get_ylim()
         ax.set_ylim(
