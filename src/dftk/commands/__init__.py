@@ -30,6 +30,7 @@ from dftk.commands.randvar_cmd import RandvarCommand
 from dftk.commands.sample_cmd import SampleCommand
 from dftk.commands.scale_cmd import ScaleCommand
 from dftk.commands.scat_cmd import ScatCommand
+from dftk.commands.segid_cmd import SegidCommand
 from dftk.commands.split_cmd import SplitCommand
 from dftk.commands.stat_cmd import StatCommand
 from dftk.commands.test_cmd import TestCommand
@@ -37,7 +38,6 @@ from dftk.commands.transpose_cmd import TransposeCommand
 from dftk.commands.wstat_cmd import WstatCommand
 
 # Ported subcommands — uncomment as each one is added:
-# from dftk.commands.segid     import SegidCommand
 # from dftk.commands.color     import ColorCommand
 # from dftk.commands.wavelet   import WaveletCommand
 # from dftk.commands.fisher    import FisherCommand  # superseded by eval's
@@ -58,6 +58,7 @@ COMMAND_GROUPS: list[tuple[str, list]] = [
             InterpCommand(),
             BinxCommand(),
             TransposeCommand(),
+            SegidCommand(),
         ],
     ),
     (

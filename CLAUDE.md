@@ -184,7 +184,7 @@ Original scripts live in `~/projects/python_projects/df/src/df/`.
 | dftest.py        | test              | ported    |
 | dfwstat.py       | wstat             | ported    |
 | dfbinx.py        | binx              | ported    |
-| dfsegid.py       | segid             | pending   |
+| dfsegid.py       | segid             | ported    |
 | dfrvs.py         | randvar           | ported    |
 | dfinfo.py        | info              | ported    |
 | dftpos.py        | transpose         | ported    |
