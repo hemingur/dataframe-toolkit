@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.0] — 2026-07-22
+
+### Changed
+- Project renamed: console script `dfstat` → `dftk`; PyPI distribution `stattools` → `dataframe-toolkit`; import package `stattools` → `dftk`
+- `DFSTAT_TMPDIR` env var renamed to `DFTK_TMPDIR`
+- Claude subagents renamed: `stattools-code-reviewer`/`stattools-test-writer` → `dftk-code-reviewer`/`dftk-test-writer`
+- Reason: `stattools` clashed with an unrelated existing PyPI package, and overstated the tool's scope — most subcommands (`merge`, `func`, `eval`, `pivot`, …) are general dataframe transforms, not statistics
+
 ## [0.2.0] — 2026-06-23
 
 ### Added
