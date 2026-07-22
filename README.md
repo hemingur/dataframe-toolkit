@@ -10,6 +10,11 @@ for analysts who live in the terminal and want a consistent, pipeable toolkit
 for the full data analysis pipeline — from initial exploration through
 statistical modelling and publication-quality figures.
 
+**No data file handy?** Every example below uses `dftk dataset` to pull in a
+small, real dataset, so you can copy-paste any of them and run them right
+now. Run `dftk dataset --list` to browse everything available (dozens of
+datasets from seaborn, statsmodels, and pydataset).
+
 ## Installation
 
 ```bash
@@ -40,28 +45,38 @@ uv tool install .
 ## Quick example
 
 ```bash
-dftk stat data.tsv -c height weight -g sex
-dftk stat data.tsv -c value -g group -o \
-  | dftk pivot -i group -v value_mean -o \
-  | dftk print
+dftk dataset tips | dftk stat - -c tip total_bill -g day
+```
+
+Chain commands with `-o` (write to a temp parquet, print its path) and `...`
+(read a parquet path from stdin) instead of piping TSV text directly — faster
+for large data, and the recommended pattern once a pipeline has more than one
+step:
+
+```bash
+dftk dataset tips -o \
+  | dftk pivot ... -i day -v tip -f mean -o \
+  | dftk print ...
 ```
 
 ## Subcommands
 
 ### Data transformation
 
-| Command   | Description                                                                          |
-|-----------|--------------------------------------------------------------------------------------|
-| `eval`    | Add or modify columns: eval expressions, string/path functions, statistical ops      |
-| `query`   | Filter rows with pandas query expressions or SQL (`--sql` via DuckDB)                |
-| `merge`   | Join two tables on key columns (inner/left/right/outer)                              |
-| `concat`  | Concatenate two or more tables row-wise                                              |
-| `melt`    | Reshape wide-to-long (`pd.melt`)                                                     |
-| `pivot`   | Reshape long-to-wide with per-cell aggregation                                       |
-| `func`    | Column transforms: cumsum, group mean/sum/min/max/count/median/std, rank, qcut:N     |
-| `scale`   | Normalise: z-score, min-shift, sum/max/mean scaling, Blom rank, regression residuals |
-| `interp`  | Interpolate values from a reference curve into a table (1-D lookup)                  |
-| `binx`    | Assign bin indices to a column based on explicit or generated edges                  |
+| Command     | Description                                                                          |
+|-------------|---------------------------------------------------------------------------------------|
+| `eval`      | Add or modify columns: eval expressions, string/path functions, statistical ops      |
+| `query`     | Filter rows with pandas query expressions or SQL (`--sql` via DuckDB)                |
+| `merge`     | Join two tables on key columns (inner/left/right/outer)                              |
+| `concat`    | Concatenate two or more tables row-wise                                              |
+| `melt`      | Reshape wide-to-long (`pd.melt`)                                                     |
+| `pivot`     | Reshape long-to-wide with per-cell aggregation                                       |
+| `func`      | Column transforms: cumsum, group mean/sum/min/max/count/median/std, rank, qcut:N     |
+| `scale`     | Normalise: z-score, min-shift, sum/max/mean scaling, Blom rank, regression residuals |
+| `interp`    | Interpolate values from a reference curve into a table (1-D lookup)                  |
+| `binx`      | Assign bin indices to a column based on explicit or generated edges                  |
+| `transpose` | Flip rows and columns; original column names land in a new `--keycol` column         |
+| `segid`     | Assign a segment ID that increments on each value change in a column                 |
 
 ### Statistics
 
@@ -73,6 +88,7 @@ dftk stat data.tsv -c value -g group -o \
 | `test`     | P-values between column pairs: t-test, Mann-Whitney, Wilcoxon, KS, correlations, bootstrap; groups  |
 | `corr`     | Pairwise column correlations (Pearson/Spearman/Kendall) with optional BCa bootstrap CI              |
 | `describe` | Quick column-level summary (dtype, n, n_unique, n_null, sample values)                              |
+| `info`     | Per-column dtype, null counts, and memory usage; `--summary` for dataset-level totals               |
 | `randvar`  | Sample from a distribution and append as a new column (norm, alpha, beta, …)                        |
 
 ### Plots
@@ -105,38 +121,48 @@ publication-quality output.
 ### Chaining commands
 
 ```bash
-# z-score within group, then fit a model
-dftk scale data.tsv -c expr -g condition -o \
-  | dftk fit - -f "expr_z ~ time + batch" -g condition
+# z-score sepal_length within species, then fit against petal_length
+dftk dataset iris -o \
+  | dftk scale ... -c sepal_length -g species -o \
+  | dftk fit ... -f "sepal_length_scaled ~ petal_length" -g species
 ```
 
 ### Group summary then plot
 
 ```bash
-dftk stat results.tsv -c value -g group -o \
-  | dftk line - -x group -y value_mean --yerr value_sem -f fig.png
+dftk dataset tips -o \
+  | dftk stat ... -c tip -g day -o \
+  | dftk line ... -x day -y mean --yerr sem -f fig.png
 ```
 
 ### Wide-to-long then plot overlaid histograms
 
 ```bash
-dftk melt data.tsv -i sample -d gene -v expression \
-  | dftk hist - -x expression -g gene -k -f dist.png
+dftk dataset iris \
+  | dftk melt - -i species -d measurement -v value \
+  | dftk hist - -x value -g measurement -k -f dist.png
 ```
 
 ### Interpolation (standard curve lookup)
 
 ```bash
-dftk interp samples.tsv --ref stdcurve.tsv \
-    -x fluorescence -v concentration -d conc_ng_ul
+printf "conc\tfluor\n0\t5\n10\t52\n20\t98\n30\t151\n" > stdcurve.tsv
+printf "sample\tfluor\ns1\t60\ns2\t110\n" \
+  | dftk interp - --ref stdcurve.tsv -x fluor --refx fluor -v conc -d conc_ng_ul
 ```
 
 ### Bootstrap confidence intervals
 
+Bootstrap mode repeats the full stat computation N times on resampled data
+and emits one row per resample (tagged with `samplenum`) — pipe into `pivot`
+with percentile aggfuncs (`cilo`/`cihi`) to collapse that into an empirical
+confidence interval:
+
 ```bash
-dftk stat data.tsv -c value -g group --bootstrap 1000 --randomseed 42 -o \
-  | dftk pivot -i group -v value_mean -f mean -o \
-  | dftk stat - -c group_A group_B
+dftk dataset tips -o \
+  | dftk stat ... -c tip -g day --bootstrap 1000 --randomseed 42 -o \
+  | dftk pivot ... -i day -v mean -f mean cilo cihi -o \
+  | dftk print ...
 ```
 
 ## Input/output
@@ -148,9 +174,19 @@ All commands accept:
 - `...` to receive a parquet path from stdin (written by a previous `-o` command)
 - A `.parquet` filename to read a named parquet file directly
 
+> **`-` vs `...`** — these are not interchangeable. Use `-` when the previous
+> command in the pipe wrote plain TSV to stdout (the default). Use `...` when
+> the previous command used bare `-o` (pipe mode), which writes a temp
+> parquet and prints *its path* to stdout — `-` would try to parse that path
+> as TSV and fail.
+
 Standard output options (available on all tabular commands):
 
-- `-o` / `--output` — write a temp parquet for the next piped command instead of TSV to stdout
+- `-o` / `--output` — controls where output goes; takes an *optional* value:
+  - `-o` alone — write a temp parquet to pipe into the next command, printing its path to stdout (auto-deleted once read)
+  - `-o FILE.parquet` — write a named, reusable parquet, printing its path to stdout
+  - `-o FILE` (no `.parquet` extension) — write TSV to `FILE`, with no stdout output
+  - omit `-o` entirely — write TSV to stdout (the default)
 - `--select col1 col2 …` — keep only these columns
 - `--drop col1 col2 …` — remove these columns
 - `--round N` — round numeric output
@@ -165,20 +201,19 @@ any new `--meta` values.
 
 ```bash
 # Tag a file at creation
-dftk eval raw.tsv -f "z = x + y" -o results.parquet \
-    --meta genome=hg38 --meta source=gwas_2024
+dftk dataset iris -o iris.parquet --meta source=seaborn --meta species_col=species
 
 # Inspect annotations
-dftk annotate results.parquet
-# genome   hg38
-# source   gwas_2024
+dftk annotate iris.parquet
+# source        seaborn
+# species_col   species
 
 # Add or update an annotation in-place
-dftk annotate results.parquet --set step=qc_filtered
+dftk annotate iris.parquet --set step=raw
 
 # Annotations survive piping
-dftk eval results.parquet -f "z_scaled = z / 2" -o | dftk scale ... -c z -o scaled.parquet
-dftk annotate scaled.parquet   # genome and source still present
+dftk eval iris.parquet -f "petal_area = petal_length * petal_width" -o iris2.parquet
+dftk annotate iris2.parquet   # source, species_col, and step all still present
 ```
 
 ## Figure options (plot commands)
