@@ -18,6 +18,11 @@ import pandas as pd
 import scipy.stats as ss
 
 from dftk.commands.base import BaseCommand
+from dftk.common.copula import (
+    MIN_TAIL_N,
+    empirical_tail_dependence,
+    pseudo_observations,
+)
 from dftk.common.io import check_cols, io
 from dftk.common.seed import normalize_seed
 
@@ -112,6 +117,29 @@ def _bootstrap_stats(
     return p_perm, ci_lo, ci_hi
 
 
+def _tail_stats(a: np.ndarray, b: np.ndarray, q_grid: np.ndarray) -> tuple:
+    """Return a flat tuple of (lambda_lower_qX, lambda_upper_qX, ...) for each q
+    in q_grid, in the same order, plus a stderr warning if any q is too small
+    for the sample size to resolve.
+    """
+    n = len(a)
+    u, v = pseudo_observations(a, b)
+    lam_L, lam_U = empirical_tail_dependence(u, v, q_grid)
+    thin = [q for q in q_grid if n * q < MIN_TAIL_N]
+    if thin:
+        logger.warning(
+            "tail dependence: n=%d gives fewer than %d points in the tail for "
+            "q=%s -- these estimates will be noisy. See --tail-q / MIN_TAIL_N.",
+            n,
+            MIN_TAIL_N,
+            ", ".join(f"{q:g}" for q in thin),
+        )
+    out = []
+    for lo, hi in zip(lam_L, lam_U, strict=True):
+        out.extend([float(lo), float(hi)])
+    return tuple(out)
+
+
 def _corr(
     df: pd.DataFrame, args: argparse.Namespace, rng: np.random.Generator
 ) -> pd.DataFrame:
@@ -122,12 +150,17 @@ def _corr(
         raise ValueError(f"-c pairs must be col1:col2, got: {bad}")
 
     ci = args.ci and args.method == "pearson"
+    tail = getattr(args, "tail", False)
+    q_grid = np.asarray(getattr(args, "tail_q", None) or [0.05])
 
     header = ["col1", "col2", "nobs", "correlation", "pvalue"]
     if ci:
         header += ["cilo", "cihi"]
     if args.bootstrap is not None:
         header += ["p_perm", "ci_boot_lo", "ci_boot_hi"]
+    if tail:
+        for q in q_grid:
+            header += [f"lambda_lower_q{q:g}", f"lambda_upper_q{q:g}"]
 
     rows = []
 
@@ -136,13 +169,14 @@ def _corr(
             pair_df = sub[[col1, col2]].dropna()
             a, b = pair_df[col1].values, pair_df[col2].values
             cr = _compute_correlation(a, b, method_fn, ci)
-            if args.bootstrap is None:
-                rows.append((*prefix, col1, col2, *cr))
-            else:
-                boot = _bootstrap_stats(
+            extra = ()
+            if args.bootstrap is not None:
+                extra += _bootstrap_stats(
                     a, b, method_fn, args.bootstrap, rng, args.confidence / 100.0
                 )
-                rows.append((*prefix, col1, col2, *cr, *boot))
+            if tail:
+                extra += _tail_stats(a, b, q_grid)
+            rows.append((*prefix, col1, col2, *cr, *extra))
 
     if args.groups:
         header = [*args.groups, *header]
@@ -195,12 +229,42 @@ BOOTSTRAP (--bootstrap N)
 
   Use --randomseed for reproducibility.
 
+TAIL DEPENDENCE (--tail / --tail-q)
+------------------------------------
+  Adds lambda_lower_qN / lambda_upper_qN columns: nonparametric estimates of
+  how likely one variable is to be extreme given the other is, separately
+  for the lower and upper tail, at each threshold N given to --tail-q.
+
+  A correlation coefficient describes overall association; it says nothing
+  about whether the *extremes* specifically move together more (or less)
+  than the bulk of the data. Two pairs can share the same Spearman rho and
+  have very different tail behavior -- this is what tells them apart. Two
+  markers can look equally correlated genome-wide while only one shares
+  its rare, extreme values; two assets can look equally correlated day to
+  day while only one actually crashes together.
+
+  Reading it: pass 2-3 values to --tail-q spanning an order of magnitude
+  (e.g. --tail-q 0.02 0.05 0.1). If both lambda columns shrink as q shrinks,
+  there is no real tail dependence (whatever correlation exists is spread
+  evenly, not concentrated in the extremes). If a lambda column stays
+  roughly flat across q instead of shrinking, that side has genuine tail
+  dependence. A single q in isolation is easy to misread, since even a pair
+  with NO tail dependence gives an elevated, nonzero reading at any finite
+  q if the pair is strongly correlated overall -- it is the trend across q
+  that carries the signal, not any one number.
+
+  This needs enough data in the tail region to be reliable: a warning is
+  printed to stderr when nobs * q for the smallest requested q falls below
+  20, since anything thinner is dominated by sampling noise. Pair with
+  `dftk chi` for a visual, corner-resolved view of the same question.
+
 EXAMPLES
 --------
   dftk corr data.tsv -c x:y
   dftk corr data.tsv -c x:y -g group --method spearman
   dftk corr data.tsv -c x:y --ci
   dftk corr data.tsv -c x:y --method spearman --bootstrap 2000 --randomseed 42
+  dftk corr data.tsv -c x:y --tail --tail-q 0.02 0.05 0.1
 """
 
 
@@ -266,6 +330,22 @@ class CorrCommand(BaseCommand):
             default=None,
             metavar="SEED",
             help="Random seed for bootstrap/permutation (integer or string).",
+        )
+        g.add_argument(
+            "--tail",
+            action="store_true",
+            help="Add nonparametric lower/upper tail-dependence coefficient "
+            "columns (see --tail-q).",
+        )
+        g.add_argument(
+            "--tail-q",
+            type=float,
+            nargs="+",
+            default=None,
+            metavar="Q",
+            help="Tail probability threshold(s) for --tail, e.g. 0.02 0.05 0.1 "
+            "(default: 0.05). Smaller q looks deeper into the tail but needs "
+            "more data to stay reliable -- see epilog.",
         )
 
     def execute(self, args: argparse.Namespace) -> None:

@@ -40,10 +40,12 @@ src/dftk/
     dataset_cmd.py          # dftk dataset  — load bundled/seaborn/statsmodels example datasets
     annotate_cmd.py         # dftk annotate — read/write parquet provenance metadata
     melt_cmd.py, scat_cmd.py, line_cmd.py, hist_cmd.py, print_cmd.py, clean_cmd.py, ...
+    chi_cmd.py               # dftk chi    — corner-resolved chi-plot (tail-dependence diagnostic)
   common/
     io.py                   # io.read(args), io.printdf(df, args) — TSV in/out
     stats.py                # Statistical helpers (binom_test, fisher_test, etc.)
     seq.py                  # DNA/sequence utilities
+    copula.py               # Nonparametric tail-dependence diagnostics (used by corr --tail, chi)
 tests/
   conftest.py               # make_args(**kwargs) helper used by all tests
   commands/test_eval.py     # unit tests for eval_cmd
@@ -157,6 +159,37 @@ The `--meta KEY=VALUE` flag (available on all commands via `parser_output`) embe
 
 ---
 
+## copula.py / corr --tail / chi key points
+
+Nonparametric tail-dependence diagnostics, domain-agnostic (equally
+applicable to genetics, finance, climate, etc.) — not a genomics-specific
+feature despite the original design chat leaning on genomics examples.
+
+- `corr --tail --tail-q Q1 Q2 ...` adds `lambda_lower_qN`/`lambda_upper_qN`
+  columns per pair. `chi` is the visual counterpart: a corner-resolved
+  chi-plot, structurally a near-mirror of `scat_cmd.py`.
+- `corner_chi()` deliberately deviates from the textbook Fisher & Switzer
+  chi-plot: the textbook version signs its x-axis by "concordant vs
+  discordant", which cannot distinguish lower-tail dependence (e.g. Clayton
+  copula) from upper-tail dependence (e.g. Gumbel) — both land on the same
+  side. This version restricts to concordant pairs and signs x by which
+  corner each point is actually in, so the two corners are genuinely
+  separated. Validated against synthetic Clayton-copula data with a known
+  theoretical tail-dependence coefficient (see `tests/common/test_copula.py`).
+- `bivariate_loo_cdf()` (the leave-one-out empirical CDF behind `corner_chi`)
+  must be tie-safe: ties in real data (rounded/binned values, repeated
+  measurements) are common, not an edge case, and a tie-unsafe O(n log n)
+  implementation silently biases results rather than crashing — validate any
+  change here against the naive O(n^2) reference in
+  `tests/common/test_copula.py::TestBivariateLooCdf` before trusting it.
+- `chi --groupcol` computes a *separate* chi statistic per group and
+  overlays them as distinct series (matching how `scat`/`hist` overlay group
+  series) rather than one summary row per group like `corr -g` — mixing
+  groups into one leave-one-out CDF would be statistically meaningless,
+  since the CDF must be computed within a single joint distribution.
+
+---
+
 ## Ported / pending subcommands
 
 Original scripts live in `~/projects/python_projects/df/src/df/`.
@@ -181,6 +214,7 @@ Original scripts live in `~/projects/python_projects/df/src/df/`.
 | dfcat.py         | concat            | ported    |
 | dfsplit.py       | split             | ported    |
 | dfcorr.py        | corr              | ported    |
+| —                | chi               | new       |
 | dftest.py        | test              | ported    |
 | dfwstat.py       | wstat             | ported    |
 | dfbinx.py        | binx              | ported    |

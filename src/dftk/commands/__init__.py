@@ -8,6 +8,7 @@
 
 from dftk.commands.annotate_cmd import AnnotateCommand
 from dftk.commands.binx_cmd import BinxCommand
+from dftk.commands.chi_cmd import ChiCommand
 from dftk.commands.clean_cmd import CleanCommand
 from dftk.commands.concat_cmd import ConcatCommand
 from dftk.commands.corr_cmd import CorrCommand
@@ -80,6 +81,7 @@ COMMAND_GROUPS: list[tuple[str, list]] = [
             ScatCommand(),
             LineCommand(),
             HistCommand(),
+            ChiCommand(),
         ],
     ),
     (
