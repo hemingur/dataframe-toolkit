@@ -20,6 +20,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from dftk.commands.chi_cmd import ChiCommand
 from dftk.commands.hist_cmd import HistCommand
 from dftk.commands.line_cmd import LineCommand
 from dftk.commands.scat_cmd import ScatCommand
@@ -187,6 +188,31 @@ def _hist_args(fname, outfile, **kwargs):
         stats=False,
         bins=10,
         binwidth=None,
+        **_base_read_args(),
+    )
+    base.update(kwargs)
+    return argparse.Namespace(**base)
+
+
+def _chi_args(fname, outfile, **kwargs):
+    base = dict(
+        DATAFILE=fname,
+        xcol="x",
+        ycol="y",
+        xlabel=None,
+        ylabel=None,
+        title="",
+        size="5x3.5",
+        fontsize="screen",
+        styles=None,
+        usetex=False,
+        file=outfile,
+        groupcol=None,
+        subgraphcol=None,
+        ncols=None,
+        legend=None,
+        legendtitle=None,
+        legendloc=None,
         **_base_read_args(),
     )
     base.update(kwargs)
@@ -484,5 +510,105 @@ class TestHistCommand:
         try:
             with pytest.raises(ValueError, match="no_col"):
                 HistCommand().execute(_hist_args(fname, out, xcol="no_col"))
+        finally:
+            os.unlink(fname)
+
+
+# ---------------------------------------------------------------------------
+# ChiCommand
+# ---------------------------------------------------------------------------
+
+
+class TestChiCommand:
+    def test_basic_chi(self, simple_df):
+        fname = _tsv(simple_df)
+        out = _png()
+        try:
+            ChiCommand().execute(_chi_args(fname, out))
+            _assert_file_created(out)
+        finally:
+            os.unlink(fname)
+            if os.path.exists(out):
+                os.unlink(out)
+
+    def test_groupcol(self, simple_df):
+        fname = _tsv(simple_df)
+        out = _png()
+        try:
+            ChiCommand().execute(_chi_args(fname, out, groupcol=["group"]))
+            _assert_file_created(out)
+        finally:
+            os.unlink(fname)
+            if os.path.exists(out):
+                os.unlink(out)
+
+    def test_subgraphcol(self, simple_df):
+        fname = _tsv(simple_df)
+        out = _png()
+        try:
+            ChiCommand().execute(_chi_args(fname, out, subgraphcol=["cond"]))
+            _assert_file_created(out)
+        finally:
+            os.unlink(fname)
+            if os.path.exists(out):
+                os.unlink(out)
+
+    def test_subgraphcol_and_groupcol(self, simple_df):
+        fname = _tsv(simple_df)
+        out = _png()
+        try:
+            ChiCommand().execute(
+                _chi_args(fname, out, subgraphcol=["cond"], groupcol=["group"])
+            )
+            _assert_file_created(out)
+        finally:
+            os.unlink(fname)
+            if os.path.exists(out):
+                os.unlink(out)
+
+    def test_ties_do_not_crash(self):
+        # Heavily rounded/repeated values are the case that broke the
+        # tie-unsafe leave-one-out CDF implementation.
+        rng = np.random.default_rng(0)
+        df = pd.DataFrame(
+            {
+                "x": rng.integers(0, 6, 300).astype(float),
+                "y": rng.integers(0, 6, 300).astype(float),
+            }
+        )
+        fname = _tsv(df)
+        out = _png()
+        try:
+            ChiCommand().execute(_chi_args(fname, out))
+            _assert_file_created(out)
+        finally:
+            os.unlink(fname)
+            if os.path.exists(out):
+                os.unlink(out)
+
+    def test_missing_xcol_raises(self, simple_df):
+        fname = _tsv(simple_df)
+        out = _png()
+        try:
+            with pytest.raises(ValueError, match="no_such"):
+                ChiCommand().execute(_chi_args(fname, out, xcol="no_such"))
+        finally:
+            os.unlink(fname)
+
+    def test_missing_groupcol_raises(self, simple_df):
+        fname = _tsv(simple_df)
+        out = _png()
+        try:
+            with pytest.raises(ValueError, match="no_such"):
+                ChiCommand().execute(_chi_args(fname, out, groupcol=["no_such"]))
+        finally:
+            os.unlink(fname)
+
+    def test_missing_xcol_arg_raises(self, simple_df):
+        fname = _tsv(simple_df)
+        out = _png()
+        try:
+            with pytest.raises(ValueError):
+                ChiCommand().execute(_chi_args(fname, out, xcol=None))
         finally:
             os.unlink(fname)

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0] — 2026-08-29
+
+### Added
+- `dftk corr --tail --tail-q Q1 Q2 ...`: adds `lambda_lower_qN`/`lambda_upper_qN` columns per requested threshold — nonparametric tail-dependence coefficient estimates, describing whether the *extremes* of two columns move together, separately from overall correlation. Domain-agnostic: applies equally to genetic markers, asset returns, or climate variables.
+- `dftk chi`: new plot command, a corner-resolved chi-plot — the visual complement to `--tail`, showing whether tail dependence (if any) sits in the lower corner, upper corner, both, or neither, without picking a specific `q` threshold.
+- `src/dftk/common/copula.py`: shared nonparametric copula diagnostics (`pseudo_observations`, `bivariate_loo_cdf`, `empirical_tail_dependence`, `corner_chi`) backing both of the above. `bivariate_loo_cdf` uses a tie-safe Fenwick-tree leave-one-out empirical CDF, O(n log n), validated against a naive O(n^2) reference across tied and untied data up to realistic table sizes.
+
 ## [0.5.2] — 2026-07-22
 
 ### Fixed

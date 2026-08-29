@@ -1,5 +1,7 @@
 """Tests for dftk.commands.corr_cmd._corr and _bootstrap_stats."""
 
+import logging
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -22,6 +24,8 @@ def _args(**kwargs):
         bootstrap=None,
         confidence=95.0,
         randomseed=None,
+        tail=False,
+        tail_q=None,
     )
     defaults.update(kwargs)
     return make_args(**defaults)
@@ -305,3 +309,68 @@ class TestValidation:
         width95 = r95["ci_boot_hi"].iloc[0] - r95["ci_boot_lo"].iloc[0]
         width50 = r50["ci_boot_hi"].iloc[0] - r50["ci_boot_lo"].iloc[0]
         assert width95 >= width50
+
+
+# ---------------------------------------------------------------------------
+# Tail dependence (--tail / --tail-q)
+# ---------------------------------------------------------------------------
+
+
+class TestTailDependence:
+    def test_columns_added(self, perfect_df):
+        result = _corr(perfect_df, _args(tail=True), _rng())
+        assert "lambda_lower_q0.05" in result.columns
+        assert "lambda_upper_q0.05" in result.columns
+
+    def test_default_q_is_005(self, perfect_df):
+        result = _corr(perfect_df, _args(tail=True), _rng())
+        cols = [c for c in result.columns if c.startswith("lambda_")]
+        assert cols == ["lambda_lower_q0.05", "lambda_upper_q0.05"]
+
+    def test_custom_q_grid_columns(self, perfect_df):
+        result = _corr(perfect_df, _args(tail=True, tail_q=[0.02, 0.1]), _rng())
+        assert "lambda_lower_q0.02" in result.columns
+        assert "lambda_upper_q0.02" in result.columns
+        assert "lambda_lower_q0.1" in result.columns
+        assert "lambda_upper_q0.1" in result.columns
+
+    def test_no_tail_columns_when_disabled(self, perfect_df):
+        result = _corr(perfect_df, _args(tail=False), _rng())
+        assert not any(c.startswith("lambda_") for c in result.columns)
+
+    def test_coexists_with_bootstrap(self, perfect_df):
+        result = _corr(perfect_df, _args(tail=True, bootstrap=50), _rng())
+        assert "p_perm" in result.columns
+        assert "lambda_lower_q0.05" in result.columns
+
+    def test_grouped_tail_one_row_per_group(self, grouped_df):
+        result = _corr(grouped_df, _args(tail=True, groups=["g"]), _rng())
+        assert len(result) == 2
+        assert "lambda_lower_q0.05" in result.columns
+
+    def test_thin_tail_warns(self, caplog, perfect_df):
+        with caplog.at_level(logging.WARNING, logger="dftk"):
+            _corr(perfect_df, _args(tail=True, tail_q=[0.05]), _rng())
+        assert "tail dependence" in caplog.text
+
+    def test_sufficient_data_no_warning(self, caplog):
+        rng = np.random.default_rng(0)
+        n = 2000
+        df = pd.DataFrame({"a": rng.random(n), "b": rng.random(n)})
+        with caplog.at_level(logging.WARNING, logger="dftk"):
+            _corr(df, _args(tail=True, tail_q=[0.05]), _rng())
+        assert "tail dependence" not in caplog.text
+
+    def test_clayton_lower_tail_recovered(self):
+        # Known-answer check: Clayton copula (theta=3) has true
+        # lambda_lower = 2^(-1/3) ~= 0.794, lambda_upper = 0.
+        theta = 3.0
+        rng = np.random.default_rng(123)
+        n = 20000
+        w, t = rng.random(n), rng.random(n)
+        a = w
+        b = (w ** (-theta) * (t ** (-theta / (theta + 1)) - 1) + 1) ** (-1 / theta)
+        df = pd.DataFrame({"a": a, "b": b})
+        result = _corr(df, _args(tail=True, tail_q=[0.01, 0.02, 0.05]), _rng())
+        assert result["lambda_lower_q0.01"].iloc[0] == pytest.approx(0.794, abs=0.15)
+        assert result["lambda_upper_q0.01"].iloc[0] < 0.2
