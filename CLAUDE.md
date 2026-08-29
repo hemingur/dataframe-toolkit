@@ -188,6 +188,48 @@ feature despite the original design chat leaning on genomics examples.
   groups into one leave-one-out CDF would be statistically meaningless,
   since the CDF must be computed within a single joint distribution.
 
+### Possible extension: parametric copula fitting (BB1 / threshold-split)
+
+`--tail` and `chi` are nonparametric diagnostics only — they characterize
+tail-dependence *shape* but don't fit a parametric copula. A natural next
+step, not yet implemented, is a fitting mode (e.g. `corr --fit-copula`)
+that fits a named copula and reports its parameter(s).
+
+Worked example that motivated this (`dftk corr` on the bundled `diamonds`
+dataset, `-c carat:price --tail`): lower-tail dependence present
+(`lambda_lower` plateaus ~0.28–0.33 across q), upper-tail dependence absent
+(`lambda_upper` decays toward 0 as q shrinks). That asymmetric shape is
+exactly Clayton's signature (`lambda_L = 2^(-1/theta) > 0`, `lambda_U = 0`)
+— but a plain one-parameter Clayton fit is the wrong tool here:
+
+- Clayton's single `theta` controls both tail strength *and* bulk
+  association (Kendall's tau = `theta / (theta + 2)`) simultaneously.
+- `carat:price` has very high bulk association (Pearson r=0.92, Kendall's
+  tau almost certainly similarly high) but only moderate lower-tail
+  dependence (~0.3). Calibrating `theta` to the bulk tau would predict far
+  stronger tail clustering than observed; calibrating to the tail would
+  understate the bulk correlation. One parameter can't satisfy both at once.
+
+Two ways to actually handle this, if/when it's implemented:
+
+1. **BB1** (Joe's two-parameter Archimedean family) — has independent
+   parameters for tail strength and overall association, so it can match
+   both facts at once instead of conflating them. The right family for
+   "high bulk correlation + moderate, one-sided tail dependence" cases like
+   this one.
+2. **Threshold-split fit** — fit separate (possibly simpler) copulas or
+   correlation estimates above/below a chosen split point on one variable,
+   rather than forcing one global copula. Often the more honest choice when
+   the BB1-vs-Clayton mismatch itself signals that dependence strength
+   varies with the *level* of the variables — e.g. `carat:price`: small
+   diamonds cluster near a practical price/size floor, while large-diamond
+   pricing is driven more by cut/clarity/color than by carat, so dependence
+   genuinely weakens at the high end. That's closer to heteroskedastic
+   dependence than to a fixed-copula tail effect — a single global copula
+   (BB1 included) would still average over it rather than represent it.
+
+Not scheduled; documented here so the reasoning survives if picked up later.
+
 ---
 
 ## Ported / pending subcommands
