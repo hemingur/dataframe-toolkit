@@ -49,13 +49,15 @@ _EPILOG = """\
 FILENAME PATTERNS
 -----------------
   By default output files are named:  <prefix><group_key><suffix>
+  (the destination directory, if any, must already exist — split does not
+  create one):
 
-    dftk split data.tsv -g country -p out/ -s .tsv
-    # → out/Iceland.tsv, out/Norway.tsv, ...
+    dftk dataset healthexp -o | dftk split ... -g Country -p out/ -s .tsv
+    # → out/Canada.tsv, out/France.tsv, out/Germany.tsv, ...
 
   With --template, use {col} placeholders for the group column values:
 
-    dftk split data.tsv -g year month --template data_{year}_{month}.tsv
+    dftk dataset tips -o | dftk split ... -g day time --template tips_{day}_{time}.tsv
 
   Unknown placeholders are left as-is (safe format_map).
 
@@ -69,8 +71,9 @@ OPTIONS
 EXAMPLES
 --------
   dftk split data.tsv -g group
-  dftk split data.tsv -g country year -p results/ -s .tsv
-  dftk split data.tsv -g category --template out/{category}.tsv
+  dftk dataset healthexp -o | dftk split ... -g Country -p health_ -s .tsv
+  dftk dataset tips -o | dftk split ... -g day time -p tips_ -s .tsv
+  dftk dataset tips -o | dftk split ... -g day --template 'split_{day}.tsv'
 """
 
 
