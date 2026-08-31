@@ -74,8 +74,10 @@ USEVALUE (--usevalue)
 EXAMPLES
 --------
   dftk binx data.tsv -c age -b 0:100:10
-  dftk binx data.tsv -c score -b 0,25,50,75,100 -d quartile --usevalue m
-  dftk binx data.tsv -c x -b -3:4:1 -d x_bin -o | dftk stat -g x_bin -s y
+  dftk dataset tips -o | dftk binx ... -c total_bill -b 0:60:10
+  dftk dataset tips -o | dftk binx ... -c tip -b 0,2,4,6,10 -d tip_bracket --usevalue m
+  dftk dataset tips -o | dftk binx ... -c total_bill -b 0:60:10 -d bill_bin -o \\
+      | dftk stat ... -c tip -g bill_bin
 """
 
 

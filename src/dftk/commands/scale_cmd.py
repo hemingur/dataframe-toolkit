@@ -133,28 +133,40 @@ def residcols(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
 _EPILOG = """\
 MODES
 -----
-Default (scale):
+Default (scale) — bundled `tips` dataset, scaling the tip column:
 
-  dftk scale data.tsv -c y                        z-score (mean shift, std scale)
-  dftk scale data.tsv -c y --shift min            shift so min=0, scale by std
-  dftk scale data.tsv -c y --shift min --scale max shift so min=0, scale so max=1
-  dftk scale data.tsv -c y --shift none --scale sum no shift, scale so sum=1
-  dftk scale data.tsv -c y --scale none           shift to zero mean, no scaling
+  dftk scale data.tsv -c y                    z-score (mean shift, std scale)
+
+  # z-score (mean shift, std scale)
+  dftk dataset tips -o | dftk scale ... -c tip
+  # shift so min=0, scale by std
+  dftk dataset tips -o | dftk scale ... -c tip --shift min
+  # shift so min=0, scale so max=1
+  dftk dataset tips -o | dftk scale ... -c tip --shift min --scale max
+  # no shift, scale so sum=1
+  dftk dataset tips -o | dftk scale ... -c tip --shift none --scale sum
+  # shift to zero mean, no scaling
+  dftk dataset tips -o | dftk scale ... -c tip --scale none
 
 Rank normalization (--rank):
 
-  dftk scale data.tsv -c y --rank                 normal scores (default)
-  dftk scale data.tsv -c y --rank --rankdist uniform  uniform [0, 1]
+  # normal scores (default)
+  dftk dataset tips -o | dftk scale ... -c tip --rank
+  # uniform [0, 1]
+  dftk dataset tips -o | dftk scale ... -c tip --rank --rankdist uniform
 
 Regression detrending (--resid):
 
-  dftk scale data.tsv -c y --resid -f "y ~ x"
-  dftk scale data.tsv -c y --resid -f "y ~ x" --nointercept
+  dftk dataset tips -o | dftk scale ... -c tip --resid -f "tip ~ total_bill"
+  dftk dataset tips -o | dftk scale ... -c tip --resid -f "tip ~ total_bill" \\
+      --nointercept
 
 Grouping:
 
-  dftk scale data.tsv -c y -g group               z-score within each group
-  dftk scale data.tsv -c y --rank -g group         rank within each group
+  # z-score within each day
+  dftk dataset tips -o | dftk scale ... -c tip -g day
+  # rank within each day
+  dftk dataset tips -o | dftk scale ... -c tip --rank -g day
 
 SHIFT OPTIONS (--shift)
 -----------------------

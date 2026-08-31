@@ -108,13 +108,15 @@ Each expression is applied as a boolean row filter in sequence; multiple
 names:
 
   dftk query data.tsv -q "x > 0"
-  dftk query data.tsv -q "group == 'A'" -q "score >= 10"
-  dftk query data.tsv -q "x > 0 and y < 100"
-  dftk query data.tsv -q "label.str.startswith('foo')"
+  dftk dataset tips -o | dftk query ... -q "tip > 5"
+  dftk dataset tips -o | dftk query ... -q "day == 'Sat'" -q "size >= 4"
+  dftk dataset tips -o | dftk query ... -q "total_bill > 40 and tip < 5"
+  dftk dataset tips -o | dftk query ... -q "day.str.startswith('S')"
 
-Backtick-quoting handles column names with spaces or special characters:
+Backtick-quoting handles column names with spaces or special characters
+(none of dftk's bundled datasets have one, but yours might):
 
-  dftk query data.tsv -q "`my col` > 0"
+  dftk query FILE.tsv -q "`my col` > 0"
 
 This is a thin wrapper around pandas DataFrame.query().
 
@@ -126,26 +128,29 @@ a virtual table named "data" (or the name given by --table).
 
 Simple filtering:
 
-  dftk query data.tsv --sql "SELECT * FROM data WHERE x > 0"
-  cat data.tsv | dftk query --sql "SELECT * FROM data WHERE x > 0" -o
+  dftk dataset diamonds -o \\
+    | dftk query ... --sql "SELECT * FROM data WHERE price > 15000"
+  dftk dataset diamonds -o \\
+    | dftk query ... --sql "SELECT * FROM data WHERE price > 15000" -o \\
+    | dftk stat ... -c price
 
 Aggregation (replaces dftk pivot for simple cases):
 
-  dftk query data.tsv --sql \\
-    "SELECT group, AVG(x) AS mean, STDDEV(x) AS std, COUNT(*) AS n
-     FROM data GROUP BY group"
+  dftk dataset diamonds -o | dftk query ... --sql \\
+    "SELECT cut, AVG(price) AS mean, STDDEV(price) AS std, COUNT(*) AS n
+     FROM data GROUP BY cut"
 
 Window functions:
 
-  dftk query data.tsv --sql \\
-    "SELECT *, ROW_NUMBER() OVER (PARTITION BY group ORDER BY x DESC) AS rank
+  dftk dataset diamonds -o | dftk query ... --sql \\
+    "SELECT *, ROW_NUMBER() OVER (PARTITION BY cut ORDER BY price DESC) AS rank
      FROM data"
 
 CTEs:
 
-  dftk query data.tsv --sql \\
+  dftk dataset diamonds -o | dftk query ... --sql \\
     "WITH ranked AS (
-       SELECT *, RANK() OVER (PARTITION BY group ORDER BY score DESC) AS rank
+       SELECT *, RANK() OVER (PARTITION BY cut ORDER BY price DESC) AS rank
        FROM data
      )
      SELECT * FROM ranked WHERE rank <= 3"
@@ -154,19 +159,23 @@ OUT-OF-CORE LARGE FILES
 ------------------------
 When the input is a named .parquet file, DuckDB queries it natively without
 loading the full dataset into memory.  Filter pushdown and column pruning
-mean that only the rows and columns needed by the query are read:
+mean that only the rows and columns needed by the query are read.  Use a
+named checkpoint file (-o FILE.parquet, not a bare -o) so the file persists
+for the query below it — here on the real 54k-row diamonds table:
 
-  dftk query huge.parquet --sql "SELECT * FROM data WHERE x > 0"
-  dftk query huge.parquet --sql \\
-    "SELECT group, AVG(x) AS mean FROM data GROUP BY group"
+  dftk dataset diamonds -o diamonds.parquet
+  dftk query diamonds.parquet --sql "SELECT * FROM data WHERE price > 15000"
+  dftk query diamonds.parquet --sql \\
+    "SELECT cut, AVG(price) AS mean FROM data GROUP BY cut"
 
 For piped input (stdin or parquet-pipe), the data is loaded into pandas
 first and then registered with DuckDB — in-memory, same as pandas mode.
-Use a named checkpoint file (-o huge.parquet) when you need out-of-core
-queries on a large intermediate result:
+The same named-checkpoint approach works after a transform step too:
 
-  dftk eval "y = x * 2" huge.tsv -o huge.parquet
-  dftk query huge.parquet --sql "SELECT * FROM data WHERE y > 1000"
+  dftk dataset diamonds -o | dftk eval ... -f "price_per_carat = price / carat" \\
+    -o diamonds_derived.parquet
+  dftk query diamonds_derived.parquet --sql \\
+    "SELECT * FROM data WHERE price_per_carat > 5000"
 
 Requires: pip install duckdb
 """

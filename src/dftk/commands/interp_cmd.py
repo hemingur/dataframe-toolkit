@@ -41,19 +41,42 @@ standard curve:
 
   dftk interp samples.tsv --ref stdcurve.tsv -x fluorescence -v concentration
 
-Different x-column names in each file:
+Runnable version: split the bundled `sunspots` time series (YEAR,
+SUNACTIVITY) into even and odd years, treat the even years as a dense
+reference curve, and interpolate SUNACTIVITY at the odd years from it:
 
-  dftk interp samples.tsv --ref stdcurve.tsv \\
-      -x sample_fluor --refx std_fluor -v concentration
+  dftk dataset sunspots -o \\
+      | dftk query ... --sql \\
+          "SELECT * FROM data WHERE CAST(YEAR AS INT) % 2 = 0 ORDER BY YEAR" \\
+          -o sunspots_even.tsv
+  dftk dataset sunspots -o \\
+      | dftk query ... --sql \\
+          "SELECT * FROM data WHERE CAST(YEAR AS INT) % 2 = 1 ORDER BY YEAR" \\
+          -o sunspots_odd.tsv
+  dftk interp sunspots_odd.tsv --ref sunspots_even.tsv \\
+      -x YEAR -v SUNACTIVITY -d sunactivity_interp
 
-Interpolate multiple y-columns at once:
+Different x-column names in each file (rename YEAR to yr_ref in a copy of
+the reference file):
 
-  dftk interp data.tsv --ref ref.tsv -x pos -v y1 y2 -d col1 col2
+  dftk query sunspots_even.tsv --sql "SELECT YEAR AS yr_ref, SUNACTIVITY FROM data" \\
+      -o sunspots_even_renamed.tsv
+  dftk interp sunspots_odd.tsv --ref sunspots_even_renamed.tsv \\
+      -x YEAR --refx yr_ref -v SUNACTIVITY -d sunactivity_interp
 
-Per-chromosome genetic-map lookup (grouped):
+Interpolate multiple y-columns at once, grouped — build a per-cut
+carat-to-(price, depth) reference curve from the bundled `diamonds`
+dataset, then look up each row's *expected* price and depth from its own
+cut's curve at its exact carat, for comparison against the actual values:
 
-  dftk interp intervals.tsv --ref genmap.tsv \\
-      -x bp_mid --refx pos_bp -v pos_cM -d cM_mid -g chrom
+  dftk dataset diamonds -o \\
+      | dftk binx ... -c carat -b 0:5:0.1 -d carat_bin --usevalue m -o \\
+      | dftk pivot ... -v price depth -i carat_bin cut -f mean -o \\
+      | dftk query ... --sql "SELECT * FROM data ORDER BY cut, carat_bin" \\
+          -o diamonds_ref.tsv
+  dftk dataset diamonds -o \\
+      | dftk interp ... --ref diamonds_ref.tsv -x carat --refx carat_bin \\
+          -v mean_price mean_depth -d expected_price expected_depth -g cut
 """
 
 import argparse

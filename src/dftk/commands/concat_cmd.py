@@ -8,9 +8,11 @@ present in some but not all files are filled with NaN (or --fill value).
 Examples
 --------
     dftk concat a.tsv b.tsv c.tsv
-    dftk concat a.tsv b.tsv --sourcecol source
-    dftk concat a.parquet b.parquet -o
-    dftk eval data.tsv -f "x=1" -o | dftk concat ... extra.tsv
+    dftk dataset penguins -o penguins.tsv
+    dftk concat penguins.tsv penguins.tsv --sourcecol source
+    dftk dataset penguins -o penguins.parquet
+    dftk concat penguins.parquet penguins.parquet -o
+    dftk dataset penguins -o | dftk eval ... -f "x=1" -o | dftk concat ... penguins.tsv
 """
 
 import argparse
@@ -43,9 +45,16 @@ COLUMN ALIGNMENT
 EXAMPLES
 --------
   dftk concat a.tsv b.tsv
-  dftk concat a.tsv b.tsv c.tsv --sourcecol source
-  dftk concat a.parquet b.parquet -o result.parquet
-  dftk eval data.tsv -f "x=1" -o | dftk concat ... extra.tsv
+  dftk dataset penguins -o penguins.tsv
+  dftk concat penguins.tsv penguins.tsv --sourcecol source
+  dftk dataset penguins -o penguins.parquet
+  dftk concat penguins.parquet penguins.parquet -o result.parquet
+  dftk dataset penguins -o | dftk eval ... -f "x=1" -o | dftk concat ... penguins.tsv
+
+Mismatched columns are outer-joined and filled (NaN by default, or --fill):
+
+  dftk dataset iris -o iris.tsv
+  dftk concat iris.tsv penguins.tsv --fill 0
 """
         g = parser.add_argument_group("concat options")
         g.add_argument(

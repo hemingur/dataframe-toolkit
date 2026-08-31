@@ -29,11 +29,13 @@ Pass one or more names from this list:
 Bare names apply the same function(s) to every value column:
 
   dftk pivot data.tsv -v sales cost -i region -f mean std
+  dftk dataset diamonds -o | dftk pivot ... -v carat price -i cut -f mean std
 
 Per-column functions use COL:FUNC syntax — all items must use this form if
 any do:
 
-  dftk pivot data.tsv -v sales cost -i region -f sales:mean cost:sum
+  dftk dataset diamonds -o | dftk pivot ... -v carat price -i cut \\
+    -f carat:mean price:sum
 
 When -f is omitted, pandas default aggregation (mean) is used.
 
@@ -46,15 +48,15 @@ Three sampling strategies are available, determined by which flags are given.
      Sample every row in the dataset with replacement, ignoring group
      structure.  Use this when there is no meaningful grouping to preserve.
 
-       dftk pivot data.tsv -v value -i subject -f mean \\
+       dftk dataset diamonds -o | dftk pivot ... -v price -i cut -f mean \\
          --bootstrap 500 --fullsampling
 
   2. Group-based row sampling (--samplinggroup COLS)
      Resample rows with replacement *within* each group defined by
      COLS.  Group sizes are preserved across samples.
 
-       dftk pivot data.tsv -v value -i timepoint -g condition -f mean \\
-         --bootstrap 500 --samplinggroup subject
+       dftk dataset diamonds -o | dftk pivot ... -v price -i clarity -g cut \\
+         -f mean --bootstrap 500 --samplinggroup color
 
      If neither --fullsampling nor --samplinggroup nor --samplingcols is
      given, the sampling groups default to the union of --index and
@@ -63,7 +65,9 @@ Three sampling strategies are available, determined by which flags are given.
   3. Hierarchical (parent/child) sampling (--samplingcols COLS)
      Use when each logical unit has multiple data rows (e.g. a subject has
      many measurements).  Sampling parents and pulling all their children
-     keeps the within-unit structure intact.
+     keeps the within-unit structure intact.  No bundled dataset has this
+     nested repeated-measures shape, so this example stays illustrative
+     rather than runnable:
 
      Steps:
        a. Build a sampling set of unique combinations of --samplingcols
@@ -92,9 +96,8 @@ PIPE MODE
 Use -o alone to pass data to the next dftk command without writing to a
 file:
 
-  cat data.tsv \\
-    | dftk pivot - -v value -i subject -g condition -f mean -o \\
-    | dftk stat - -c condition_A condition_B
+  dftk dataset diamonds -o | dftk pivot ... -v price -i color -g cut -f mean -o \\
+    | dftk stat ... -c mean_price_Ideal mean_price_Premium
 """
 
 

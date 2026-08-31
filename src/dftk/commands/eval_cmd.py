@@ -43,7 +43,8 @@ Each -f argument is first passed to pandas df.eval().  This handles
 arithmetic and boolean expressions directly on column names:
 
   dftk eval data.tsv -f "z = x + y * 2"
-  dftk eval data.tsv -f "flag = (pval < 0.05) & (effect > 0)"
+  dftk dataset tips -o | dftk eval ... -f "bill_and_tip = total_bill + tip * 2"
+  dftk dataset tips -o | dftk eval ... -f "good_tip = (tip > 3) & (total_bill < 30)"
 
 If df.eval() fails (e.g. for function calls), the expression is retried
 as a special function call using the syntax:
@@ -61,8 +62,8 @@ Available special functions:
         true_val and false_val can each be: a column name, a quoted
         string literal ("foo"), or a numeric literal.
       Example:
-        dftk eval data.tsv \
-          -f "big = value > 100" \
+        dftk dataset tips -o | dftk eval ... \
+          -f "big = total_bill > 30" \
           -f "label = where(big, \"large\", \"small\")"
 
   Bitwise:
@@ -119,8 +120,8 @@ CONSTANT COLUMNS (-c)
 ----------------------
 Add a column with a fixed value:
 
-  dftk eval data.tsv -c "batch = 3"
-  dftk eval data.tsv -c "label = control"
+  dftk dataset tips -o | dftk eval ... -c "batch = 3"
+  dftk dataset tips -o | dftk eval ... -c "region = northeast"
 
 The value is coerced to numeric when possible.
 
