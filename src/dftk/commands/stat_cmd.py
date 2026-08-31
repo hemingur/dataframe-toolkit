@@ -21,10 +21,13 @@ into ``dftk pivot`` to aggregate across samples.
 Example
 -------
     dftk stat data.tsv -c height weight -g sex
+    dftk dataset penguins -o | dftk stat ... -c bill_length_mm flipper_length_mm -g sex
 
     # Empirical bootstrap CI: resample, then collapse with percentile aggfuncs
-    dftk stat data.tsv -c value -g group --bootstrap 1000 --randomseed 42 -o \\
-        | dftk pivot ... -i group -v mean -f mean cilo cihi -o \\
+    dftk dataset penguins -o \\
+        | dftk stat ... -c bill_length_mm -g species \\
+              --bootstrap 1000 --randomseed 42 -o \\
+        | dftk pivot ... -i species -v mean -f mean cilo cihi -o \\
         | dftk print ...
 """
 
@@ -176,6 +179,9 @@ class StatCommand(BaseCommand):
     help = "Compute descriptive statistics (mean, std, CI, …) for one or more columns"
 
     def add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.formatter_class = argparse.RawDescriptionHelpFormatter
+        parser.epilog = __doc__
+
         self.add_io_arguments(parser)
 
         g = parser.add_argument_group("statistics")
