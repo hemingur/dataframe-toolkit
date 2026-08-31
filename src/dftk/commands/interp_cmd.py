@@ -41,28 +41,27 @@ standard curve:
 
   dftk interp samples.tsv --ref stdcurve.tsv -x fluorescence -v concentration
 
-Runnable version: split the bundled `sunspots` time series (YEAR,
-SUNACTIVITY) into even and odd years, treat the even years as a dense
-reference curve, and interpolate SUNACTIVITY at the odd years from it:
+Runnable version: use the bundled `sunspots` time series (YEAR,
+SUNACTIVITY, 1700-2008) as a real reference curve, and `dftk randvar` to
+generate a handful of random query years with no input file of their own
+— exactly interp's core use case, looking up a value at an arbitrary new
+x-position from a known reference curve:
 
-  dftk dataset sunspots -o \\
-      | dftk query ... --sql \\
-          "SELECT * FROM data WHERE CAST(YEAR AS INT) % 2 = 0 ORDER BY YEAR" \\
-          -o sunspots_even.tsv
-  dftk dataset sunspots -o \\
-      | dftk query ... --sql \\
-          "SELECT * FROM data WHERE CAST(YEAR AS INT) % 2 = 1 ORDER BY YEAR" \\
-          -o sunspots_odd.tsv
-  dftk interp sunspots_odd.tsv --ref sunspots_even.tsv \\
-      -x YEAR -v SUNACTIVITY -d sunactivity_interp
+  dftk dataset sunspots -o sunspots_ref.tsv
+  dftk randvar -n 20 -d YEAR --dist uniform \\
+      --parameters loc:1700,scale:308 --randomseed 1 -o \\
+      | dftk interp ... --ref sunspots_ref.tsv \\
+          -x YEAR -v SUNACTIVITY -d sunactivity_interp
 
 Different x-column names in each file (rename YEAR to yr_ref in a copy of
 the reference file):
 
-  dftk query sunspots_even.tsv --sql "SELECT YEAR AS yr_ref, SUNACTIVITY FROM data" \\
-      -o sunspots_even_renamed.tsv
-  dftk interp sunspots_odd.tsv --ref sunspots_even_renamed.tsv \\
-      -x YEAR --refx yr_ref -v SUNACTIVITY -d sunactivity_interp
+  dftk query sunspots_ref.tsv --sql "SELECT YEAR AS yr_ref, SUNACTIVITY FROM data" \\
+      -o sunspots_ref_renamed.tsv
+  dftk randvar -n 20 -d qyear --dist uniform \\
+      --parameters loc:1700,scale:308 --randomseed 1 -o \\
+      | dftk interp ... --ref sunspots_ref_renamed.tsv \\
+          -x qyear --refx yr_ref -v SUNACTIVITY -d sunactivity_interp
 
 Interpolate multiple y-columns at once, grouped — build a per-cut
 carat-to-(price, depth) reference curve from the bundled `diamonds`

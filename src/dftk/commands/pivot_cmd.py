@@ -65,9 +65,7 @@ Three sampling strategies are available, determined by which flags are given.
   3. Hierarchical (parent/child) sampling (--samplingcols COLS)
      Use when each logical unit has multiple data rows (e.g. a subject has
      many measurements).  Sampling parents and pulling all their children
-     keeps the within-unit structure intact.  No bundled dataset has this
-     nested repeated-measures shape, so this example stays illustrative
-     rather than runnable:
+     keeps the within-unit structure intact.
 
      Steps:
        a. Build a sampling set of unique combinations of --samplingcols
@@ -80,15 +78,23 @@ Three sampling strategies are available, determined by which flags are given.
      If parent P is drawn twice, all of P's rows appear twice in the
      bootstrap sample; if Q is not drawn, none of Q's rows appear.
 
-       # Sample subjects (parents) within each sex group;
-       # each subject has multiple visit rows (children).
-       dftk pivot data.tsv -v score -i visit -g condition -f mean \\
-         --bootstrap 500 \\
-         --samplingcols subject_id \\
-         --samplinggroup sex
+     No bundled dataset has a natural repeated-measures shape, but `dftk
+     randvar` can manufacture one: attach a synthetic subject_id to each
+     row of `penguins` (pretend every ~7 rows are repeated measurements of
+     the same subject), then bootstrap at the subject level rather than
+     the row level:
+
+       dftk dataset penguins -o \\
+         | dftk randvar ... -d subject_id --dist randint \\
+             --parameters low:0,high:50 --randomseed 1 -o \\
+         | dftk pivot ... -v bill_length_mm -i species -f mean \\
+             --bootstrap 500 --samplingcols subject_id
 
      Note: --samplingcols values are combined with --samplinggroup values
-     to form the merge key, so the group column must also be in the data.
+     to form the merge key, so the group column must also be in the data —
+     and subject IDs must not cross group boundaries (each subject belongs
+     to exactly one group) for --samplinggroup to make sense alongside
+     --samplingcols.
 
 
 PIPE MODE
