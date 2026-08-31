@@ -263,10 +263,17 @@ Self-merge — join a dataframe with itself — is supported with -r - :
   dftk dataset penguins | dftk merge -l - -r - -k species
 
 When both -l and -r are -, stdin is read once and df_right is a copy of
-df_left.  IMPORTANT: this requires *plain TSV* on stdin, not the -o | ...
-parquet-pipe used elsewhere in this file's examples — -r - reads stdin as
-raw TSV directly, so an upstream bare -o (which prints a parquet *path*,
-not the data itself) will not work here. Use a plain, -o-less pipe as above.
+df_left. This works with either a plain TSV pipe (as above, DATAFILE left
+at "-") or the -o | ... parquet-pipe used elsewhere in this file's
+examples — just give ... explicitly as the left file, same as any other
+parquet-pipe read:
+
+  dftk dataset penguins -o | dftk merge ... -r - -k species
+
+Leaving DATAFILE at its default while piping -o output (i.e. omitting
+both -l and ...) does NOT work: -r - reads stdin as raw TSV directly, so
+an upstream bare -o (which prints a parquet *path*, not the data itself)
+would be read as if it were the data.
 
 Named-file self-merge (no stdin required):
 
@@ -356,7 +363,7 @@ class MergeCommand(BaseCommand):
         if args.leftfile is not None:
             args.DATAFILE = args.leftfile
 
-        left_was_stdin = args.DATAFILE in (None, "-")
+        left_was_stdin = args.DATAFILE in (None, "-", "...")
 
         # Read left file (positional DATAFILE, -l, or stdin)
         try:

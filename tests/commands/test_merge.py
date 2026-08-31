@@ -3,6 +3,7 @@ Tests for dftk.commands.merge_cmd._do_merge and helper functions.
 """
 
 import argparse
+import logging
 
 import pandas as pd
 import pytest
@@ -13,6 +14,7 @@ from dftk.commands.merge_cmd import (
     _expand_select,
     _set_suffixes,
 )
+from tests.conftest import make_args
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -340,3 +342,55 @@ class TestSelfJoin:
         df_right = left_df.copy()  # simulate what execute() does
         df_right.iloc[0, 0] = 999  # mutate right copy
         assert left_df.iloc[0, 0] != 999  # left must be unaffected
+
+
+# ---------------------------------------------------------------------------
+# left_was_stdin detection (execute()) — "..." is also stdin
+# ---------------------------------------------------------------------------
+
+
+class TestLeftWasStdinDetection:
+    """DATAFILE="..." (the parquet-pipe marker) means the left file came
+    from stdin just as much as "-" or None does — execute() must not warn
+    that "-r -" is being misused when the left file actually did arrive
+    via a -o | ... parquet pipe.
+    """
+
+    def _run(self, monkeypatch, datafile, leftfile=None):
+        import dftk.commands.merge_cmd as mod
+
+        df = pd.DataFrame({"id": [1, 2], "val": [10.0, 20.0]})
+        monkeypatch.setattr(mod.io, "read", lambda args: df.copy())
+
+        args = make_args(
+            keys=["id"],
+            left_on=None,
+            right_on=None,
+            type="inner",
+            only=None,
+            leftfile=leftfile,
+            rightfile="-",
+            DATAFILE=datafile,
+        )
+        mod.MergeCommand().execute(args)
+
+    def test_ellipsis_datafile_no_spurious_warning(self, caplog, monkeypatch):
+        with caplog.at_level(logging.WARNING, logger="dftk"):
+            self._run(monkeypatch, datafile="...")
+        assert "was not stdin" not in caplog.text
+
+    def test_dash_datafile_no_spurious_warning(self, caplog, monkeypatch):
+        with caplog.at_level(logging.WARNING, logger="dftk"):
+            self._run(monkeypatch, datafile="-")
+        assert "was not stdin" not in caplog.text
+
+    def test_named_file_still_warns(self, caplog, monkeypatch):
+        with caplog.at_level(logging.WARNING, logger="dftk"):
+            self._run(monkeypatch, datafile="real_file.tsv")
+        assert "was not stdin" in caplog.text
+
+    def test_ellipsis_via_leftfile_flag_no_spurious_warning(self, caplog, monkeypatch):
+        # -l ... should be equivalent to positional DATAFILE=...
+        with caplog.at_level(logging.WARNING, logger="dftk"):
+            self._run(monkeypatch, datafile=None, leftfile="...")
+        assert "was not stdin" not in caplog.text
