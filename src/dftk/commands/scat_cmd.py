@@ -145,30 +145,33 @@ EXAMPLES
 Basic scatter:
 
   dftk scat data.tsv -x weight -y height
+  dftk dataset tips -o | dftk scat ... -x total_bill -y tip
 
 Colour by group:
 
-  dftk scat data.tsv -x x -y y -g group
+  dftk dataset tips -o | dftk scat ... -x total_bill -y tip -g day
 
-Subplot grid by condition, colour by treatment:
+Subplot grid by time-of-day, colour by smoker:
 
-  dftk scat data.tsv -x x -y y --subgraphcol condition -g treatment
+  dftk dataset tips -o | dftk scat ... -x total_bill -y tip \\
+      --subgraphcol time -g smoker
 
 Fit OLS line:
 
-  dftk scat data.tsv -x x -y y --fit
+  dftk dataset tips -o | dftk scat ... -x total_bill -y tip --fit
 
 Publication figure (Nature single column, PDF):
 
-  dftk scat data.tsv -x x -y y --size single --fontsize publication -f fig.pdf
+  dftk dataset tips -o | dftk scat ... -x total_bill -y tip \\
+      --size single --fontsize publication -f fig.pdf
 
 Bubble chart (point size from column):
 
-  dftk scat data.tsv -x x -y y --sizecol area_col
+  dftk dataset tips -o | dftk scat ... -x total_bill -y tip --sizecol size
 
 Continuous colour mapping:
 
-  dftk scat data.tsv -x x -y y --colorcol score
+  dftk dataset tips -o | dftk scat ... -x total_bill -y tip --colorcol tip
 """
 
 

@@ -29,11 +29,13 @@ Pass one or more names from this list:
 Bare names apply the same function(s) to every value column:
 
   dftk pivot data.tsv -v sales cost -i region -f mean std
+  dftk dataset diamonds -o | dftk pivot ... -v carat price -i cut -f mean std
 
 Per-column functions use COL:FUNC syntax — all items must use this form if
 any do:
 
-  dftk pivot data.tsv -v sales cost -i region -f sales:mean cost:sum
+  dftk dataset diamonds -o | dftk pivot ... -v carat price -i cut \\
+    -f carat:mean price:sum
 
 When -f is omitted, pandas default aggregation (mean) is used.
 
@@ -46,15 +48,15 @@ Three sampling strategies are available, determined by which flags are given.
      Sample every row in the dataset with replacement, ignoring group
      structure.  Use this when there is no meaningful grouping to preserve.
 
-       dftk pivot data.tsv -v value -i subject -f mean \\
+       dftk dataset diamonds -o | dftk pivot ... -v price -i cut -f mean \\
          --bootstrap 500 --fullsampling
 
   2. Group-based row sampling (--samplinggroup COLS)
      Resample rows with replacement *within* each group defined by
      COLS.  Group sizes are preserved across samples.
 
-       dftk pivot data.tsv -v value -i timepoint -g condition -f mean \\
-         --bootstrap 500 --samplinggroup subject
+       dftk dataset diamonds -o | dftk pivot ... -v price -i clarity -g cut \\
+         -f mean --bootstrap 500 --samplinggroup color
 
      If neither --fullsampling nor --samplinggroup nor --samplingcols is
      given, the sampling groups default to the union of --index and
@@ -76,15 +78,23 @@ Three sampling strategies are available, determined by which flags are given.
      If parent P is drawn twice, all of P's rows appear twice in the
      bootstrap sample; if Q is not drawn, none of Q's rows appear.
 
-       # Sample subjects (parents) within each sex group;
-       # each subject has multiple visit rows (children).
-       dftk pivot data.tsv -v score -i visit -g condition -f mean \\
-         --bootstrap 500 \\
-         --samplingcols subject_id \\
-         --samplinggroup sex
+     No bundled dataset has a natural repeated-measures shape, but `dftk
+     randvar` can manufacture one: attach a synthetic subject_id to each
+     row of `penguins` (pretend every ~7 rows are repeated measurements of
+     the same subject), then bootstrap at the subject level rather than
+     the row level:
+
+       dftk dataset penguins -o \\
+         | dftk randvar ... -d subject_id --dist randint \\
+             --parameters low:0,high:50 --randomseed 1 -o \\
+         | dftk pivot ... -v bill_length_mm -i species -f mean \\
+             --bootstrap 500 --samplingcols subject_id
 
      Note: --samplingcols values are combined with --samplinggroup values
-     to form the merge key, so the group column must also be in the data.
+     to form the merge key, so the group column must also be in the data —
+     and subject IDs must not cross group boundaries (each subject belongs
+     to exactly one group) for --samplinggroup to make sense alongside
+     --samplingcols.
 
 
 PIPE MODE
@@ -92,9 +102,8 @@ PIPE MODE
 Use -o alone to pass data to the next dftk command without writing to a
 file:
 
-  cat data.tsv \\
-    | dftk pivot - -v value -i subject -g condition -f mean -o \\
-    | dftk stat - -c condition_A condition_B
+  dftk dataset diamonds -o | dftk pivot ... -v price -i color -g cut -f mean -o \\
+    | dftk stat ... -c mean_price_Ideal mean_price_Premium
 """
 
 

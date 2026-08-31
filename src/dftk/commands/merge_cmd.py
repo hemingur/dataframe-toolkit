@@ -196,11 +196,19 @@ MERGE MODES
 Common-key merge  (key column has the same name in both files):
 
   dftk merge left.tsv -r right.tsv -k id
-  cat left.tsv | dftk merge -r right.tsv -k id -o | dftk stat -c value
+  dftk dataset penguins -o penguins.tsv
+  dftk merge penguins.tsv -r penguins.tsv -k species
+  cat penguins.tsv | dftk merge -r penguins.tsv -k species -o \\
+    | dftk stat ... -c body_mass_g
 
-Mapped-key merge  (key columns have different names):
+Mapped-key merge  (key columns have different names — here penguins.tsv
+merged against a copy of itself with the key column renamed, to show real
+matching rows rather than coincidental overlap):
 
-  dftk merge left.tsv -r right.tsv -lo person_id -ro id
+  dftk query penguins.tsv --sql \\
+    "SELECT species AS species_name, * EXCLUDE (species) FROM data" \\
+    -o penguins_renamed.tsv
+  dftk merge penguins.tsv -r penguins_renamed.tsv -lo species -ro species_name
 
 
 JOIN TYPES  (-t / --type)
@@ -214,10 +222,13 @@ JOIN TYPES  (-t / --type)
 
 ANTI-JOIN  (--only)
 --------------------
-Return rows that appear exclusively in one file:
+Return rows that appear exclusively in one file. Here the right file is a
+species-filtered subset of the left, so --only left recovers exactly the
+excluded species and --only right is empty (every right row has a match):
 
-  dftk merge left.tsv -r right.tsv -k id --only left
-  dftk merge left.tsv -r right.tsv -k id --only right
+  dftk query penguins.tsv -q "species == 'Adelie'" -o penguins_adelie.tsv
+  dftk merge penguins.tsv -r penguins_adelie.tsv -k species --only left
+  dftk merge penguins.tsv -r penguins_adelie.tsv -k species --only right
 
 Internally this runs an outer join and filters rows where the pandas
 _merge indicator equals "left_only" or "right_only".
@@ -237,7 +248,9 @@ Tokens can be mixed with explicit names:
   --select id score [:left:]
 
 These tokens are expanded before the merge, so the resulting column list
-is what you see in the output.
+is what you see in the output:
+
+  dftk merge penguins.tsv -r penguins.tsv -k species --select "[:left:]"
 
 
 PARQUET INPUT AND SELF-MERGE
@@ -247,16 +260,17 @@ The left file defaults to stdin, making it parquet-pipe friendly.
 
 Self-merge — join a dataframe with itself — is supported with -r - :
 
-  cat data.tsv | dftk eval "y = sqrt(x)" -o | dftk merge -l - -r - -k x
+  dftk dataset penguins | dftk merge -l - -r - -k species
 
 When both -l and -r are -, stdin is read once and df_right is a copy of
-df_left.  This works naturally with the parquet-pipe: the previous command
-writes a temp parquet and prints its path; dftk merge reads that path,
-loads the file, and reuses it for both sides.
+df_left.  IMPORTANT: this requires *plain TSV* on stdin, not the -o | ...
+parquet-pipe used elsewhere in this file's examples — -r - reads stdin as
+raw TSV directly, so an upstream bare -o (which prints a parquet *path*,
+not the data itself) will not work here. Use a plain, -o-less pipe as above.
 
 Named-file self-merge (no stdin required):
 
-  dftk merge data.tsv -r data.tsv -k id --only left
+  dftk merge penguins.tsv -r penguins_adelie.tsv -k species --only left
 """
 
 

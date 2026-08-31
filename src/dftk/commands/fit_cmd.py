@@ -155,26 +155,27 @@ EXAMPLES
 Simple OLS:
 
   dftk fit data.tsv -f "y ~ x"
+  dftk dataset mpg -o | dftk fit ... -f "mpg ~ horsepower"
 
 Grouped OLS (one regression per group):
 
-  dftk fit data.tsv -f "y ~ x" -g group
+  dftk dataset mpg -o | dftk fit ... -f "mpg ~ horsepower" -g origin
 
 Weighted least squares:
 
-  dftk fit data.tsv -f "y ~ x" -w weight_col
+  dftk dataset mpg -o | dftk fit ... -f "mpg ~ horsepower" -w weight
 
 Robust regression (HuberT):
 
-  dftk fit data.tsv -f "y ~ x" --robust
+  dftk dataset mpg -o | dftk fit ... -f "mpg ~ horsepower" --robust
 
 Print detailed summary (no grouping):
 
-  dftk fit data.tsv -f "y ~ x" --summary
+  dftk dataset mpg -o | dftk fit ... -f "mpg ~ horsepower" --summary
 
 ANOVA table (OLS, no grouping):
 
-  dftk fit data.tsv -f "y ~ x + z" --anova
+  dftk dataset mpg -o | dftk fit ... -f "mpg ~ horsepower + weight" --anova
 """
 
 

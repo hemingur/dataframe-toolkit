@@ -9,22 +9,27 @@ values).
 
 EXAMPLE
 -------
-Wide format:
+Wide format (bundled `elnino` dataset: one row per year, one column per
+month):
 
-  sample  gene_A  gene_B  gene_C
-  s1      1.2     3.4     5.6
-  s2      7.8     9.0     1.1
+  YEAR    JAN    FEB    MAR   ...
+  1950    23.11  24.20  25.37 ...
+  1951    24.19  25.29  25.62 ...
 
-  dftk melt data.tsv -i sample
+  dftk melt data.tsv -i YEAR
 
 Long format output:
 
-  sample  variable  value
-  s1      gene_A    1.2
-  s1      gene_B    3.4
-  s1      gene_C    5.6
-  s2      gene_A    7.8
+  YEAR    variable  value
+  1950    JAN       23.11
+  1950    FEB       24.20
+  1950    MAR       25.37
+  1951    JAN       24.19
   …
+
+Runnable form:
+
+  dftk dataset elnino -o | dftk melt ... -i YEAR
 """
 
 import argparse
@@ -32,12 +37,17 @@ import argparse
 from dftk.commands.base import BaseCommand
 from dftk.common.io import check_cols, io
 
+_EPILOG = __doc__
+
 
 class MeltCommand(BaseCommand):
     name = "melt"
     help = "Reshape wide-to-long (unpivot) via pandas.melt."
 
     def add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.formatter_class = argparse.RawDescriptionHelpFormatter
+        parser.epilog = _EPILOG
+
         self.add_io_arguments(parser)
 
         g = parser.add_argument_group("melt options")

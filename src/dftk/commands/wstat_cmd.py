@@ -77,12 +77,12 @@ def _wstat(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
 _EPILOG = """\
 COLUMN PAIRS (-c / -w)
 ----------------------
-  Each stat column (-c) is paired with a weight column (-w).
-  If a single weight column is given it is broadcast to all stat columns:
+  Each stat column (-c) is paired with a weight column (-w). Give one -w
+  per -c column, or a single -w to broadcast the same weight column to
+  every stat column (e.g. -c x y -w w uses w for both x and y):
 
     dftk wstat data.tsv -c value -w count
-    dftk wstat data.tsv -c x y -w wx wy
-    dftk wstat data.tsv -c x y -w w          # w used for both x and y
+    dftk dataset tips -o | dftk wstat ... -c total_bill -w size
 
 OUTPUT COLUMNS
 --------------
@@ -97,9 +97,9 @@ OUTPUT COLUMNS
 
 EXAMPLES
 --------
-  dftk wstat data.tsv -c value -w count
-  dftk wstat data.tsv -c value -w count -g group
-  dftk wstat data.tsv -c x y -w w --confidencelevel 99
+  dftk dataset tips -o | dftk wstat ... -c total_bill tip -w size
+  dftk dataset tips -o | dftk wstat ... -c total_bill -w size -g day
+  dftk dataset tips -o | dftk wstat ... -c total_bill tip -w size --confidencelevel 99
 """
 
 

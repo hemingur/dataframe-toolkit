@@ -17,9 +17,10 @@ Options
 Examples
 --------
     dftk sample data.tsv -n 100
-    dftk sample data.tsv -f 0.8
-    dftk sample data.tsv -n 50 -g treatment --randomseed 42
-    dftk sample data.tsv -f 1.0 --randomseed shuffle
+    dftk dataset tips -o | dftk sample ... -n 100
+    dftk dataset tips -o | dftk sample ... -f 0.8
+    dftk dataset tips -o | dftk sample ... -n 15 -g day --randomseed 42
+    dftk dataset tips -o | dftk sample ... -f 1.0 --randomseed shuffle
 """
 
 import argparse
@@ -50,10 +51,11 @@ class SampleCommand(BaseCommand):
 EXAMPLES
 --------
   dftk sample data.tsv -n 100
-  dftk sample data.tsv -f 0.8
-  dftk sample data.tsv -n 50 -g treatment --randomseed 42
-  dftk sample data.tsv -f 1.0 --randomseed shuffle   # reproducible shuffle
-  dftk sample data.tsv -n 10 -g group --replace
+  dftk dataset tips -o | dftk sample ... -n 100
+  dftk dataset tips -o | dftk sample ... -f 0.8
+  dftk dataset tips -o | dftk sample ... -n 15 -g day --randomseed 42
+  dftk dataset tips -o | dftk sample ... -f 1.0 --randomseed shuffle  # shuffle
+  dftk dataset tips -o | dftk sample ... -n 10 -g day --replace
 """
         io.parser_read(parser)
 

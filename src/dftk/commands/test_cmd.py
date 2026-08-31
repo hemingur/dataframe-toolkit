@@ -27,8 +27,14 @@ reproducibility.
 Example
 -------
     dftk test data.tsv -c col1:col2 -d pvalue --test student_t
-    dftk test data.tsv -c a:b c:d -d p_ab p_cd -g group --test mannwhitneyu
-    dftk test boot.tsv -c s1:s2 -d p --test bootstrap --randomseed 42
+    dftk dataset iris -o \\
+        | dftk test ... -c sepal_length:petal_length -d pvalue --test student_t
+    dftk dataset iris -o \\
+        | dftk test ... -c sepal_length:petal_length sepal_width:petal_width \\
+              -d p1 p2 -g species --test mannwhitneyu
+    dftk dataset iris -o \\
+        | dftk test ... -c sepal_length:petal_length -d p \\
+              --test bootstrap --randomseed 42
 """
 
 import argparse
@@ -155,6 +161,9 @@ class TestCommand(BaseCommand):
     )
 
     def add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.formatter_class = argparse.RawDescriptionHelpFormatter
+        parser.epilog = __doc__
+
         self.add_io_arguments(parser)
 
         g = parser.add_argument_group("test")

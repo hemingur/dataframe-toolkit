@@ -21,12 +21,21 @@ Output:
   sample  s1 s2
   x       1  3
   y       2  4
+
+Runnable version — the bundled `longley` dataset, limited to 3 rows via
+--sql LIMIT (dataset has no --nrows of its own) so the transposed output
+stays legible:
+
+  dftk dataset longley -o | dftk query ... --sql "SELECT * FROM data LIMIT 3" -o \\
+      | dftk transpose ...
 """
 
 import argparse
 
 from dftk.commands.base import BaseCommand
 from dftk.common.io import io
+
+_EPILOG = __doc__
 
 
 class TransposeCommand(BaseCommand):
@@ -39,6 +48,9 @@ class TransposeCommand(BaseCommand):
         return "Transpose rows and columns"
 
     def add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.formatter_class = argparse.RawDescriptionHelpFormatter
+        parser.epilog = _EPILOG
+
         self.add_io_arguments(parser)
 
         g = parser.add_argument_group("transpose options")

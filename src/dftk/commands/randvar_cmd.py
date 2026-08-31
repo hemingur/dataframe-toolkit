@@ -9,6 +9,8 @@ Usage
 -----
   # Append a column to an existing file
   dftk randvar data.tsv -d x --dist norm --parameters loc:0,scale:1
+  dftk dataset tips -o \\
+      | dftk randvar ... -d noise --dist norm --parameters loc:0,scale:1
 
   # Generate a stand-alone sample (no input file)
   dftk randvar -n 1000 -d x --dist norm --parameters loc:0,scale:1
@@ -56,7 +58,9 @@ hashed (MD5) to a reproducible uint32 seed, which is printed to stderr.
 EXAMPLES
 --------
   dftk randvar data.tsv -d noise --dist norm
-  dftk randvar data.tsv -d noise --dist norm --parameters loc:5,scale:2
+  dftk dataset tips -o | dftk randvar ... -d noise --dist norm
+  dftk dataset tips -o \\
+      | dftk randvar ... -d noise --dist norm --parameters loc:5,scale:2
   dftk randvar -n 1000 -d u --dist uniform --randomseed 99
   dftk randvar -n 500  -d k --dist poisson --parameters mu:3
   dftk randvar --list

@@ -8,7 +8,8 @@ statistical distributions and quality flags instead.
 Example
 -------
     dftk info data.tsv
-    dftk info data.tsv --summary
+    dftk dataset iris -o | dftk info ...
+    dftk dataset iris -o | dftk info ... --summary
 """
 
 import argparse
@@ -56,6 +57,9 @@ class InfoCommand(BaseCommand):
         return "Structural overview: per-column dtype, null counts, memory usage"
 
     def add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.formatter_class = argparse.RawDescriptionHelpFormatter
+        parser.epilog = __doc__
+
         self.add_io_arguments(parser)
 
         g = parser.add_argument_group("info options")

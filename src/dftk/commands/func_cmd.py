@@ -25,19 +25,20 @@ EXAMPLES
 Cumulative sum of "value":
 
   dftk func data.tsv -c value -t cumsum
+  dftk dataset tips -o | dftk func ... -c total_bill -t cumsum
 
-Group mean broadcast (adds "value_mean" unless -d is given):
+Group mean broadcast (adds "total_bill_mean" unless -d is given):
 
-  dftk func data.tsv -c value -g group -t mean
+  dftk dataset tips -o | dftk func ... -c total_bill -g day -t mean
 
 Quantile bins (quartiles):
 
-  dftk func data.tsv -c score -t qcut:4 -d score_quartile
+  dftk dataset tips -o | dftk func ... -c tip -t qcut:4 -d tip_quartile
 
 Multiple transforms in one call:
 
-  dftk func data.tsv -c expr -t cumsum -d expr_cumsum \\
-      | dftk func - -c expr -t mean -g condition -d expr_grpmean
+  dftk dataset tips -o | dftk func ... -c total_bill -t cumsum -d bill_cumsum -o \\
+      | dftk func ... -c total_bill -t mean -g day -d bill_daymean
 """
 
 import argparse

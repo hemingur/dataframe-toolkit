@@ -163,37 +163,50 @@ def _line_ax(ax, df, args, title_suffix: str = ""):
 _EPILOG = """\
 EXAMPLES
 --------
-Basic line plot:
+Basic line plot (January passengers per year):
 
   dftk line data.tsv -x time -y value
+  dftk dataset flights -o | dftk query ... \\
+      --sql "SELECT * FROM data WHERE month = 'Jan'" -o \\
+      | dftk line ... -x year -y passengers
 
-Multiple lines by group:
+Multiple lines by group (one line per month, across years):
 
-  dftk line data.tsv -x time -y value -g group
+  dftk dataset flights -o | dftk line ... -x year -y passengers -g month
 
-Symmetric error bars:
+Symmetric error bars (mean ± SEM flipper length per species):
 
-  dftk line data.tsv -x time -y mean --yerr stderr
+  dftk dataset penguins -o | dftk stat ... -c flipper_length_mm -g species -o \\
+      | dftk line ... -x species -y mean --yerr sem
 
-Asymmetric confidence intervals:
+Asymmetric confidence intervals (mean bill length per species):
 
-  dftk line data.tsv -x time -y mean --yci cilo,cihi
+  dftk dataset penguins -o | dftk stat ... -c bill_length_mm -g species -o \\
+      | dftk line ... -x species -y mean --yci cilo,cihi
 
-Subplot grid by condition:
+Subplot grid, one panel per month (year-over-year trend within each month):
 
-  dftk line data.tsv -x time -y value --subgraphcol condition -g group
+  dftk dataset flights -o | dftk line ... -x year -y passengers \\
+      --subgraphcol month
 
 Staircase / step plot:
 
-  dftk line data.tsv -x time -y value --drawstyle steps-mid
+  dftk dataset flights -o | dftk query ... \\
+      --sql "SELECT * FROM data WHERE month = 'Jan'" -o \\
+      | dftk line ... -x year -y passengers --drawstyle steps-mid
 
 Fit and overlay regression line:
 
-  dftk line data.tsv -x time -y value --fit
+  dftk dataset flights -o | dftk query ... \\
+      --sql "SELECT * FROM data WHERE month = 'Jan'" -o \\
+      | dftk line ... -x year -y passengers --fit
 
 Publication figure (Nature double column, PDF):
 
-  dftk line data.tsv -x time -y value --size double --fontsize publication -f fig.pdf
+  dftk dataset flights -o | dftk query ... \\
+      --sql "SELECT * FROM data WHERE month = 'Jan'" -o \\
+      | dftk line ... -x year -y passengers \\
+      --size double --fontsize publication -f fig.pdf
 """
 
 

@@ -25,6 +25,10 @@ Usage examples:
   dftk eval data.tsv -f "z = x + y" -o result.parquet \\
       --meta genome=hg38 --meta source=my_pipeline
 
+  # Same, built from a bundled dataset:
+  dftk dataset iris -o | dftk eval ... -f "z = sepal_length + petal_length" \\
+      -o result.parquet --meta genome=hg38 --meta source=my_pipeline
+
 Annotations propagate through the parquet pipe: a file annotated at
 creation is re-annotated on every subsequent -o write unless explicitly
 overridden.
