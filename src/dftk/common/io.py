@@ -676,15 +676,12 @@ class io:
         else:
             # TSV — stdout or named file
             dest = output if output is not None else sys.stdout
-            try:
-                df.to_csv(
-                    dest,
-                    sep="\t",
-                    index=False,
-                    float_format=float_format,
-                    header=header,
-                    quoting=csv.QUOTE_NONE,
-                    doublequote=False,
-                )
-            except (OSError, BrokenPipeError):
-                sys.stderr.close()
+            df.to_csv(
+                dest,
+                sep="\t",
+                index=False,
+                float_format=float_format,
+                header=header,
+                quoting=csv.QUOTE_NONE,
+                doublequote=False,
+            )

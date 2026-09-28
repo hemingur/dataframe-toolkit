@@ -8,6 +8,8 @@ logic and never needs to change when a new subcommand is added.
 
 import argparse
 import logging
+import os
+import signal
 import sys
 
 from dftk import __version__
@@ -47,6 +49,13 @@ def main() -> None:
 
     try:
         args.command_instance.execute(args)
+        sys.stdout.flush()
+    except BrokenPipeError:
+        # The reader closed the pipe early (e.g. `dftk ... | head`).  Exit
+        # quietly with the SIGPIPE status like cat/grep, and point stdout at
+        # devnull so the interpreter's final flush doesn't raise again.
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+        sys.exit(128 + signal.SIGPIPE)
     except FileNotFoundError as exc:
         print(f"File error: {exc}", file=sys.stderr)
         sys.exit(1)
