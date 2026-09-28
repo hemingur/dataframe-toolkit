@@ -291,9 +291,8 @@ class io:
                 df.attrs["_parquet_meta"] = _read_parquet_meta(filename)
             elif backend == "duckdb" and duckdb is not None:
                 try:
-                    df = duckdb.query(
-                        "SELECT * FROM read_csv_auto($1, delim=$2)", [filename, sep]
-                    ).to_df()
+                    df = duckdb.read_csv(filename, sep=sep, header=not noheader).df()
+                    df = _rename_if_noheader(df)
                 except Exception as exc:
                     logging.error(f"DuckDB failed to read {filename!r}: {exc}")
                     raise

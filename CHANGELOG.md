@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+- `dftk ... | head` exited with status 120 (sometimes with an "Exception ignored while flushing sys.stdout: BrokenPipeError" message) once output exceeded the pipe buffer. dftk now exits quietly with status 141, like `cat`/`grep`. The old per-writer workaround also swallowed genuine write errors on named `-o` files; those now surface.
+- `--backend duckdb` failed on every named TSV/CSV file (`query(): incompatible function arguments`). It now reads via `duckdb.read_csv`, and also honours `--noheader`.
+
 ### Removed
 - `--nrows` (all commands, including `concat`). It never worked: the default pandas/pyarrow reader rejects `nrows`, and the parquet and duckdb read paths silently ignored it. Use `head -n N+1 file.tsv | dftk ...` for TSV, or `dftk query file.parquet --sql "SELECT * FROM data LIMIT N"` for parquet (read lazily by DuckDB, so the whole file is not loaded).
 
