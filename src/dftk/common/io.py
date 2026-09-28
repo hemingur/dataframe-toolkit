@@ -196,12 +196,6 @@ class io:
             action="store_true",
         )
         g.add_argument(
-            "--nrows",
-            help="Maximum number of rows to read",
-            type=int,
-            default=None,
-        )
-        g.add_argument(
             "--delimiter",
             help="Column delimiter (default: tab)",
             default=None,
@@ -237,7 +231,6 @@ class io:
         sep: str = getattr(args, "delimiter", None) or "\t"
         noheader: bool = getattr(args, "noheader", False)
         header: int | None = None if noheader else 0
-        nrows: int | None = getattr(args, "nrows", None)
         readasobject = getattr(args, "readasobject", None)
         prequery: list[str] = getattr(args, "prequery", [])
 
@@ -259,7 +252,6 @@ class io:
                 _io.BytesIO(data),
                 sep=sep,
                 header=header,
-                nrows=nrows,
                 dtype=dtype,
                 engine="pyarrow",
             )
@@ -270,7 +262,6 @@ class io:
                 path,
                 sep=sep,
                 header=header,
-                nrows=nrows,
                 dtype=dtype,
                 engine="pyarrow",
             )
@@ -300,9 +291,8 @@ class io:
                 df.attrs["_parquet_meta"] = _read_parquet_meta(filename)
             elif backend == "duckdb" and duckdb is not None:
                 try:
-                    df = duckdb.query(
-                        "SELECT * FROM read_csv_auto($1, delim=$2)", [filename, sep]
-                    ).to_df()
+                    df = duckdb.read_csv(filename, sep=sep, header=not noheader).df()
+                    df = _rename_if_noheader(df)
                 except Exception as exc:
                     logging.error(f"DuckDB failed to read {filename!r}: {exc}")
                     raise
@@ -676,15 +666,12 @@ class io:
         else:
             # TSV — stdout or named file
             dest = output if output is not None else sys.stdout
-            try:
-                df.to_csv(
-                    dest,
-                    sep="\t",
-                    index=False,
-                    float_format=float_format,
-                    header=header,
-                    quoting=csv.QUOTE_NONE,
-                    doublequote=False,
-                )
-            except (OSError, BrokenPipeError):
-                sys.stderr.close()
+            df.to_csv(
+                dest,
+                sep="\t",
+                index=False,
+                float_format=float_format,
+                header=header,
+                quoting=csv.QUOTE_NONE,
+                doublequote=False,
+            )

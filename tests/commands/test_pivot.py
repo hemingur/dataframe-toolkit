@@ -210,6 +210,18 @@ class TestDoPivotAggregation:
 # ---------------------------------------------------------------------------
 
 
+@pytest.fixture
+def sparse_df():
+    """Gene B has no 'lof' row, so the (B, lof) combination is missing."""
+    return pd.DataFrame(
+        {
+            "gene": ["A", "A", "A", "B"],
+            "class": ["lof", "mis", "mis", "mis"],
+            "id": ["v1", "v2", "v3", "v4"],
+        }
+    )
+
+
 class TestDoPivotFillZero:
     def test_fillzero_completes_sparse_table(self):
         """With a sparse table and --fillzero, missing cells become 0."""
@@ -221,8 +233,43 @@ class TestDoPivotFillZero:
             }
         )
         result = _do_pivot(df, _pivot_args(fillzero=True))
-        # After fillzero both N and S rows should exist
-        assert len(result) == 2
+        assert result["sales_A"].tolist() == [10.0, 0.0]
+        assert result["sales_B"].tolist() == [0.0, 40.0]
+
+    def test_fillzero_fills_spread_columns(self, sparse_df):
+        """Regression (#1): with -g, empty cells were left as NaN."""
+        args = _pivot_args(
+            values=["id"], index=["gene"], groupcols=["class"], aggfunc=["count"]
+        )
+        args.fillzero = True
+        result = _do_pivot(sparse_df, args)
+        assert result["count_id_lof"].tolist() == [1, 0]
+        assert result["count_id_mis"].tolist() == [2, 1]
+
+    def test_fillzero_keeps_counts_integer(self, sparse_df):
+        args = _pivot_args(
+            values=["id"], index=["gene"], groupcols=["class"], aggfunc=["count"]
+        )
+        args.fillzero = True
+        result = _do_pivot(sparse_df, args)
+        assert pd.api.types.is_integer_dtype(result["count_id_lof"])
+
+    def test_fillzero_adds_missing_rows_for_multi_index(self, sparse_df):
+        args = _pivot_args(
+            values=["id"], index=["gene", "class"], groupcols=None, aggfunc=["count"]
+        )
+        args.fillzero = True
+        result = _do_pivot(sparse_df, args)
+        assert result["gene"].tolist() == ["A", "A", "B", "B"]
+        assert result["class"].tolist() == ["lof", "mis", "lof", "mis"]
+        assert result["count_id"].tolist() == [1, 2, 0, 1]
+
+    def test_without_fillzero_cells_stay_empty(self, sparse_df):
+        args = _pivot_args(
+            values=["id"], index=["gene"], groupcols=["class"], aggfunc=["count"]
+        )
+        result = _do_pivot(sparse_df, args)
+        assert pd.isna(result["count_id_lof"].iloc[1])
 
 
 # ---------------------------------------------------------------------------

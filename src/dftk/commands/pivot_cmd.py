@@ -227,21 +227,21 @@ def _do_pivot(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
     index = args.index or None
     columns = args.groupcols or None
 
+    # -z: pivot_table fills empty cells itself (before they force the column
+    # to float), and dropna=False expands both rows and columns to every
+    # combination of their levels.
+    fillzero = getattr(args, "fillzero", False)
     pivoted = df.pivot_table(
         values=args.values,
         index=index,
         columns=columns,
         aggfunc=funcs if funcs is not None else "mean",
+        fill_value=0 if fillzero else None,
+        dropna=not fillzero,
     )
 
     cols = pivoted.columns
     pivoted.columns = _flatten_columns(cols.values if hasattr(cols, "values") else cols)
-
-    if getattr(args, "fillzero", False) and hasattr(pivoted.index, "levels"):
-        pidx = pd.MultiIndex.from_product(
-            pivoted.index.levels, names=pivoted.index.names
-        )
-        pivoted = pivoted.reindex(pidx, fill_value=0, copy=False)
 
     return pivoted.reset_index()
 
@@ -308,7 +308,11 @@ class PivotCommand(BaseCommand):
         g.add_argument(
             "-z",
             "--fillzero",
-            help="Reindex to all (index × columns) combinations, fill missing with 0.",
+            help=(
+                "Expand to all (index × columns) combinations and fill empty "
+                "cells with 0. Meaningful for count/sum; with mean etc. a 0 "
+                "stands for 'no data'. NaN keys are kept as their own group."
+            ),
             action="store_true",
         )
         g.add_argument(

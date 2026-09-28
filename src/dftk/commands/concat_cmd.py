@@ -96,12 +96,6 @@ Mismatched columns are outer-joined and filled (NaN by default, or --fill):
             action="store_true",
         )
         r.add_argument(
-            "--nrows",
-            help="Maximum number of rows to read per file",
-            type=int,
-            default=None,
-        )
-        r.add_argument(
             "--delimiter",
             help="Column delimiter for TSV inputs (default: tab)",
             default=None,

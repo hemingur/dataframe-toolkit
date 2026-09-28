@@ -56,7 +56,6 @@ def _run(data_df: pd.DataFrame, ref_df: pd.DataFrame, **kwargs):
         digits=None,
         errortag="-",
         backend="pandas",
-        nrows=None,
         delimiter=None,
         readasobject=None,
         prequery=[],

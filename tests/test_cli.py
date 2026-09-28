@@ -154,3 +154,31 @@ class TestHelpCLI:
         assert result.returncode == 0
         output = result.stdout.decode()
         assert "--cols" in output or "-c" in output
+
+
+# ---------------------------------------------------------------------------
+# broken pipe (e.g. `dftk ... | head -1`)
+# ---------------------------------------------------------------------------
+
+
+class TestBrokenPipeCLI:
+
+    @pytest.mark.parametrize("command", ["print", "query"])
+    def test_reader_closing_early_exits_141_quietly(self, command, tmp_path):
+        # Well past the 64 KB pipe buffer, so the write is still in progress
+        # when the reader goes away.
+        path = tmp_path / "big.tsv"
+        path.write_text("x\n" + "".join(f"{i}\n" for i in range(100_000)))
+
+        proc = subprocess.Popen(
+            [sys.executable, "-m", "dftk.cli", command, str(path)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        assert proc.stdout.readline() == b"x\n"
+        proc.stdout.close()
+        stderr = proc.stderr.read().decode()
+        proc.wait()
+
+        assert proc.returncode == 141, stderr
+        assert stderr == ""

@@ -68,7 +68,6 @@ def _base_read_args():
     return dict(
         backend="pandas",
         noheader=False,
-        nrows=None,
         delimiter=None,
         readasobject=None,
         prequery=[],

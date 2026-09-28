@@ -30,7 +30,4 @@ class PrintCommand(BaseCommand):
 
     def execute(self, args: argparse.Namespace) -> None:
         df = io.read(args)
-        try:
-            df.to_csv(sys.stdout, sep="\t", index=False)
-        except (OSError, BrokenPipeError):
-            sys.stderr.close()
+        df.to_csv(sys.stdout, sep="\t", index=False)
