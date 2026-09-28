@@ -76,7 +76,6 @@ def make_args(**overrides) -> argparse.Namespace:
         DATAFILE=None,
         backend="pandas",
         noheader=False,
-        nrows=None,
         delimiter=None,
         readasobject=None,
         prequery=[],

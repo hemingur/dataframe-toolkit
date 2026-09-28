@@ -196,12 +196,6 @@ class io:
             action="store_true",
         )
         g.add_argument(
-            "--nrows",
-            help="Maximum number of rows to read",
-            type=int,
-            default=None,
-        )
-        g.add_argument(
             "--delimiter",
             help="Column delimiter (default: tab)",
             default=None,
@@ -237,7 +231,6 @@ class io:
         sep: str = getattr(args, "delimiter", None) or "\t"
         noheader: bool = getattr(args, "noheader", False)
         header: int | None = None if noheader else 0
-        nrows: int | None = getattr(args, "nrows", None)
         readasobject = getattr(args, "readasobject", None)
         prequery: list[str] = getattr(args, "prequery", [])
 
@@ -259,7 +252,6 @@ class io:
                 _io.BytesIO(data),
                 sep=sep,
                 header=header,
-                nrows=nrows,
                 dtype=dtype,
                 engine="pyarrow",
             )
@@ -270,7 +262,6 @@ class io:
                 path,
                 sep=sep,
                 header=header,
-                nrows=nrows,
                 dtype=dtype,
                 engine="pyarrow",
             )
