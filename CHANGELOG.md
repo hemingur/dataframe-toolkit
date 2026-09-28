@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.7.0] — 2026-09-28
 
 ### Fixed
 - `dftk ... | head` exited with status 120 (sometimes with an "Exception ignored while flushing sys.stdout: BrokenPipeError" message) once output exceeded the pipe buffer. dftk now exits quietly with status 141, like `cat`/`grep`. The old per-writer workaround also swallowed genuine write errors on named `-o` files; those now surface.
