@@ -7,6 +7,7 @@ dftk.commands.help — the ``dftk help`` subcommand.
 
 import argparse
 
+from dftk.commands import COMMAND_NAMES, load_command, load_command_groups
 from dftk.commands.base import BaseCommand
 
 
@@ -15,14 +16,6 @@ class HelpCommand(BaseCommand):
 
     name = "help"
     help = "Show detailed help for a subcommand"
-
-    def __init__(
-        self,
-        available_commands: list[BaseCommand] | None = None,
-        command_groups: list[tuple[str, list[BaseCommand]]] | None = None,
-    ) -> None:
-        self.available_commands: list[BaseCommand] = available_commands or []
-        self.command_groups: list[tuple[str, list[BaseCommand]]] = command_groups or []
 
     def add_arguments(self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument(
@@ -34,24 +27,16 @@ class HelpCommand(BaseCommand):
 
     def execute(self, args: argparse.Namespace) -> None:
         if args.command_name is None:
-            if self.command_groups:
-                for header, cmds in self.command_groups:
-                    print(f"\n{header}:")
-                    for cmd in cmds:
-                        print(f"  {cmd.name:<16} {cmd.help}")
-            else:
-                print("Available commands:")
-                for cmd in self.available_commands:
+            for header, cmds in load_command_groups():
+                print(f"\n{header}:")
+                for cmd in cmds:
                     print(f"  {cmd.name:<16} {cmd.help}")
             print("\nUse 'dftk help <command>' for detailed help on a command.")
             return
 
-        cmd = next(
-            (c for c in self.available_commands if c.name == args.command_name),
-            None,
-        )
-        if cmd is None:
+        if args.command_name not in COMMAND_NAMES:
             raise ValueError(f"Unknown command: {args.command_name!r}")
+        cmd = load_command(args.command_name)
 
         # Build a temporary parser for this command so argparse formats the
         # help text exactly as it would appear during normal use.
