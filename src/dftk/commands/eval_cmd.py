@@ -19,11 +19,9 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from scipy import special as _sp
 
 from dftk.commands.base import BaseCommand
 from dftk.common import seq as _seq
-from dftk.common import stats as _stats
 from dftk.common.io import io
 
 logger = logging.getLogger(__name__)
@@ -190,18 +188,23 @@ def _parse_formula(formula: str) -> tuple[str, str, list[str], str]:
 # Special functions (used as pandas agg fallback inside -f)
 # ---------------------------------------------------------------------------
 
+# The function tables below hold names, not function objects: dftk.common.stats
+# and scipy.special are imported only when a formula actually uses one of them,
+# so plain `dftk eval -f` formulas don't pay scipy's import time.
+
+# dftk.common.stats functions, same name in the formula as in the module
 _STATS_DISPATCH = {
-    "binom_test": _stats.binom_test,
-    "fisher_test": _stats.fisher_test,
-    "fisher_OR": _stats.fisher_OR,
-    "boschloo_test": _stats.boschloo_test,
-    "boschloo_OR": _stats.boschloo_OR,
-    "pval2se": _stats.pval2se,
-    "t2pval": _stats.t2pval,
-    "chi2_to_neglogp": _stats.chi2_to_neglogp,
-    "neglogp_to_chi2": _stats.neglogp_to_chi2,
-    "pval_to_chi2": _stats.pval_to_chi2,
-    "generalized_poisson_nll": _stats.generalized_poisson_nll,
+    "binom_test",
+    "fisher_test",
+    "fisher_OR",
+    "boschloo_test",
+    "boschloo_OR",
+    "pval2se",
+    "t2pval",
+    "chi2_to_neglogp",
+    "neglogp_to_chi2",
+    "pval_to_chi2",
+    "generalized_poisson_nll",
 }
 
 _PATH_FUNCS = {"basename", "dirname", "exists", "getsize", "realpath"}
@@ -209,35 +212,33 @@ _NP_FUNCS = {"sign", "cbrt", "log1p", "expm1"}
 _ROW_AGG_FUNCS = {"sum", "mean", "std", "min", "max", "median"}
 _ROW_IDX_FUNCS = {"idxmax", "idxmin"}
 
-# scipy.special single-column functions (element-wise, vectorised)
+# scipy.special single-column functions (element-wise, vectorised):
+# formula name -> scipy.special attribute name
 _SCIPY_SINGLE = {
-    "gamma": _sp.gamma,  # Γ(x)
-    "lgamma": _sp.gammaln,  # log Γ(x)
-    "digamma": _sp.digamma,  # ψ(x)  (log-derivative of Γ)
-    "erf": _sp.erf,  # error function
-    "erfc": _sp.erfc,  # complementary error function
-    "erfinv": _sp.erfinv,  # inverse error function
-    "expit": _sp.expit,  # logistic sigmoid  1/(1+exp(-x))
-    "logit": _sp.logit,  # log(x/(1-x))
+    "gamma": "gamma",  # Γ(x)
+    "lgamma": "gammaln",  # log Γ(x)
+    "digamma": "digamma",  # ψ(x)  (log-derivative of Γ)
+    "erf": "erf",  # error function
+    "erfc": "erfc",  # complementary error function
+    "erfinv": "erfinv",  # inverse error function
+    "expit": "expit",  # logistic sigmoid  1/(1+exp(-x))
+    "logit": "logit",  # log(x/(1-x))
     # Bessel J (first kind), fixed order
-    "j0": _sp.j0,
-    "j1": _sp.j1,
+    "j0": "j0",
+    "j1": "j1",
     # Bessel Y (second kind), fixed order
-    "y0": _sp.y0,
-    "y1": _sp.y1,
+    "y0": "y0",
+    "y1": "y1",
     # Modified Bessel I, fixed order
-    "i0": _sp.i0,
-    "i1": _sp.i1,
+    "i0": "i0",
+    "i1": "i1",
     # Modified Bessel K, fixed order
-    "k0": _sp.k0,
-    "k1": _sp.k1,
+    "k0": "k0",
+    "k1": "k1",
 }
 
 # scipy.special two-column functions: func(col_a, col_b)
-_SCIPY_DUAL = {
-    "beta": lambda x: _sp.beta(x[0], x[1]),  # B(a, b)
-    "betaln": lambda x: _sp.betaln(x[0], x[1]),  # log B(a, b)
-}
+_SCIPY_DUAL = {"beta", "betaln"}  # B(a, b), log B(a, b)
 
 # scipy.special parametric Bessel: func_name(order_literal, col)
 # Covers all-order variants: jn(n,x), yn(n,x), iv(v,x), kv(v,x)
@@ -365,12 +366,21 @@ def _special_function(formula: str, df_columns: list[str]):
     elif func_name in _PATH_FUNCS:
         func = np.frompyfunc(getattr(os.path, func_name), 1, 1)
     elif func_name in _STATS_DISPATCH:
-        func = _STATS_DISPATCH[func_name]
+        from dftk.common import stats as _stats
+
+        func = getattr(_stats, func_name)
     elif func_name in _SCIPY_SINGLE:
-        func = _SCIPY_SINGLE[func_name]
+        from scipy import special as _sp
+
+        func = getattr(_sp, _SCIPY_SINGLE[func_name])
     elif func_name in _SCIPY_DUAL:
-        func = _SCIPY_DUAL[func_name]
+        from scipy import special as _sp
+
+        dual = getattr(_sp, func_name)
+        func = partial(lambda x: dual(x[0], x[1]))
     elif func_name in _SCIPY_BESSEL_ORDER:
+        from scipy import special as _sp
+
         try:
             order = float(cols[0])
         except (ValueError, IndexError):

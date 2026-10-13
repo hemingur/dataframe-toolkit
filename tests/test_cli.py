@@ -8,6 +8,7 @@ installed entry-point.
 """
 
 import io
+import re
 import subprocess
 import sys
 
@@ -182,3 +183,68 @@ class TestBrokenPipeCLI:
 
         assert proc.returncode == 141, stderr
         assert stderr == ""
+
+
+# ---------------------------------------------------------------------------
+# lazy command imports: a command must not pay for other commands' dependencies
+# ---------------------------------------------------------------------------
+
+_HEAVY_MODULES = ["scipy.stats", "scipy.special", "statsmodels", "matplotlib"]
+
+# Commands that need none of the heavy modules just to start up.
+_LIGHT_COMMANDS = (
+    "eval query merge concat melt pivot func interp binx transpose segid "
+    "stat describe info dataset sample split annotate print clean"
+).split()
+
+
+def _heavy_modules_loaded(argv: list[str]) -> list[str]:
+    """Run `dftk <argv>` in a fresh interpreter; return heavy modules it imported."""
+    code = (
+        "import sys\n"
+        f"sys.argv = ['dftk', *{argv!r}]\n"
+        "from dftk.cli import main\n"
+        "try:\n"
+        "    main()\n"
+        "except SystemExit:\n"
+        "    pass\n"
+        f"loaded = [m for m in {_HEAVY_MODULES!r} if m in sys.modules]\n"
+        "print(','.join(loaded), file=sys.stderr)\n"
+    )
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True)
+    last_line = result.stderr.decode().strip().splitlines()[-1:]
+    return [m for m in "".join(last_line).split(",") if m]
+
+
+class TestLazyImportsCLI:
+
+    @pytest.mark.parametrize("command", _LIGHT_COMMANDS)
+    def test_light_command_startup_skips_heavy_modules(self, command):
+        assert _heavy_modules_loaded([command, "--help"]) == []
+
+    def test_eval_plain_formula_skips_scipy(self, tmp_path):
+        path = tmp_path / "data.tsv"
+        path.write_text(_SIMPLE_TSV)
+        assert _heavy_modules_loaded(["eval", str(path), "-f", "z = x + y"]) == []
+
+    def test_eval_special_function_still_works(self, tmp_path):
+        path = tmp_path / "data.tsv"
+        path.write_text(_SIMPLE_TSV)
+        result = subprocess.run(
+            [sys.executable, "-m", "dftk.cli", "eval", str(path), "-f", "z = gamma(x)"],
+            capture_output=True,
+        )
+        assert result.returncode == 0, result.stderr.decode()
+        df = pd.read_csv(io.BytesIO(result.stdout), sep="\t")
+        assert df["z"].tolist() == pytest.approx([1.0, 1.0, 2.0, 6.0, 24.0])
+
+    def test_unknown_command_lists_all_commands(self):
+        result = subprocess.run(
+            [sys.executable, "-m", "dftk.cli", "nosuch"], capture_output=True
+        )
+        assert result.returncode == 2
+        stderr = result.stderr.decode()
+        assert "invalid choice: 'nosuch'" in stderr
+        # Python 3.12 quotes the choices ('fit', …), 3.14 doesn't (fit, …).
+        choices = re.findall(r"'?(\w+)'?(?:,|\))", stderr.split("choose from")[1])
+        assert {"eval", "fit", "scat", "help"} <= set(choices)

@@ -16,7 +16,7 @@ Review recently written or modified code in the dftk project against the convent
 ### Project Structure
 - Each subcommand lives in `src/dftk/commands/<name>_cmd.py`
 - All commands inherit from `BaseCommand` (name, help, add_arguments, execute)
-- Commands must be imported and instantiated in `commands/__init__.py`
+- Commands must be registered as a `("<name>", "<name>_cmd:<ClassName>")` entry in `COMMAND_GROUPS` in `commands/__init__.py` (not imported there — commands load lazily)
 - Shared utilities belong in `src/dftk/common/` (io.py, plot.py, stats.py, seq.py)
 - Tests go in `tests/commands/test_<name>.py` or `tests/common/test_<name>.py`
 
@@ -53,7 +53,7 @@ When reviewing `eval_cmd.py`, verify that new special functions are dispatched c
 1. **Identify scope**: Determine which files were recently changed. If not told explicitly, ask or infer from context. Focus on changed files.
 2. **Read the files**: Use your file-reading tools to examine each relevant file in full.
 3. **Check each convention systematically**: Go through every applicable rule from CLAUDE.md and verify compliance.
-4. **Assess completeness**: When a new subcommand is added, verify all 4 steps are present — `<name>_cmd.py` created, imported in `commands/__init__.py`, instance appended to `command_list`, and tests in `tests/commands/test_<name>.py`.
+4. **Assess completeness**: When a new subcommand is added, verify all steps are present — `<name>_cmd.py` created, registered in `COMMAND_GROUPS` in `commands/__init__.py`, and tests in `tests/commands/test_<name>.py`.
 5. **Produce structured feedback**: Organize findings by severity and category.
 
 ## Output Format
@@ -78,8 +78,8 @@ Optional improvements for clarity, robustness, or alignment with project style.
 ### Completeness Checklist (for new subcommands)
 If a new subcommand was added, explicitly check off:
 - [ ] `<name>_cmd.py` created in `src/dftk/commands/`
-- [ ] Imported in `commands/__init__.py`
-- [ ] Instance appended to `command_list` in `commands/__init__.py`
+- [ ] Registered in `COMMAND_GROUPS` in `commands/__init__.py` (`"<name>_cmd:<ClassName>"`, no import)
+- [ ] No heavy (scipy/statsmodels/matplotlib) imports added to modules that light commands import
 - [ ] `io.parser_read(parser)` called in `add_arguments`
 - [ ] `io.parser_output(parser)` called in `add_arguments`
 - [ ] `io.read(args)` / `io.printdf(df, args)` used in `execute`
@@ -97,7 +97,7 @@ If a new subcommand was added, explicitly check off:
 **Update your agent memory** as you discover recurring patterns, common mistakes, architectural decisions, and style conventions specific to this codebase. This builds institutional knowledge across review sessions.
 
 Examples of what to record:
-- Recurring violations (e.g., forgetting `io.parser_output`, missing `command_list` registration)
+- Recurring violations (e.g., forgetting `io.parser_output`, missing `COMMAND_GROUPS` registration)
 - Non-obvious conventions not fully documented in CLAUDE.md
 - Common test gaps (e.g., edge cases authors tend to miss)
 - Any deviations from CLAUDE.md that were intentionally approved

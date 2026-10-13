@@ -1,105 +1,98 @@
-# dftk.commands — explicit registry of all dftk subcommands.
+# dftk.commands — registry of all dftk subcommands.
+#
+# Commands are registered by name and import path instead of being imported
+# here, so that running one command imports only that command's module and its
+# dependencies (scipy, statsmodels, matplotlib, …), not every command's.
 #
 # To add a new subcommand:
-#   1. Create src/dftk/commands/<name>.py with a class that inherits
+#   1. Create src/dftk/commands/<name>_cmd.py with a class that inherits
 #      from BaseCommand (see base.py for the contract and an example skeleton).
-#   2. Import the class here and add an instance to command_list below.
-#   That's it — cli.py discovers commands solely through this COMMANDS list.
+#   2. Add a ("<name>", "<name>_cmd:<ClassName>") entry to COMMAND_GROUPS below.
+#   That's it — cli.py discovers commands solely through this registry.
+#   tests/commands/test_registry.py checks that every entry imports and that
+#   every *_cmd.py module is registered.
 
-from dftk.commands.annotate_cmd import AnnotateCommand
-from dftk.commands.binx_cmd import BinxCommand
-from dftk.commands.chi_cmd import ChiCommand
-from dftk.commands.clean_cmd import CleanCommand
-from dftk.commands.concat_cmd import ConcatCommand
-from dftk.commands.corr_cmd import CorrCommand
-from dftk.commands.dataset_cmd import DatasetCommand
-from dftk.commands.describe_cmd import DescribeCommand
-from dftk.commands.eval_cmd import EvalCommand
-from dftk.commands.fit_cmd import FitCommand
-from dftk.commands.func_cmd import FuncCommand
-from dftk.commands.help import HelpCommand
-from dftk.commands.hist_cmd import HistCommand
-from dftk.commands.info_cmd import InfoCommand
-from dftk.commands.interp_cmd import InterpCommand
-from dftk.commands.line_cmd import LineCommand
-from dftk.commands.melt_cmd import MeltCommand
-from dftk.commands.merge_cmd import MergeCommand
-from dftk.commands.pivot_cmd import PivotCommand
-from dftk.commands.print_cmd import PrintCommand
-from dftk.commands.query_cmd import QueryCommand
-from dftk.commands.randvar_cmd import RandvarCommand
-from dftk.commands.sample_cmd import SampleCommand
-from dftk.commands.scale_cmd import ScaleCommand
-from dftk.commands.scat_cmd import ScatCommand
-from dftk.commands.segid_cmd import SegidCommand
-from dftk.commands.split_cmd import SplitCommand
-from dftk.commands.stat_cmd import StatCommand
-from dftk.commands.test_cmd import TestCommand
-from dftk.commands.transpose_cmd import TransposeCommand
-from dftk.commands.wstat_cmd import WstatCommand
+import importlib
 
-# Ported subcommands — uncomment as each one is added:
-# from dftk.commands.color     import ColorCommand
-# from dftk.commands.wavelet   import WaveletCommand
-# from dftk.commands.fisher    import FisherCommand  # superseded by eval's
-#                                                         # fisher_test/fisher_OR
+from dftk.commands.base import BaseCommand
 
-COMMAND_GROUPS: list[tuple[str, list]] = [
+# Ported subcommands — add as each one is implemented:
+#   ("color", "color_cmd:ColorCommand")
+#   ("wavelet", "wavelet_cmd:WaveletCommand")
+#   ("fisher", ...)  — superseded by eval's fisher_test/fisher_OR
+
+COMMAND_GROUPS: list[tuple[str, list[tuple[str, str]]]] = [
     (
         "Data transformation",
         [
-            EvalCommand(),
-            QueryCommand(),
-            MergeCommand(),
-            ConcatCommand(),
-            MeltCommand(),
-            PivotCommand(),
-            FuncCommand(),
-            ScaleCommand(),
-            InterpCommand(),
-            BinxCommand(),
-            TransposeCommand(),
-            SegidCommand(),
+            ("eval", "eval_cmd:EvalCommand"),
+            ("query", "query_cmd:QueryCommand"),
+            ("merge", "merge_cmd:MergeCommand"),
+            ("concat", "concat_cmd:ConcatCommand"),
+            ("melt", "melt_cmd:MeltCommand"),
+            ("pivot", "pivot_cmd:PivotCommand"),
+            ("func", "func_cmd:FuncCommand"),
+            ("scale", "scale_cmd:ScaleCommand"),
+            ("interp", "interp_cmd:InterpCommand"),
+            ("binx", "binx_cmd:BinxCommand"),
+            ("transpose", "transpose_cmd:TransposeCommand"),
+            ("segid", "segid_cmd:SegidCommand"),
         ],
     ),
     (
         "Statistics",
         [
-            StatCommand(),
-            WstatCommand(),
-            FitCommand(),
-            TestCommand(),
-            CorrCommand(),
-            DescribeCommand(),
-            InfoCommand(),
-            RandvarCommand(),
+            ("stat", "stat_cmd:StatCommand"),
+            ("wstat", "wstat_cmd:WstatCommand"),
+            ("fit", "fit_cmd:FitCommand"),
+            ("test", "test_cmd:TestCommand"),
+            ("corr", "corr_cmd:CorrCommand"),
+            ("describe", "describe_cmd:DescribeCommand"),
+            ("info", "info_cmd:InfoCommand"),
+            ("randvar", "randvar_cmd:RandvarCommand"),
         ],
     ),
     (
         "Plots",
         [
-            ScatCommand(),
-            LineCommand(),
-            HistCommand(),
-            ChiCommand(),
+            ("scat", "scat_cmd:ScatCommand"),
+            ("line", "line_cmd:LineCommand"),
+            ("hist", "hist_cmd:HistCommand"),
+            ("chi", "chi_cmd:ChiCommand"),
         ],
     ),
     (
         "Utilities",
         [
-            DatasetCommand(),
-            SampleCommand(),
-            SplitCommand(),
-            AnnotateCommand(),
-            PrintCommand(),
-            CleanCommand(),
+            ("dataset", "dataset_cmd:DatasetCommand"),
+            ("sample", "sample_cmd:SampleCommand"),
+            ("split", "split_cmd:SplitCommand"),
+            ("annotate", "annotate_cmd:AnnotateCommand"),
+            ("print", "print_cmd:PrintCommand"),
+            ("clean", "clean_cmd:CleanCommand"),
         ],
     ),
 ]
 
-command_list = [cmd for _, cmds in COMMAND_GROUPS for cmd in cmds]
+# `help` is a command like the others but is not listed under a group heading.
+_REGISTRY: dict[str, str] = dict(
+    [entry for _, entries in COMMAND_GROUPS for entry in entries]
+    + [("help", "help:HelpCommand")]
+)
 
-# HelpCommand receives the live list and groups so it can introspect any peer.
-help_command = HelpCommand(command_list, COMMAND_GROUPS)
+COMMAND_NAMES: list[str] = list(_REGISTRY)
 
-COMMANDS = command_list + [help_command]
+
+def load_command(name: str) -> BaseCommand:
+    """Import and instantiate the command registered as *name*."""
+    module_name, class_name = _REGISTRY[name].split(":")
+    module = importlib.import_module(f"dftk.commands.{module_name}")
+    return getattr(module, class_name)()
+
+
+def load_command_groups() -> list[tuple[str, list[BaseCommand]]]:
+    """Import and instantiate every grouped command (slow: imports everything)."""
+    return [
+        (header, [load_command(name) for name, _ in entries])
+        for header, entries in COMMAND_GROUPS
+    ]
