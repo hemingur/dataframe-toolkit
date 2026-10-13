@@ -8,6 +8,7 @@ installed entry-point.
 """
 
 import io
+import re
 import subprocess
 import sys
 
@@ -244,4 +245,6 @@ class TestLazyImportsCLI:
         assert result.returncode == 2
         stderr = result.stderr.decode()
         assert "invalid choice: 'nosuch'" in stderr
-        assert "'fit'" in stderr and "'help'" in stderr
+        # Python 3.12 quotes the choices ('fit', …), 3.14 doesn't (fit, …).
+        choices = re.findall(r"'?(\w+)'?(?:,|\))", stderr.split("choose from")[1])
+        assert {"eval", "fit", "scat", "help"} <= set(choices)
