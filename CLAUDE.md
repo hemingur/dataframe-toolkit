@@ -24,9 +24,9 @@ Package manager: **uv**. Run tests with `pytest` (no special flags needed).
 
 ```text
 src/dftk/
-  cli.py                    # Entry-point; discovers commands from commands/COMMANDS list
+  cli.py                    # Entry-point; imports only the requested command via the registry
   commands/
-    __init__.py             # COMMANDS registry — import class here + add instance to command_list
+    __init__.py             # Command registry — (name, "<name>_cmd:Class") entries in COMMAND_GROUPS
     base.py                 # BaseCommand ABC (name, help, add_arguments, execute)
     eval_cmd.py             # dftk eval   — formula / constant / string functions
     stat_cmd.py             # dftk stat   — descriptive statistics
@@ -62,7 +62,9 @@ tests/
 
 1. Create `src/dftk/commands/<name>_cmd.py` with a class inheriting `BaseCommand`.
 2. Implement `name`, `help`, `add_arguments(parser)`, `execute(args)`.
-3. Import the class in `commands/__init__.py` and append an instance to `command_list`.
+3. Add a `("<name>", "<name>_cmd:<ClassName>")` entry to `COMMAND_GROUPS` in `commands/__init__.py`.
+   Don't import the class there: commands are imported lazily, only when run
+   (`tests/commands/test_registry.py` catches a typo or a missing entry).
 4. Write tests in `tests/commands/test_<name>.py`.
 
 Standard I/O pattern:
@@ -93,6 +95,11 @@ def execute(self, args):
 
 ## Key conventions
 
+- **Heavy imports stay out of module level**: `cli.py` imports only the command being run, so a command module's
+  top-level imports are paid only by that command. Keep scipy / statsmodels / matplotlib / seaborn imports
+  out of `common/*.py` modules that light commands use (`io.py`, `seq.py`), and in a command that needs one only
+  for some options, import it inside the function that uses it (see `eval_cmd._special_function`).
+  `tests/test_cli.py::TestLazyImportsCLI` fails if a light command starts importing one of them.
 - **File naming**: all command modules are `<name>_cmd.py` (e.g. `stat_cmd.py`, not `stat.py`).
 - **TSV I/O**: `io.printdf` writes NaN as empty string (trailing tab). Test helpers must convert `""` → `float("nan")` when parsing TSV output.
 - **groupby keys**: `df.groupby(["col"])` with a list always returns tuple keys even for a single column. Use the same groupby call on both sides so keys match directly.
