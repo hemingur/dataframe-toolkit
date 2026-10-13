@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.7.1] — 2026-10-13
 
 ### Changed
 - Faster startup: dftk now imports only the subcommand being run instead of all of them, so commands no longer pay for other commands' scipy / statsmodels / matplotlib imports. Typical startup drops from ~2.2 s to ~0.65 s for `print`, `query`, `pivot`, `eval` and the other data commands (measured on a loaded 2-core machine; about a 3× speed-up), which adds up quickly in multi-step pipelines. Commands that need those libraries gain less (`corr` ~25%, `scat` ~30%, `fit` ~10%); `dftk --help` is unchanged. `eval` imports scipy only when a formula uses one of its special or statistical functions.
