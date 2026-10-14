@@ -40,6 +40,8 @@ COLUMN ALIGNMENT
 ----------------
   Columns present in all files are aligned by name.
   Columns missing from some files are filled with NaN (or --fill value).
+  --fill applies only to those missing columns: a cell that is empty within
+  a file stays empty.
   Use --select to enforce a fixed output column set.
 
 EXAMPLES
@@ -79,7 +81,8 @@ Mismatched columns are outer-joined and filled (NaN by default, or --fill):
             metavar="VALUE",
             help=(
                 "Fill value for columns absent in some files "
-                "(default: NaN).  Use 0 or '' for numeric/string defaults."
+                "(default: NaN).  Use 0 or '' for numeric/string defaults.  "
+                "Cells that are empty within a file stay empty."
             ),
         )
 
@@ -152,8 +155,6 @@ Mismatched columns are outer-joined and filled (NaN by default, or --fill):
         if not dfs:
             raise ValueError("concat: no data read from any input file")
 
-        result = pd.concat(dfs, ignore_index=True)
-
         if args.fill is not None:
             fill: int | float | str
             try:
@@ -163,6 +164,14 @@ Mismatched columns are outer-joined and filled (NaN by default, or --fill):
                     fill = float(args.fill)
                 except ValueError:
                     fill = args.fill
-            result = result.fillna(fill)
+            # Add each file's missing columns before stacking, so --fill
+            # touches only those, not cells that were already empty in a file.
+            columns = list(dict.fromkeys(c for df in dfs for c in df.columns))
+            dfs = [
+                df.assign(**{c: fill for c in columns if c not in df.columns})[columns]
+                for df in dfs
+            ]
+
+        result = pd.concat(dfs, ignore_index=True)
 
         io.printdf(result, args)
