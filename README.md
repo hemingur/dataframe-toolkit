@@ -45,6 +45,20 @@ cd dataframe-toolkit
 uv tool install .
 ```
 
+### Skill for coding agents
+
+`skills/dftk/` is an agent skill: a short guide that coding agents such as
+Codex and Claude Code load when a task involves dftk. It covers the piping
+conventions, which command to use for what, and patterns for Snakemake and
+Make. Copy it into your agent's skills directory, for example:
+
+```bash
+cp -r skills/dftk ~/.codex/skills/     # Codex
+cp -r skills/dftk ~/.claude/skills/    # Claude Code
+```
+
+Copy it again after upgrading dftk so it matches the installed version.
+
 ## Quick example
 
 ```bash

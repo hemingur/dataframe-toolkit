@@ -54,6 +54,10 @@ tests/
   commands/test_dataset.py  # unit tests for dataset_cmd
   commands/test_stat.py     # ... and so on
   common/                   # tests for common utilities
+  test_skill.py             # checks skills/dftk against the real commands and options
+skills/dftk/
+  SKILL.md                  # agent skill (Codex, Claude Code): conventions + command overview
+  references/snakemake.md   # Snakemake / Make patterns, with a tested example Snakefile
 ```
 
 ---
@@ -66,6 +70,10 @@ tests/
    Don't import the class there: commands are imported lazily, only when run
    (`tests/commands/test_registry.py` catches a typo or a missing entry).
 4. Write tests in `tests/commands/test_<name>.py`.
+5. Add the command to the overview tables in `skills/dftk/SKILL.md`
+   (`tests/test_skill.py` fails until it is listed). Renaming a command or
+   option also means updating any skill example that uses it; the same test
+   catches those.
 
 Standard I/O pattern:
 
