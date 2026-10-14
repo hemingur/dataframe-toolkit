@@ -34,10 +34,12 @@ tidy coefficient tables into one output dataframe.
 import argparse
 import logging
 
+import numpy as np  # noqa: F401 — for formulas such as "np.log(y) ~ x", see below
 import pandas as pd
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
 import statsmodels.stats.anova as sa
+from patsy import PatsyError
 
 from dftk.commands.base import BaseCommand
 from dftk.common.io import check_cols, io
@@ -48,6 +50,11 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Core regression helpers  (also imported by scale_cmd)
 # ---------------------------------------------------------------------------
+
+
+# Formulas are evaluated in the namespace of the function that builds the
+# model (statsmodels' default eval_env), i.e. this module's globals — which
+# is why numpy is imported above as np.
 
 
 def standard_model(df: pd.DataFrame, args: argparse.Namespace):
@@ -67,11 +74,18 @@ def weighted_model(df: pd.DataFrame, args: argparse.Namespace):
 
 
 def regress_it(df: pd.DataFrame, args: argparse.Namespace):
-    """Fit the appropriate model and return the fitted result object."""
-    if getattr(args, "weights", None) is not None:
-        mod = weighted_model(df, args)
-    else:
-        mod = standard_model(df, args)
+    """Fit the appropriate model and return the fitted result object.
+
+    A formula that cannot be evaluated (unknown column or function) raises
+    ValueError, which the CLI reports as an input error.
+    """
+    try:
+        if getattr(args, "weights", None) is not None:
+            mod = weighted_model(df, args)
+        else:
+            mod = standard_model(df, args)
+    except PatsyError as exc:
+        raise ValueError(f"cannot evaluate formula {args.formula!r}: {exc}") from None
     return mod.fit()
 
 

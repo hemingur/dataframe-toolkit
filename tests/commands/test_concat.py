@@ -224,3 +224,26 @@ class TestConcatFill:
         b = pd.DataFrame({"x": [3]})
         result = _run({"a.tsv": a, "b.tsv": b}, ["a.tsv", "b.tsv"])
         assert pd.isna(result.loc[1, "y"])
+
+    def test_fill_leaves_empty_cells_within_a_file(self):
+        """--fill is for columns a file lacks, not for NaN already in a file."""
+        a = pd.DataFrame({"x": [1, 2], "y": [float("nan"), 5.0]})
+        b = pd.DataFrame({"x": [3]})
+        result = _run({"a.tsv": a, "b.tsv": b}, ["a.tsv", "b.tsv"], fill="0")
+        assert pd.isna(result.loc[0, "y"])
+        assert result.loc[2, "y"] == 0
+
+    def test_fill_keeps_integer_columns_integer(self):
+        a = pd.DataFrame({"x": [1], "y": [10]})
+        b = pd.DataFrame({"x": [2]})
+        result = _run({"a.tsv": a, "b.tsv": b}, ["a.tsv", "b.tsv"], fill="0")
+        assert result["y"].tolist() == [10, 0]
+        assert pd.api.types.is_integer_dtype(result["y"])
+
+    def test_fill_keeps_column_order(self):
+        a = pd.DataFrame({"x": [1], "y": [2]})
+        b = pd.DataFrame({"z": [3], "x": [4]})
+        files = {"a.tsv": a, "b.tsv": b}
+        filled = _run(files, ["a.tsv", "b.tsv"], fill="0")
+        unfilled = _run(files, ["a.tsv", "b.tsv"])
+        assert list(filled.columns) == list(unfilled.columns) == ["x", "y", "z"]

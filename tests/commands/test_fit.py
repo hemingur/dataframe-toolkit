@@ -93,9 +93,18 @@ class TestRegressIt:
         assert hasattr(res, "params")
         assert "x" in res.params.index
 
-    def test_bad_formula_raises(self, simple_df):
-        with pytest.raises(Exception):  # noqa: B017
+    def test_bad_formula_raises_value_error(self, simple_df):
+        """ValueError is reported by the CLI as an input error, not a crash."""
+        with pytest.raises(ValueError, match="nonexistent_col"):
             regress_it(simple_df, _args(formula="y ~ nonexistent_col"))
+
+    @pytest.mark.parametrize(
+        "extra", [{}, {"robust": True}, {"weights": "w"}], ids=["ols", "rlm", "wls"]
+    )
+    def test_numpy_functions_in_formula(self, weighted_df, extra):
+        df = weighted_df.assign(y=np.exp(0.1 * weighted_df["x"]))
+        res = regress_it(df, _args(formula="np.log(y) ~ x", **extra))
+        assert res.params["x"] == pytest.approx(0.1)
 
 
 # ---------------------------------------------------------------------------

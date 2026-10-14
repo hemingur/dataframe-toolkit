@@ -132,6 +132,9 @@ def _compute_stats(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
         stats = (
             df[cols].agg(agg_funcs).T.reset_index().rename(columns={"index": "name"})
         )
+        # Before the transpose each column held count and the float stats
+        # together, so count came out as float; a count is never missing.
+        stats["count"] = stats["count"].astype("int64")
         return stats[["name"] + _STAT_NAMES]
 
     else:
