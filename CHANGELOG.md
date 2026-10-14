@@ -5,6 +5,11 @@
 ### Added
 - Agent skill in `skills/dftk/` for coding agents such as Codex and Claude Code: the piping conventions (`-o | ...`, DATAFILE first, `-f` for plots), a guide to which command to use for what, and Snakemake/Make patterns with a tested example workflow. Copy it into your agent's skills directory (see the README). A test checks every command and option in it against the real CLI, so it cannot drift silently.
 
+### Fixed
+- `fit` (and `scale --resid`) formulas can now use numpy functions, e.g. `-f "np.log(y) ~ x"`; before, they failed with `NameError: name 'np' is not defined`. A formula naming an unknown column or function is now reported as `Input error: cannot evaluate formula …` (exit 1) instead of an "unexpected error" whose traceback itself crashed on Python 3.14.
+- `concat --fill` filled every empty cell, including cells that were already empty within an input file. It now fills only the columns a file lacks, as its help text says, and integer columns stay integer (`0`, not `0.0`).
+- `stat` without `-g` printed `count` as a float (`244.0`); it is now an integer, as in grouped output.
+
 ## [0.7.1] — 2026-10-13
 
 ### Changed
