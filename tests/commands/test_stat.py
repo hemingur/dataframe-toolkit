@@ -73,6 +73,17 @@ class TestUngroupedSingleCol:
         result = _compute_stats(simple_df, _stat_args(cols=["x"]))
         assert result["count"].iloc[0] == 5
 
+    def test_count_is_integer(self, simple_df):
+        """Printed as 5, not 5.0, as in grouped output."""
+        result = _compute_stats(simple_df, _stat_args(cols=["x"]))
+        assert pd.api.types.is_integer_dtype(result["count"])
+
+    def test_count_of_all_missing_column_is_zero(self):
+        df = pd.DataFrame({"x": [float("nan")] * 3})
+        result = _compute_stats(df, _stat_args(cols=["x"]))
+        assert result["count"].tolist() == [0]
+        assert pd.api.types.is_integer_dtype(result["count"])
+
     def test_sum(self, simple_df):
         result = _compute_stats(simple_df, _stat_args(cols=["x"]))
         assert result["sum"].iloc[0] == pytest.approx(15.0)
