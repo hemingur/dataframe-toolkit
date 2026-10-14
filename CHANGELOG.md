@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.7.2] — 2026-10-14
 
 ### Added
 - Agent skill in `skills/dftk/` for coding agents such as Codex and Claude Code: the piping conventions (`-o | ...`, DATAFILE first, `-f` for plots), a guide to which command to use for what, and Snakemake/Make patterns with a tested example workflow. Copy it into your agent's skills directory (see the README). A test checks every command and option in it against the real CLI, so it cannot drift silently.
