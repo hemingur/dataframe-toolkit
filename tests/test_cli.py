@@ -28,8 +28,7 @@ def _run(args: list[str], stdin_tsv: str = "") -> pd.DataFrame:
         capture_output=True,
     )
     assert result.returncode == 0, (
-        f"dftk exited {result.returncode}\n"
-        f"stderr: {result.stderr.decode()}"
+        f"dftk exited {result.returncode}\nstderr: {result.stderr.decode()}"
     )
     return pd.read_csv(io.BytesIO(result.stdout), sep="\t")
 
@@ -48,7 +47,6 @@ _GROUPED_TSV = "group\tvalue\nA\t1\nA\t2\nA\t3\nB\t10\nB\t20\nB\t30\n"
 
 
 class TestStatCLI:
-
     def test_single_col_schema(self):
         df = _run(["stat", "-", "-c", "x"], _SIMPLE_TSV)
         assert "name" in df.columns
@@ -123,7 +121,6 @@ class TestStatCLI:
 
 
 class TestPrintCLI:
-
     def test_passthrough(self):
         df = _run(["print", "-"], _SIMPLE_TSV)
         assert list(df.columns) == ["x", "y"]
@@ -136,7 +133,6 @@ class TestPrintCLI:
 
 
 class TestHelpCLI:
-
     def test_help_lists_commands(self):
         result = subprocess.run(
             [sys.executable, "-m", "dftk.cli", "help"],
@@ -163,7 +159,6 @@ class TestHelpCLI:
 
 
 class TestBrokenPipeCLI:
-
     @pytest.mark.parametrize("command", ["print", "query"])
     def test_reader_closing_early_exits_141_quietly(self, command, tmp_path):
         # Well past the 64 KB pipe buffer, so the write is still in progress
@@ -217,7 +212,6 @@ def _heavy_modules_loaded(argv: list[str]) -> list[str]:
 
 
 class TestLazyImportsCLI:
-
     @pytest.mark.parametrize("command", _LIGHT_COMMANDS)
     def test_light_command_startup_skips_heavy_modules(self, command):
         assert _heavy_modules_loaded([command, "--help"]) == []

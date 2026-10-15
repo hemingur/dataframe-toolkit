@@ -71,6 +71,7 @@ class BaseCommand(ABC):
         tabular data and produces tabular output.
         """
         from dftk.common.io import io
+
         io.parser_read(parser)
         io.parser_output(parser)
 
@@ -82,4 +83,5 @@ class BaseCommand(ABC):
         exposed.
         """
         from dftk.common.io import io
+
         io.parser_read(parser)
