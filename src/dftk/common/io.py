@@ -543,7 +543,11 @@ class io:
         )
         na_group.add_argument(
             "--dropna",
-            help="Drop rows containing any NA value before output.",
+            help=(
+                "Drop rows containing any NA value from the output.  Applied "
+                "after the command has run, so it does not change what the "
+                "command sees (use --prequery for that)."
+            ),
             action="store_true",
         )
 
