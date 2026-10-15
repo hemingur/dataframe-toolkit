@@ -49,6 +49,13 @@ using a command for the first time.
    `'...' expects a .parquet path on stdin, got ''`; the *first* error is the
    real one. Use `set -o pipefail` in shell scripts (Snakemake does this by
    default).
+7. **Integer columns with empty cells become float** with the default
+   reader (`10` → `10.0`; IDs such as `007` become `7`). Read TSV with
+   `--backend duckdb` to keep them integer (`Int64`) and IDs as text, e.g.
+   when converting to parquet: `dftk eval data.tsv --backend duckdb -o
+   data.parquet`. Parquet keeps the types, so later steps need no option.
+   For a column that is already float, `--cast COL:Int64` turns it back.
+   `--digits N` writes such columns in exponent form (`2.49e+08`) and warns.
 
 ## Output modes (`-o`, on every data command)
 
