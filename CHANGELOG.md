@@ -12,6 +12,7 @@ dftk eval data.tsv --backend duckdb -o data.parquet
 - `--backend duckdb` was silently ignored when reading stdin; `cat data.tsv | dftk eval - --backend duckdb …` now reads with DuckDB like a named file.
 - `fit` and `scale --resid` crashed with `Unexpected error (TypeError): boolean value of NA is ambiguous` on `Int64` columns with empty cells (e.g. read with `--backend duckdb`). They are now passed to statsmodels as float, and incomplete rows are dropped as before.
 - `--cast COL:Int64` turns a float column with empty cells back into integers (`248956422`, not `248956422.0`). `--cast` with `object`, `category` or `datetime64` also failed (or warned) before and now works. Type prefixes are case-sensitive: `int` is `int64`, `Int` is `Int64`.
+- TSV output with a single column crashed when a cell was empty (`single empty field record must be quoted`, from Python's csv module). The missing value is now written as an empty line, and the default reader reads an empty line in a one-column file as a missing value instead of skipping it, so such files survive a round trip (DuckDB already read them this way). Files with more columns are read as before.
 - `query --sql` returned `SUM` of an integer column as float (`19.0`), because DuckDB sums into a 128-bit integer that pandas has no type for. It is now an integer, up to 2^53 (beyond that the float may already be rounded, so it stays float).
 
 ### Changed
