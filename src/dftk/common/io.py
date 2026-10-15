@@ -257,6 +257,15 @@ class io:
             )
             return _rename_if_noheader(df)
 
+        def _csv_with_duckdb(path: str) -> pd.DataFrame:
+            # DuckDB keeps integer columns with blanks as Int64 (pandas: float64)
+            try:
+                df = duckdb.read_csv(path, sep=sep, header=not noheader).df()
+            except Exception as exc:
+                logging.error(f"DuckDB failed to read {path!r}: {exc}")
+                raise
+            return _rename_if_noheader(df)
+
         def _csv_from_file(path: str) -> pd.DataFrame:
             df = pd.read_csv(
                 path,
@@ -290,14 +299,21 @@ class io:
                 df = pd.read_parquet(filename)
                 df.attrs["_parquet_meta"] = _read_parquet_meta(filename)
             elif backend == "duckdb" and duckdb is not None:
-                try:
-                    df = duckdb.read_csv(filename, sep=sep, header=not noheader).df()
-                    df = _rename_if_noheader(df)
-                except Exception as exc:
-                    logging.error(f"DuckDB failed to read {filename!r}: {exc}")
-                    raise
+                df = _csv_with_duckdb(filename)
             else:
                 df = _csv_from_file(filename)
+
+        elif backend == "duckdb" and duckdb is not None:
+            # stdin with DuckDB: it reads files, not buffers (that needs fsspec),
+            # so spool stdin to a temp file and read it like a named file
+            os.makedirs(DFTK_TMPDIR, exist_ok=True)
+            fd, path = tempfile.mkstemp(suffix=".tsv", dir=DFTK_TMPDIR)
+            try:
+                with os.fdopen(fd, "wb") as fh:
+                    fh.write(sys.stdin.buffer.read())
+                df = _csv_with_duckdb(path)
+            finally:
+                os.unlink(path)
 
         else:
             # stdin — read TSV directly

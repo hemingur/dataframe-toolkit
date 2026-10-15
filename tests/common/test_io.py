@@ -1,6 +1,9 @@
 """
-Tests for dftk.common.io.read.
+Tests for dftk.common.io: read and printdf.
 """
+
+import io as _io
+from types import SimpleNamespace
 
 import pytest
 
@@ -32,3 +35,24 @@ class TestReadDuckdbBackend:
         df = io.read(make_args(DATAFILE=str(path), backend="duckdb", noheader=True))
         assert list(df.columns) == ["V1", "V2"]
         assert df["V1"].tolist() == ["a", "b"]
+
+    def test_integer_column_with_blank_stays_integer(self, tmp_path):
+        path = tmp_path / "data.tsv"
+        path.write_text("id\tn\n007\t10\n008\t\n")
+        df = io.read(make_args(DATAFILE=str(path), backend="duckdb"))
+        assert str(df["n"].dtype) == "Int64"
+        assert df["n"].iloc[0] == 10
+        assert df["id"].tolist() == ["007", "008"]
+
+    def test_reads_stdin(self, monkeypatch):
+        stdin = SimpleNamespace(buffer=_io.BytesIO(b"id\tn\n007\t10\n008\t\n"))
+        monkeypatch.setattr("sys.stdin", stdin)
+        df = io.read(make_args(DATAFILE="-", backend="duckdb"))
+        assert str(df["n"].dtype) == "Int64"
+        assert df["id"].tolist() == ["007", "008"]
+
+    def test_stdin_temp_file_is_removed(self, monkeypatch, tmp_path):
+        monkeypatch.setattr("dftk.common.io.DFTK_TMPDIR", str(tmp_path))
+        monkeypatch.setattr("sys.stdin", SimpleNamespace(buffer=_io.BytesIO(b"x\n1\n")))
+        io.read(make_args(DATAFILE="-", backend="duckdb"))
+        assert list(tmp_path.iterdir()) == []
