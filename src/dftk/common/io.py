@@ -321,13 +321,23 @@ class io:
                 df.columns = [f"V{i + 1}" for i in range(len(df.columns))]
             return df
 
+        def _pandas_csv(source, **extra) -> pd.DataFrame:
+            return pd.read_csv(
+                source, sep=sep, header=header, dtype=dtype, engine="pyarrow", **extra
+            )
+
+        def _with_blank_lines(df: pd.DataFrame, reread) -> pd.DataFrame:
+            # In a one-column file an empty line is a missing value, not a
+            # line to skip (dftk writes such files; DuckDB reads them this way)
+            if len(df.columns) != 1:
+                return df
+            full = reread()
+            return full if list(full.columns) == list(df.columns) else df
+
         def _csv_from_bytes(data: bytes) -> pd.DataFrame:
-            df = pd.read_csv(
-                _io.BytesIO(data),
-                sep=sep,
-                header=header,
-                dtype=dtype,
-                engine="pyarrow",
+            df = _pandas_csv(_io.BytesIO(data))
+            df = _with_blank_lines(
+                df, lambda: _pandas_csv(_io.BytesIO(data), skip_blank_lines=False)
             )
             return _rename_if_noheader(df)
 
@@ -341,12 +351,9 @@ class io:
             return _rename_if_noheader(df)
 
         def _csv_from_file(path: str) -> pd.DataFrame:
-            df = pd.read_csv(
-                path,
-                sep=sep,
-                header=header,
-                dtype=dtype,
-                engine="pyarrow",
+            df = _pandas_csv(path)
+            df = _with_blank_lines(
+                df, lambda: _pandas_csv(path, skip_blank_lines=False)
             )
             return _rename_if_noheader(df)
 

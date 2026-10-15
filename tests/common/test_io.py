@@ -156,3 +156,29 @@ class TestSingleColumnTsv:
 
     def test_padding_name_does_not_clash(self, capsys):
         assert _printdf(pd.DataFrame({"_pad": [1.0, None]}), capsys) == "_pad\n1.0\n\n"
+
+    def test_reads_empty_line_as_missing(self, tmp_path):
+        path = tmp_path / "data.tsv"
+        path.write_text("y\n10\n\n30\n")
+        df = io.read(make_args(DATAFILE=str(path)))
+        assert df["y"].tolist()[::2] == [10, 30]
+        assert pd.isna(df["y"].iloc[1])
+
+    def test_reads_stdin(self, monkeypatch):
+        monkeypatch.setattr(
+            "sys.stdin", SimpleNamespace(buffer=_io.BytesIO(b"y\na\n\nb\n"))
+        )
+        df = io.read(make_args(DATAFILE="-"))
+        assert len(df) == 3
+
+    def test_multi_column_file_still_skips_empty_lines(self, tmp_path):
+        path = tmp_path / "data.tsv"
+        path.write_text("a\tb\n1\t2\n\n3\t4\n")
+        assert len(io.read(make_args(DATAFILE=str(path)))) == 2
+
+    def test_round_trip(self, tmp_path):
+        path = tmp_path / "out.tsv"
+        df = pd.DataFrame({"y": [10.0, None, None, 30.0]})
+        io.printdf(df, make_args(output=str(path)))
+        back = io.read(make_args(DATAFILE=str(path)))
+        assert back["y"].tolist() == pytest.approx(df["y"].tolist(), nan_ok=True)
