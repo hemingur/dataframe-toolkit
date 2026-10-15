@@ -5,6 +5,7 @@ Tests for dftk.common.io: read and printdf.
 import io as _io
 from types import SimpleNamespace
 
+import pandas as pd
 import pytest
 
 from dftk.common.io import io
@@ -56,3 +57,41 @@ class TestReadDuckdbBackend:
         monkeypatch.setattr("sys.stdin", SimpleNamespace(buffer=_io.BytesIO(b"x\n1\n")))
         io.read(make_args(DATAFILE="-", backend="duckdb"))
         assert list(tmp_path.iterdir()) == []
+
+
+def _printdf(df, capsys, **overrides):
+    """Run io.printdf on *df* and return its TSV output."""
+    io.printdf(df, make_args(**overrides))
+    return capsys.readouterr().out
+
+
+class TestCast:
+    def test_int64_keeps_empty_cells(self, capsys):
+        df = pd.DataFrame({"k": ["a", "b"], "pos": [248956422.0, None]})
+        out = _printdf(df, capsys, cast=["pos:Int64"])
+        assert out == "k\tpos\na\t248956422\nb\t\n"
+
+    @pytest.mark.parametrize(
+        "spec, dtype",
+        [
+            ("int", "int64"),
+            ("Int", "Int64"),
+            ("float", "float64"),
+            ("object", "object"),
+            ("category", "category"),
+            ("datetime64", "datetime64[ns]"),
+        ],
+    )
+    def test_type_names(self, spec, dtype, monkeypatch):
+        seen = {}
+        monkeypatch.setattr(
+            "pandas.DataFrame.to_csv", lambda self, *a, **k: seen.update(df=self)
+        )
+        io.printdf(pd.DataFrame({"a": [1, 2]}), make_args(cast=[f"a:{spec}"]))
+        assert str(seen["df"]["a"].dtype) == dtype
+
+    def test_non_whole_float_to_int64_warns(self, capsys, caplog):
+        df = pd.DataFrame({"k": ["a", "b"], "v": [2.5, None]})
+        out = _printdf(df, capsys, cast=["v:Int64"])
+        assert "--cast: failed for 'v:Int64'" in caplog.text
+        assert out.splitlines()[1] == "a\t2.5"

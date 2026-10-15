@@ -48,6 +48,17 @@ logging.getLogger("matplotlib.font_manager").setLevel(logging.WARNING)
 # Parquet-pipe temp directory
 # ---------------------------------------------------------------------------
 
+# --cast TYPE names → dtypes
+_CAST_TYPES: dict[str, object] = {
+    "object": object,
+    "int64": "int64",
+    "Int64": "Int64",
+    "float64": "float64",
+    "bool": "bool",
+    "datetime64": "datetime64[ns]",
+    "category": "category",
+}
+
 DFTK_TMPDIR: str = os.environ.get(
     "DFTK_TMPDIR",
     os.path.join(tempfile.gettempdir(), "dftk"),
@@ -401,7 +412,12 @@ class io:
         )
         g.add_argument(
             "--cast",
-            help="Cast column to dtype (COL:TYPE).  Glob patterns supported.",
+            help=(
+                "Cast column to dtype (COL:TYPE).  TYPE is one of object, int64, "
+                "Int64, float64, bool, datetime64, category (a prefix is enough, "
+                "e.g. int, Int, cat).  Int64 is an integer column that allows "
+                "empty cells.  Glob patterns supported."
+            ),
             nargs="*",
             default=None,
             metavar="COL:TYPE",
@@ -546,17 +562,18 @@ class io:
                 raise
 
         # Cast columns
-        _DTYPES = ["object", "int64", "float64", "bool", "datetime64", "category"]
         for item in getattr(args, "cast", None) or []:
             try:
                 col, coltype = item.split(":")
-                coltype = fnmatch.filter(_DTYPES, f"{coltype}*")[0]
-                np_type = getattr(np, coltype)
+                # Case-sensitive: "int" is int64, "Int" is the nullable Int64
+                pattern = f"{coltype}*"
+                matches = [t for t in _CAST_TYPES if fnmatch.fnmatchcase(t, pattern)]
+                dtype = _CAST_TYPES[matches[0]]
                 for c in fnmatch.filter(df.columns, col):
                     try:
-                        df[c] = df[c].astype(np_type)
+                        df[c] = df[c].astype(dtype)
                     except Exception:
-                        df[c] = df[c].astype(float).astype(np_type)
+                        df[c] = df[c].astype(float).astype(dtype)
             except Exception:
                 logging.warning(f"--cast: failed for {item!r}")
 
