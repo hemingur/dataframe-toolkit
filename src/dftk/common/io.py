@@ -167,6 +167,29 @@ def _warn_digits_exponent(df: pd.DataFrame, digits: int) -> None:
     )
 
 
+def _write_tsv(df: pd.DataFrame, dest, **to_csv_kwargs) -> None:
+    """``df.to_csv(dest, ...)``, also for one column with empty cells.
+
+    With quoting off, Python's csv module refuses to write a row that is a
+    single empty field ("single empty field record must be quoted").  For a
+    one-column table the row is written with a constant second column, which
+    is then cut off, leaving an empty line: TSV for one missing value.
+    """
+    if len(df.columns) != 1:
+        df.to_csv(dest, **to_csv_kwargs)
+        return
+    pad = "_pad" if df.columns[0] != "_pad" else "_pad2"
+    text = df.assign(**{pad: "x"}).to_csv(None, lineterminator="\n", **to_csv_kwargs)
+    # Values cannot contain a tab (unescaped, the csv module refuses them), so
+    # the last tab on each line is the one before the padding column
+    text = "".join(line.rsplit("\t", 1)[0] + "\n" for line in text.splitlines())
+    if isinstance(dest, str):
+        with open(dest, "w", encoding="utf-8", newline="") as fh:
+            fh.write(text)
+    else:
+        dest.write(text)
+
+
 # ---------------------------------------------------------------------------
 # Utility helpers
 # ---------------------------------------------------------------------------
@@ -745,7 +768,8 @@ class io:
             if digits is not None:
                 _warn_digits_exponent(df, digits)
             dest = output if output is not None else sys.stdout
-            df.to_csv(
+            _write_tsv(
+                df,
                 dest,
                 sep="\t",
                 index=False,

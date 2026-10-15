@@ -85,7 +85,7 @@ class TestCast:
     def test_type_names(self, spec, dtype, monkeypatch):
         seen = {}
         monkeypatch.setattr(
-            "pandas.DataFrame.to_csv", lambda self, *a, **k: seen.update(df=self)
+            "dftk.common.io._write_tsv", lambda df, *a, **k: seen.update(df=df)
         )
         io.printdf(pd.DataFrame({"a": [1, 2]}), make_args(cast=[f"a:{spec}"]))
         assert str(seen["df"]["a"].dtype) == dtype
@@ -133,3 +133,26 @@ class TestDigitsWarning:
         df = pd.DataFrame({"pos": [248956422.0, None]})
         _printdf(df, capsys, digits=4, output=str(tmp_path / "out.parquet"))
         assert "--digits" not in caplog.text
+
+
+class TestSingleColumnTsv:
+    """One column: a missing value is an empty line, both written and read."""
+
+    def test_writes_empty_line_for_missing_value(self, capsys):
+        out = _printdf(pd.DataFrame({"y": [10.0, None, 30.0]}), capsys)
+        assert out == "y\n10.0\n\n30.0\n"
+
+    def test_writes_named_file(self, tmp_path):
+        path = tmp_path / "out.tsv"
+        io.printdf(pd.DataFrame({"y": ["a", ""]}), make_args(output=str(path)))
+        assert path.read_text() == "y\na\n\n"
+
+    def test_options_still_apply(self, capsys):
+        df = pd.DataFrame({"y": [1 / 3, None]})
+        assert _printdf(df, capsys, digits=2, removeheader=True) == "0.33\n\n"
+
+    def test_quote_characters_unchanged(self, capsys):
+        assert _printdf(pd.DataFrame({"v": ['x"y', None]}), capsys) == 'v\nx"y\n\n'
+
+    def test_padding_name_does_not_clash(self, capsys):
+        assert _printdf(pd.DataFrame({"_pad": [1.0, None]}), capsys) == "_pad\n1.0\n\n"
