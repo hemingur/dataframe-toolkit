@@ -167,6 +167,29 @@ def _warn_digits_exponent(df: pd.DataFrame, digits: int) -> None:
     )
 
 
+def _write_tsv(df: pd.DataFrame, dest, **to_csv_kwargs) -> None:
+    """``df.to_csv(dest, ...)``, also for one column with empty cells.
+
+    With quoting off, Python's csv module refuses to write a row that is a
+    single empty field ("single empty field record must be quoted").  For a
+    one-column table the row is written with a constant second column, which
+    is then cut off, leaving an empty line: TSV for one missing value.
+    """
+    if len(df.columns) != 1:
+        df.to_csv(dest, **to_csv_kwargs)
+        return
+    pad = "_pad" if df.columns[0] != "_pad" else "_pad2"
+    text = df.assign(**{pad: "x"}).to_csv(None, lineterminator="\n", **to_csv_kwargs)
+    # Values cannot contain a tab (unescaped, the csv module refuses them), so
+    # the last tab on each line is the one before the padding column
+    text = "".join(line.rsplit("\t", 1)[0] + "\n" for line in text.splitlines())
+    if isinstance(dest, str):
+        with open(dest, "w", encoding="utf-8", newline="") as fh:
+            fh.write(text)
+    else:
+        dest.write(text)
+
+
 # ---------------------------------------------------------------------------
 # Utility helpers
 # ---------------------------------------------------------------------------
@@ -298,13 +321,23 @@ class io:
                 df.columns = [f"V{i + 1}" for i in range(len(df.columns))]
             return df
 
+        def _pandas_csv(source, **extra) -> pd.DataFrame:
+            return pd.read_csv(
+                source, sep=sep, header=header, dtype=dtype, engine="pyarrow", **extra
+            )
+
+        def _with_blank_lines(df: pd.DataFrame, reread) -> pd.DataFrame:
+            # In a one-column file an empty line is a missing value, not a
+            # line to skip (dftk writes such files; DuckDB reads them this way)
+            if len(df.columns) != 1:
+                return df
+            full = reread()
+            return full if list(full.columns) == list(df.columns) else df
+
         def _csv_from_bytes(data: bytes) -> pd.DataFrame:
-            df = pd.read_csv(
-                _io.BytesIO(data),
-                sep=sep,
-                header=header,
-                dtype=dtype,
-                engine="pyarrow",
+            df = _pandas_csv(_io.BytesIO(data))
+            df = _with_blank_lines(
+                df, lambda: _pandas_csv(_io.BytesIO(data), skip_blank_lines=False)
             )
             return _rename_if_noheader(df)
 
@@ -318,12 +351,9 @@ class io:
             return _rename_if_noheader(df)
 
         def _csv_from_file(path: str) -> pd.DataFrame:
-            df = pd.read_csv(
-                path,
-                sep=sep,
-                header=header,
-                dtype=dtype,
-                engine="pyarrow",
+            df = _pandas_csv(path)
+            df = _with_blank_lines(
+                df, lambda: _pandas_csv(path, skip_blank_lines=False)
             )
             return _rename_if_noheader(df)
 
@@ -745,7 +775,8 @@ class io:
             if digits is not None:
                 _warn_digits_exponent(df, digits)
             dest = output if output is not None else sys.stdout
-            df.to_csv(
+            _write_tsv(
+                df,
                 dest,
                 sep="\t",
                 index=False,
