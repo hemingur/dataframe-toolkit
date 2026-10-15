@@ -91,9 +91,29 @@ def _sql_query(args: argparse.Namespace, sql: str, table: str) -> pd.DataFrame:
         conn.register(table, df)
 
     try:
-        return conn.execute(sql).df()
+        result = conn.execute(sql)
+        description = result.description
+        df = result.df()
     except Exception as exc:
         raise ValueError(f"DuckDB SQL failed: {exc}") from exc
+    return _hugeint_to_int64(df, description)
+
+
+def _hugeint_to_int64(df: pd.DataFrame, description) -> pd.DataFrame:
+    """Return 128-bit integer result columns as Int64 instead of float64.
+
+    DuckDB's SUM of an integer column is a HUGEINT, which pandas has no type
+    for, so .df() gives float64 (19.0).  Below 2**53 that float is exact and
+    is converted back; from 2**53 on the float may already be rounded, so it
+    stays float.
+    """
+    for i, (_, type_code, *_) in enumerate(description or []):
+        if str(type_code) not in ("HUGEINT", "UHUGEINT"):
+            continue
+        col = df.iloc[:, i]
+        if (col.dropna().abs() < 2**53).all():
+            df.isetitem(i, col.astype("Int64"))
+    return df
 
 
 # ---------------------------------------------------------------------------

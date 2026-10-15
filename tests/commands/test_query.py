@@ -219,3 +219,37 @@ class TestQueryCommandValidation:
         # We test _pandas_query([]) directly since execute() needs full io.
         result = _pandas_query(sample_df, [])
         assert len(result) == len(sample_df)
+
+
+class TestSqlIntegerSum:
+    """SUM of an integer column is a DuckDB HUGEINT; pandas would make it float."""
+
+    @pytest.fixture
+    def parquet(self, tmp_path):
+        path = str(tmp_path / "data.parquet")
+        pd.DataFrame(
+            {"g": ["a", "a", "b"], "n": pd.array([10, None, 9], dtype="Int64")}
+        ).to_parquet(path)
+        return path
+
+    def test_sum_is_integer(self, parquet):
+        sql = "SELECT g, SUM(n) AS s FROM data GROUP BY g ORDER BY g"
+        result = _sql_query(_args(DATAFILE=parquet), sql, "data")
+        assert str(result["s"].dtype) == "Int64"
+        assert result["s"].tolist() == [10, 9]
+
+    def test_empty_sum_is_missing(self, parquet):
+        sql = "SELECT SUM(n) AS s FROM data WHERE false"
+        result = _sql_query(_args(DATAFILE=parquet), sql, "data")
+        assert str(result["s"].dtype) == "Int64"
+        assert result["s"].isna().all()
+
+    def test_sum_beyond_float_precision_stays_float(self, parquet):
+        sql = "SELECT SUM(x) AS s FROM (SELECT 9007199254740993::BIGINT AS x)"
+        result = _sql_query(_args(DATAFILE=parquet), sql, "data")
+        assert result["s"].dtype == "float64"
+
+    def test_other_aggregates_unchanged(self, parquet):
+        sql = "SELECT AVG(n) AS a, COUNT(*) AS c, MAX(n) AS m FROM data"
+        result = _sql_query(_args(DATAFILE=parquet), sql, "data")
+        assert result.dtypes.astype(str).tolist() == ["float64", "int64", "int64"]
