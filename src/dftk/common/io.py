@@ -127,6 +127,46 @@ def _write_pipe_parquet(df: pd.DataFrame) -> str:
     return path
 
 
+def _warn_digits_exponent(df: pd.DataFrame, digits: int) -> None:
+    """Warn if ``--digits`` would print whole numbers in exponent form.
+
+    An integer column with empty cells is read as float, and ``%.Ng`` then
+    writes e.g. 248956422 as 2.49e+08.  The output is left as it is; the
+    warning suggests --cast COL:Int64 or --round instead.
+    """
+    import shlex
+
+    cols: list[str] = []
+    example = None
+    for c in df.columns:
+        if not pd.api.types.is_float_dtype(df[c]):
+            continue
+        s = df[c].dropna()
+        s = s[np.isfinite(s)]
+        hit = s[(s == s.round()) & (s.abs() >= 10**digits)]
+        if len(hit):
+            cols.append(str(c))
+            if example is None:
+                example = hit.iloc[0]
+    if not cols:
+        return
+
+    shown = cols[:3]
+    names = ", ".join(repr(c) for c in shown)
+    if len(cols) > len(shown):
+        names += f" and {len(cols) - len(shown)} more"
+    casts = " ".join(shlex.quote(f"{c}:Int64") for c in shown)
+    if len(cols) > len(shown):
+        casts += " ..."
+    logging.warning(
+        f"--digits {digits} writes whole numbers in column(s) {names} in "
+        f"exponent form (e.g. {int(example)} -> {example:.{digits}g}).\n"
+        f"  If these columns hold integers:  --cast {casts}\n"
+        f"  To round without exponent form: --round {digits} (decimal places) "
+        f"instead of --digits {digits}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Utility helpers
 # ---------------------------------------------------------------------------
@@ -698,6 +738,8 @@ class io:
 
         else:
             # TSV — stdout or named file
+            if digits is not None:
+                _warn_digits_exponent(df, digits)
             dest = output if output is not None else sys.stdout
             df.to_csv(
                 dest,

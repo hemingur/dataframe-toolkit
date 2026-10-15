@@ -95,3 +95,41 @@ class TestCast:
         out = _printdf(df, capsys, cast=["v:Int64"])
         assert "--cast: failed for 'v:Int64'" in caplog.text
         assert out.splitlines()[1] == "a\t2.5"
+
+
+class TestDigitsWarning:
+    def test_warns_and_suggests_cast(self, capsys, caplog):
+        df = pd.DataFrame({"pos": [248956422.0, None], "my start": [1000001.0, None]})
+        out = _printdf(df, capsys, digits=4)
+        assert "column(s) 'pos', 'my start'" in caplog.text
+        assert "248956422 -> 2.49e+08" in caplog.text
+        assert "--cast pos:Int64 'my start:Int64'" in caplog.text
+        assert "--round 4" in caplog.text
+        # the warning does not change the output
+        assert out.splitlines()[1] == "2.49e+08\t1e+06"
+
+    def test_suggested_cast_avoids_exponent_form(self, capsys, caplog):
+        df = pd.DataFrame({"k": ["a", "b"], "pos": [248956422.0, None]})
+        out = _printdf(df, capsys, digits=4, cast=["pos:Int64"])
+        assert out.splitlines()[1] == "a\t248956422"
+        assert "--digits" not in caplog.text
+
+    @pytest.mark.parametrize(
+        "values",
+        [[9999.0, None], [123456789.5, 1.5], [float("inf"), 1.0]],
+        ids=["fits", "not-whole", "inf"],
+    )
+    def test_no_warning(self, values, capsys, caplog):
+        _printdf(pd.DataFrame({"k": ["a", "b"], "x": values}), capsys, digits=4)
+        assert "--digits" not in caplog.text
+
+    def test_lists_three_columns_then_count(self, capsys, caplog):
+        df = pd.DataFrame({f"c{i}": [1e6, None] for i in range(5)})
+        _printdf(df, capsys, digits=2)
+        assert "'c0', 'c1', 'c2' and 2 more" in caplog.text
+        assert "--cast c0:Int64 c1:Int64 c2:Int64 ..." in caplog.text
+
+    def test_no_warning_for_parquet_output(self, tmp_path, capsys, caplog):
+        df = pd.DataFrame({"pos": [248956422.0, None]})
+        _printdf(df, capsys, digits=4, output=str(tmp_path / "out.parquet"))
+        assert "--digits" not in caplog.text
