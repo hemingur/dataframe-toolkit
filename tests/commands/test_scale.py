@@ -209,6 +209,16 @@ class TestResidCols:
         result = residcols(regression_df.copy(), args)
         assert result["y_scaled"].mean() == pytest.approx(0.0, abs=0.5)
 
+    def test_resid_nullable_integer_columns(self, regression_df):
+        df = regression_df.assign(y=regression_df["y"].round())
+        df.loc[3, "y"] = None
+        args = _args(resid=True, formula="y ~ x", cols=None)
+        expected = residcols(df.copy(), args)
+        result = residcols(df.astype({"x": "Int64", "y": "Int64"}), args)
+        assert result["y_scaled"].tolist() == pytest.approx(
+            expected["y_scaled"].tolist(), nan_ok=True
+        )
+
     def test_resid_original_cols_preserved(self, regression_df):
         args = _args(resid=True, formula="y ~ x", cols=None)
         result = residcols(regression_df.copy(), args)

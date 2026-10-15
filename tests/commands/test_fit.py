@@ -106,6 +106,19 @@ class TestRegressIt:
         res = regress_it(df, _args(formula="np.log(y) ~ x", **extra))
         assert res.params["x"] == pytest.approx(0.1)
 
+    @pytest.mark.parametrize(
+        "extra", [{}, {"robust": True}, {"weights": "w"}], ids=["ols", "rlm", "wls"]
+    )
+    def test_nullable_integer_columns(self, weighted_df, extra):
+        """Int64 columns with <NA> (e.g. read by DuckDB) fit like float with NaN."""
+        df = weighted_df.assign(y=(3 * weighted_df["x"]).round())
+        df.loc[0, "y"] = None
+        expected = regress_it(df, _args(formula="y ~ x", **extra))
+        nullable = df.astype({"x": "Int64", "y": "Int64"})
+        res = regress_it(nullable, _args(formula="y ~ x", **extra))
+        assert res.nobs == expected.nobs == len(df) - 1
+        assert res.params.tolist() == pytest.approx(expected.params.tolist())
+
 
 # ---------------------------------------------------------------------------
 # res2df — output columns

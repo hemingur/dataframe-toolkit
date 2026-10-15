@@ -73,12 +73,33 @@ def weighted_model(df: pd.DataFrame, args: argparse.Namespace):
     )
 
 
+def _nullable_to_float(df: pd.DataFrame) -> pd.DataFrame:
+    """Return *df* with nullable numeric columns (e.g. Int64) as float64.
+
+    patsy finds missing values with np.isnan, which fails on pd.NA
+    ("boolean value of NA is ambiguous").  As float64 they become NaN, and
+    statsmodels drops incomplete rows as it does for any other float column.
+    Nullable booleans are left alone: patsy treats them as categorical.
+    """
+    cols = [
+        c
+        for c in df.columns
+        if pd.api.types.is_extension_array_dtype(df[c])
+        and pd.api.types.is_numeric_dtype(df[c])
+        and not pd.api.types.is_bool_dtype(df[c])
+    ]
+    if not cols:
+        return df
+    return df.astype({c: "float64" for c in cols})
+
+
 def regress_it(df: pd.DataFrame, args: argparse.Namespace):
     """Fit the appropriate model and return the fitted result object.
 
     A formula that cannot be evaluated (unknown column or function) raises
     ValueError, which the CLI reports as an input error.
     """
+    df = _nullable_to_float(df)
     try:
         if getattr(args, "weights", None) is not None:
             mod = weighted_model(df, args)
