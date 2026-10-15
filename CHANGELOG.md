@@ -1,5 +1,24 @@
 # Changelog
 
+## [Unreleased]
+
+Integer columns with empty cells, which pandas reads as float (`10.0`). The way to keep them integer is to read the TSV with `--backend duckdb` (they become `Int64`); parquet files keep the type, so later steps need no option:
+
+```bash
+dftk eval data.tsv --backend duckdb -o data.parquet
+```
+
+### Fixed
+- `--backend duckdb` was silently ignored when reading stdin; `cat data.tsv | dftk eval - --backend duckdb …` now reads with DuckDB like a named file.
+- `fit` and `scale --resid` crashed with `Unexpected error (TypeError): boolean value of NA is ambiguous` on `Int64` columns with empty cells (e.g. read with `--backend duckdb`). They are now passed to statsmodels as float, and incomplete rows are dropped as before.
+- `--cast COL:Int64` turns a float column with empty cells back into integers (`248956422`, not `248956422.0`). `--cast` with `object`, `category` or `datetime64` also failed (or warned) before and now works. Type prefixes are case-sensitive: `int` is `int64`, `Int` is `Int64`.
+- `query --sql` returned `SUM` of an integer column as float (`19.0`), because DuckDB sums into a 128-bit integer that pandas has no type for. It is now an integer, up to 2^53 (beyond that the float may already be rounded, so it stays float).
+
+### Changed
+- `--digits N` warns when it writes a whole number in exponent form (`248956422` → `2.49e+08`), which happens to integer columns that were read as float. The warning names the columns and suggests `--cast COL:Int64` or `--round N`; the output itself is unchanged.
+- `--dropna` help now says it drops rows from the output, after the command has run (use `--prequery` to filter the input).
+- The agent skill (`skills/dftk`) has a new rule about integer columns with empty cells.
+
 ## [0.7.2] — 2026-10-14
 
 ### Added

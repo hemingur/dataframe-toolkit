@@ -48,6 +48,17 @@ logging.getLogger("matplotlib.font_manager").setLevel(logging.WARNING)
 # Parquet-pipe temp directory
 # ---------------------------------------------------------------------------
 
+# --cast TYPE names → dtypes
+_CAST_TYPES: dict[str, object] = {
+    "object": object,
+    "int64": "int64",
+    "Int64": "Int64",
+    "float64": "float64",
+    "bool": "bool",
+    "datetime64": "datetime64[ns]",
+    "category": "category",
+}
+
 DFTK_TMPDIR: str = os.environ.get(
     "DFTK_TMPDIR",
     os.path.join(tempfile.gettempdir(), "dftk"),
@@ -114,6 +125,46 @@ def _write_pipe_parquet(df: pd.DataFrame) -> str:
     os.close(fd)
     _write_parquet(df, path)
     return path
+
+
+def _warn_digits_exponent(df: pd.DataFrame, digits: int) -> None:
+    """Warn if ``--digits`` would print whole numbers in exponent form.
+
+    An integer column with empty cells is read as float, and ``%.Ng`` then
+    writes e.g. 248956422 as 2.49e+08.  The output is left as it is; the
+    warning suggests --cast COL:Int64 or --round instead.
+    """
+    import shlex
+
+    cols: list[str] = []
+    example = None
+    for c in df.columns:
+        if not pd.api.types.is_float_dtype(df[c]):
+            continue
+        s = df[c].dropna()
+        s = s[np.isfinite(s)]
+        hit = s[(s == s.round()) & (s.abs() >= 10**digits)]
+        if len(hit):
+            cols.append(str(c))
+            if example is None:
+                example = hit.iloc[0]
+    if not cols:
+        return
+
+    shown = cols[:3]
+    names = ", ".join(repr(c) for c in shown)
+    if len(cols) > len(shown):
+        names += f" and {len(cols) - len(shown)} more"
+    casts = " ".join(shlex.quote(f"{c}:Int64") for c in shown)
+    if len(cols) > len(shown):
+        casts += " ..."
+    logging.warning(
+        f"--digits {digits} writes whole numbers in column(s) {names} in "
+        f"exponent form (e.g. {int(example)} -> {example:.{digits}g}).\n"
+        f"  If these columns hold integers:  --cast {casts}\n"
+        f"  To round without exponent form: --round {digits} (decimal places) "
+        f"instead of --digits {digits}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -257,6 +308,15 @@ class io:
             )
             return _rename_if_noheader(df)
 
+        def _csv_with_duckdb(path: str) -> pd.DataFrame:
+            # DuckDB keeps integer columns with blanks as Int64 (pandas: float64)
+            try:
+                df = duckdb.read_csv(path, sep=sep, header=not noheader).df()
+            except Exception as exc:
+                logging.error(f"DuckDB failed to read {path!r}: {exc}")
+                raise
+            return _rename_if_noheader(df)
+
         def _csv_from_file(path: str) -> pd.DataFrame:
             df = pd.read_csv(
                 path,
@@ -290,14 +350,21 @@ class io:
                 df = pd.read_parquet(filename)
                 df.attrs["_parquet_meta"] = _read_parquet_meta(filename)
             elif backend == "duckdb" and duckdb is not None:
-                try:
-                    df = duckdb.read_csv(filename, sep=sep, header=not noheader).df()
-                    df = _rename_if_noheader(df)
-                except Exception as exc:
-                    logging.error(f"DuckDB failed to read {filename!r}: {exc}")
-                    raise
+                df = _csv_with_duckdb(filename)
             else:
                 df = _csv_from_file(filename)
+
+        elif backend == "duckdb" and duckdb is not None:
+            # stdin with DuckDB: it reads files, not buffers (that needs fsspec),
+            # so spool stdin to a temp file and read it like a named file
+            os.makedirs(DFTK_TMPDIR, exist_ok=True)
+            fd, path = tempfile.mkstemp(suffix=".tsv", dir=DFTK_TMPDIR)
+            try:
+                with os.fdopen(fd, "wb") as fh:
+                    fh.write(sys.stdin.buffer.read())
+                df = _csv_with_duckdb(path)
+            finally:
+                os.unlink(path)
 
         else:
             # stdin — read TSV directly
@@ -385,7 +452,12 @@ class io:
         )
         g.add_argument(
             "--cast",
-            help="Cast column to dtype (COL:TYPE).  Glob patterns supported.",
+            help=(
+                "Cast column to dtype (COL:TYPE).  TYPE is one of object, int64, "
+                "Int64, float64, bool, datetime64, category (a prefix is enough, "
+                "e.g. int, Int, cat).  Int64 is an integer column that allows "
+                "empty cells.  Glob patterns supported."
+            ),
             nargs="*",
             default=None,
             metavar="COL:TYPE",
@@ -471,7 +543,11 @@ class io:
         )
         na_group.add_argument(
             "--dropna",
-            help="Drop rows containing any NA value before output.",
+            help=(
+                "Drop rows containing any NA value from the output.  Applied "
+                "after the command has run, so it does not change what the "
+                "command sees (use --prequery for that)."
+            ),
             action="store_true",
         )
 
@@ -530,17 +606,18 @@ class io:
                 raise
 
         # Cast columns
-        _DTYPES = ["object", "int64", "float64", "bool", "datetime64", "category"]
         for item in getattr(args, "cast", None) or []:
             try:
                 col, coltype = item.split(":")
-                coltype = fnmatch.filter(_DTYPES, f"{coltype}*")[0]
-                np_type = getattr(np, coltype)
+                # Case-sensitive: "int" is int64, "Int" is the nullable Int64
+                pattern = f"{coltype}*"
+                matches = [t for t in _CAST_TYPES if fnmatch.fnmatchcase(t, pattern)]
+                dtype = _CAST_TYPES[matches[0]]
                 for c in fnmatch.filter(df.columns, col):
                     try:
-                        df[c] = df[c].astype(np_type)
+                        df[c] = df[c].astype(dtype)
                     except Exception:
-                        df[c] = df[c].astype(float).astype(np_type)
+                        df[c] = df[c].astype(float).astype(dtype)
             except Exception:
                 logging.warning(f"--cast: failed for {item!r}")
 
@@ -665,6 +742,8 @@ class io:
 
         else:
             # TSV — stdout or named file
+            if digits is not None:
+                _warn_digits_exponent(df, digits)
             dest = output if output is not None else sys.stdout
             df.to_csv(
                 dest,
