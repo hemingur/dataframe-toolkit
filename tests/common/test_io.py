@@ -182,3 +182,36 @@ class TestSingleColumnTsv:
         io.printdf(df, make_args(output=str(path)))
         back = io.read(make_args(DATAFILE=str(path)))
         assert back["y"].tolist() == pytest.approx(df["y"].tolist(), nan_ok=True)
+
+
+class TestEmptyAndDuplicateHeaders:
+    """The default reader names them like pandas' C reader (pyarrow keeps them)."""
+
+    @pytest.mark.parametrize(
+        "header, expected",
+        [
+            ("a\t\ta\tb\ta", ["a", "Unnamed: 1", "a.1", "b", "a.2"]),
+            ("a\ta\ta.1", ["a", "a.2", "a.1"]),
+            ("a\ta.1\ta", ["a", "a.1", "a.2"]),
+        ],
+    )
+    def test_names_match_pandas(self, tmp_path, header, expected):
+        path = tmp_path / "data.tsv"
+        ncols = len(header.split("\t"))
+        path.write_text(header + "\n" + "\t".join(["1"] * ncols) + "\n")
+        df = io.read(make_args(DATAFILE=str(path)))
+        assert list(df.columns) == expected
+        c_reader = pd.read_csv(path, sep="\t", engine="c")
+        assert list(c_reader.columns) == expected
+
+    def test_stdin(self, monkeypatch):
+        monkeypatch.setattr(
+            "sys.stdin", SimpleNamespace(buffer=_io.BytesIO(b"x\tx\n1\t2\n"))
+        )
+        assert list(io.read(make_args(DATAFILE="-")).columns) == ["x", "x.1"]
+
+    def test_noheader_unaffected(self, tmp_path):
+        path = tmp_path / "data.tsv"
+        path.write_text("a\ta\n1\t2\n")
+        df = io.read(make_args(DATAFILE=str(path), noheader=True))
+        assert list(df.columns) == ["V1", "V2"]

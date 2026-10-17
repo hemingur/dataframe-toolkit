@@ -37,6 +37,7 @@ COMMAND_GROUPS: list[tuple[str, list[tuple[str, str]]]] = [
             ("binx", "binx_cmd:BinxCommand"),
             ("transpose", "transpose_cmd:TransposeCommand"),
             ("segid", "segid_cmd:SegidCommand"),
+            ("cleannames", "cleannames_cmd:CleannamesCommand"),
         ],
     ),
     (

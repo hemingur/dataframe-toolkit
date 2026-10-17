@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- `dftk cleannames`: renames columns to lowercase ASCII identifiers, so spreadsheet headers can be used unquoted in `query --sql`, `eval -f` and `fit` formulas: `Sample ID` → `sample_id`, ` Age (years) ` → `age_years`, `GC %` → `gc_pct`, `Count #` → `count_n`, `1960` → `x1960`, `Hæð (µg)` → `haed_ug`. camelCase is not split (`HbA1c` → `hba1c`), clashes get `_2`, `_3`, and names that are SQL reserved words (`group`, `order`) are kept with a warning. The original names are stored in the parquet metadata (`original_names`, see `dftk annotate`) and, with `--mapping FILE`, in a TSV file. Converting an export in one step: `dftk cleannames data.tsv --backend duckdb -o data.parquet`.
+
+### Fixed
+- Empty and duplicate headers in a TSV file were kept as they were by the default reader, so e.g. `dftk info` crashed on an export with two `Count #` columns. They are now named as pandas' standard reader names them (`Unnamed: 7`, `Count #.1`).
+
 ## [0.7.3] — 2026-10-15
 
 Integer columns with empty cells, which pandas reads as float (`10.0`). The way to keep them integer is to read the TSV with `--backend duckdb` (they become `Int64`); parquet files keep the type, so later steps need no option:

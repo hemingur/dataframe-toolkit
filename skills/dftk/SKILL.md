@@ -52,8 +52,10 @@ using a command for the first time.
 7. **Integer columns with empty cells become float** with the default
    reader (`10` → `10.0`; IDs such as `007` become `7`). Read TSV with
    `--backend duckdb` to keep them integer (`Int64`) and IDs as text, e.g.
-   when converting to parquet: `dftk eval data.tsv --backend duckdb -o
-   data.parquet`. Parquet keeps the types, so later steps need no option.
+   when converting to parquet. For a spreadsheet export, do it with
+   `cleannames`, which also fixes headers such as `Sample ID` or `GC %`:
+   `dftk cleannames data.tsv --backend duckdb -o data.parquet`. Parquet keeps
+   the types, so later steps need no option.
    For a column that is already float, `--cast COL:Int64` turns it back.
    `--digits N` writes such columns in exponent form (`2.49e+08`) and warns.
 
@@ -103,6 +105,7 @@ Transform:
 | Stack tables row-wise | `concat A B C [--sourcecol src]` |
 | Wide to long / long to wide plus aggregation | `melt` / `pivot -i ROWS -g COLS -v VALS -f FUNCS` |
 | Swap rows and columns | `transpose` |
+| Rename columns to lowercase identifiers (`Sample ID` → `sample_id`, `GC %` → `gc_pct`) so SQL, `eval` and formulas need no quoting | `cleannames [--mapping FILE]` |
 | Per-group values broadcast to every row (group mean, rank, cumsum, quantile bin) | `func -c COL -t TRANSFORM -g GROUP` |
 | Bin a numeric column | `binx -c COL -b 0:100:10` |
 | Normalise, rank-transform or detrend columns | `scale` |

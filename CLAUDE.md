@@ -273,6 +273,7 @@ Original scripts live in `~/projects/python_projects/df/src/df/`.
 | dfsplit.py       | split             | ported    |
 | dfcorr.py        | corr              | ported    |
 | —                | chi               | new       |
+| —                | cleannames        | new       |
 | dftest.py        | test              | ported    |
 | dfwstat.py       | wstat             | ported    |
 | dfbinx.py        | binx              | ported    |

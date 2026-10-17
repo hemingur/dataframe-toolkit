@@ -167,6 +167,27 @@ def _warn_digits_exponent(df: pd.DataFrame, digits: int) -> None:
     )
 
 
+def _unique_column_names(names: list) -> list:
+    """Name empty and duplicate headers as pandas' default reader does.
+
+    The pyarrow reader keeps ``""`` and repeated names as they are, which
+    breaks commands that look columns up by name.  An empty header becomes
+    ``Unnamed: N`` (0-based position) and a repeat ``name.1``, ``name.2``, …
+    """
+    names = [f"Unnamed: {i}" if n == "" else n for i, n in enumerate(names)]
+    if len(set(names)) == len(names):
+        return names
+    taken = set(names)  # a new name must not clash with any header, later ones too
+    out: list = []
+    for n in names:
+        new, k = n, 0
+        while new in out or (new != n and new in taken):
+            k += 1
+            new = f"{n}.{k}"
+        out.append(new)
+    return out
+
+
 def _write_tsv(df: pd.DataFrame, dest, **to_csv_kwargs) -> None:
     """``df.to_csv(dest, ...)``, also for one column with empty cells.
 
@@ -316,9 +337,11 @@ class io:
 
         # -- helpers -------------------------------------------------------
 
-        def _rename_if_noheader(df: pd.DataFrame) -> pd.DataFrame:
+        def _name_columns(df: pd.DataFrame) -> pd.DataFrame:
             if noheader:
                 df.columns = [f"V{i + 1}" for i in range(len(df.columns))]
+            else:
+                df.columns = _unique_column_names(list(df.columns))
             return df
 
         def _pandas_csv(source, **extra) -> pd.DataFrame:
@@ -339,7 +362,7 @@ class io:
             df = _with_blank_lines(
                 df, lambda: _pandas_csv(_io.BytesIO(data), skip_blank_lines=False)
             )
-            return _rename_if_noheader(df)
+            return _name_columns(df)
 
         def _csv_with_duckdb(path: str) -> pd.DataFrame:
             # DuckDB keeps integer columns with blanks as Int64 (pandas: float64)
@@ -348,14 +371,14 @@ class io:
             except Exception as exc:
                 logging.error(f"DuckDB failed to read {path!r}: {exc}")
                 raise
-            return _rename_if_noheader(df)
+            return _name_columns(df)
 
         def _csv_from_file(path: str) -> pd.DataFrame:
             df = _pandas_csv(path)
             df = _with_blank_lines(
                 df, lambda: _pandas_csv(path, skip_blank_lines=False)
             )
-            return _rename_if_noheader(df)
+            return _name_columns(df)
 
         # -- read ----------------------------------------------------------
 

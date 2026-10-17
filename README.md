@@ -80,20 +80,21 @@ dftk dataset tips -o \
 
 ### Data transformation
 
-| Command     | Description                                                                          |
-|-------------|---------------------------------------------------------------------------------------|
-| `eval`      | Add or modify columns: eval expressions, string/path functions, statistical ops      |
-| `query`     | Filter rows with pandas query expressions or SQL (`--sql` via DuckDB)                |
-| `merge`     | Join two tables on key columns (inner/left/right/outer)                              |
-| `concat`    | Concatenate two or more tables row-wise                                              |
-| `melt`      | Reshape wide-to-long (`pd.melt`)                                                     |
-| `pivot`     | Reshape long-to-wide with per-cell aggregation                                       |
-| `func`      | Column transforms: cumsum, group mean/sum/min/max/count/median/std, rank, qcut:N     |
-| `scale`     | Normalise: z-score, min-shift, sum/max/mean scaling, Blom rank, regression residuals |
-| `interp`    | Interpolate values from a reference curve into a table (1-D lookup)                  |
-| `binx`      | Assign bin indices to a column based on explicit or generated edges                  |
-| `transpose` | Flip rows and columns; original column names land in a new `--keycol` column         |
-| `segid`     | Assign a segment ID that increments on each value change in a column                 |
+| Command      | Description                                                                          |
+|--------------|---------------------------------------------------------------------------------------|
+| `eval`       | Add or modify columns: eval expressions, string/path functions, statistical ops      |
+| `query`      | Filter rows with pandas query expressions or SQL (`--sql` via DuckDB)                |
+| `merge`      | Join two tables on key columns (inner/left/right/outer)                              |
+| `concat`     | Concatenate two or more tables row-wise                                              |
+| `melt`       | Reshape wide-to-long (`pd.melt`)                                                     |
+| `pivot`      | Reshape long-to-wide with per-cell aggregation                                       |
+| `func`       | Column transforms: cumsum, group mean/sum/min/max/count/median/std, rank, qcut:N     |
+| `scale`      | Normalise: z-score, min-shift, sum/max/mean scaling, Blom rank, regression residuals |
+| `interp`     | Interpolate values from a reference curve into a table (1-D lookup)                  |
+| `binx`       | Assign bin indices to a column based on explicit or generated edges                  |
+| `transpose`  | Flip rows and columns; original column names land in a new `--keycol` column         |
+| `segid`      | Assign a segment ID that increments on each value change in a column                 |
+| `cleannames` | Rename columns to lowercase identifiers (`Sample ID` → `sample_id`), e.g. for SQL    |
 
 ### Statistics
 
@@ -143,6 +144,18 @@ dftk dataset iris -o \
   | dftk scale ... -c sepal_length -g species -o \
   | dftk fit ... -f "sepal_length_scaled ~ petal_length" -g species
 ```
+
+### Clean up spreadsheet headers
+
+Headers such as `Country Name` or `1960` need quoting in SQL. `cleannames` turns them into lowercase identifiers (`country_name`, `x1960`) and keeps the original names in the parquet metadata (`dftk annotate FILE`):
+
+```bash
+dftk dataset fertility -o \
+  | dftk cleannames ... -o \
+  | dftk query ... --sql "SELECT country_name, x1960, x2000 FROM data LIMIT 3"
+```
+
+For your own export, `dftk cleannames data.tsv --backend duckdb -o data.parquet` also keeps integer columns with empty cells as integers.
 
 ### Group summary then plot
 
