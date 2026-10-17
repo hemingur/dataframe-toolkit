@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- `scat --hexbin`: hexagonal binning for tables too large for a scatter plot (port of the legacy `dfhexb`). `--gridsize N` (default 100), `--hexlog` for a log colour scale, and `--colorcol COL` colours each hexagon by the mean of `COL` instead of the count. With `--logx`/`--logy` the hexagons are binned on the log scale (the legacy script binned first and then changed the axes, which distorted them); rows with values ≤ 0 are dropped with a message. With `--subgraphcol` all panels share one colour scale. Cannot be combined with `-g` or `--sizecol`.
+- `scat --fit lowess`: a LOWESS curve (local regression, statsmodels) instead of a straight line, with `--frac F` (default 2/3) for how much of the data each local fit uses. It fits only every 1% of the x range and interpolates between, so a million points take seconds. A bare `--fit` is still an OLS line. This replaces the legacy `dfbspl`, whose interpolating spline passed through every point.
+
+### Changed
+- `scat --fit` with `-g` draws one line (or curve) per group in the group's colour, over that group's x range, and prints a regression summary per group. Before, `--fit` was silently ignored when `-g` was given.
+
 ## [0.8.0] — 2026-10-17
 
 ### Added

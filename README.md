@@ -116,11 +116,12 @@ interactively otherwise. They support `--groupcol` for colour grouping,
 `--subgraphcol` for subplot grids, and figure/font presets for
 publication-quality output.
 
-| Command | Description                                                                                     |
-|---------|-------------------------------------------------------------------------------------------------|
-| `scat`  | Scatter plot; optional OLS/robust fit overlay, bubble size (`--sizecol`), colour (`--colorcol`) |
-| `line`  | Line plot; optional error bars (`--yerr`) or CI bands (`--yci lo,hi`) and fit overlay           |
-| `hist`  | Histogram or KDE (`--kde`); normalisation, cumulative mode, mean±σ annotation (`--stats`)       |
+| Command | Description                                                                                                                                                                         |
+|---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `scat`  | Scatter plot; OLS/robust or LOWESS fit (`--fit lowess`, one per group with `-g`), hexagonal binning for large tables (`--hexbin`), bubble size (`--sizecol`), colour (`--colorcol`) |
+| `line`  | Line plot; optional error bars (`--yerr`) or CI bands (`--yci lo,hi`) and fit overlay                                                                                               |
+| `hist`  | Histogram or KDE (`--kde`); normalisation, cumulative mode, mean±σ annotation (`--stats`)                                                                                           |
+| `chi`   | Corner-resolved chi-plot: whether tail dependence sits in the lower or upper corner                                                                                                 |
 
 ### Utilities
 
@@ -156,6 +157,17 @@ dftk dataset fertility -o \
 ```
 
 For your own export, `dftk cleannames data.tsv --backend duckdb -o data.parquet` also keeps integer columns with empty cells as integers.
+
+### Large tables: hexbin instead of points
+
+With tens of thousands of points a scatter plot is a solid blob. `--hexbin` counts points per hexagon instead (`--hexlog` for a log colour scale), and `--fit lowess` adds a smooth curve:
+
+```bash
+dftk dataset diamonds -o \
+  | dftk scat ... -x carat -y price --hexbin --hexlog --logx --logy -f diamonds.png
+```
+
+`--colorcol COL` colours each hexagon by the mean of `COL` instead of the count; with `--subgraphcol` all panels share one colour scale.
 
 ### Group summary then plot
 
