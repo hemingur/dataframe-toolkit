@@ -281,10 +281,16 @@ Original scripts live in `~/projects/python_projects/df/src/df/`.
 | dfrvs.py         | randvar           | ported    |
 | dfinfo.py        | info              | ported    |
 | dftpos.py        | transpose         | ported    |
+| dfhexb.py        | scat --hexbin     | ported    |
+| dfbspl.py        | scat --fit lowess | replaced¹ |
+| dffisher.py      | eval functions    | covered²  |
+| dfpivmp.py       | pivot             | covered³  |
 | dfcolor.py       | color             | pending   |
-| dffisher.py      | fisher            | pending*  |
-| dfbspl.py        | —                 | pending   |
-| dfrsfit.py       | —                 | pending   |
 | dfwtpwr.py       | wavelet           | pending   |
+| dfscat3d.py      | —                 | pending   |
+| dfrsfit.py       | —                 | not portable⁴ |
 
-\* `fisher_test`, `fisher_OR`, and `boschloo_test` are already available as functions in `eval` — a dedicated port is likely unnecessary.
+¹ dfbspl drew an interpolating spline (`splrep` with s=0), which passes through every point; scipy's smoothing spline rejects repeated x and fails on ~100k points. LOWESS (statsmodels) is the port, with `delta` = 1% of the x range so 1M points take seconds.
+² `fisher_test`, `fisher_OR` and `boschloo_test` are functions in `eval`; pivot + eval reproduces dffisher's numbers.
+³ Same options as dfpivot plus bootstrap progress logging; `pivot --bootstrap` covers it.
+⁴ Runs the in-house `imp_carriers` genotype tool per marker; only works where that tool and its genotype sets exist.
