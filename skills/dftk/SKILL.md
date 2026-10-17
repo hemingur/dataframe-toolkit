@@ -125,7 +125,9 @@ Statistics (all accept `-g` for per-group results):
 | p-values for column pairs (t, Mann-Whitney, KS, …) | `test -c A:B -d p --test NAME` |
 | Correlations with CIs, bootstrap, tail dependence | `corr -c A:B` |
 
-Plots (always with `-f FILE`): `scat` (scatter, `--fit`), `line`, `hist`
+Plots (always with `-f FILE`): `scat` (scatter; `--fit` for an OLS line,
+`--fit lowess` for a smooth curve, per group with `-g`; `--hexbin` for
+tables too large for points), `line`, `hist`
 (also KDE), `chi` (tail-dependence chi-plot). `-g COL` overlays groups,
 `--subgraphcol COL` makes panels.
 
