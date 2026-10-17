@@ -1,6 +1,6 @@
 [project]
 name = "dataframe-toolkit"
-version = "0.7.3"
+version = "0.8.0"
 description = "A command-line toolkit for DataFrame analysis and manipulation"
 readme = "README.md"
 authors = [
