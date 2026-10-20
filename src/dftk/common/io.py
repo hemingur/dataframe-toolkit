@@ -365,9 +365,13 @@ class io:
             return _name_columns(df)
 
         def _csv_with_duckdb(path: str) -> pd.DataFrame:
-            # DuckDB keeps integer columns with blanks as Int64 (pandas: float64)
+            # DuckDB keeps integer columns with blanks as Int64 (pandas: float64).
+            # comment="" stops it guessing "#" as a comment character: after one
+            # whole-line "#" comment it cuts every line at "#", headers included
             try:
-                df = duckdb.read_csv(path, sep=sep, header=not noheader).df()
+                df = duckdb.read_csv(
+                    path, sep=sep, header=not noheader, comment=""
+                ).df()
             except Exception as exc:
                 logging.error(f"DuckDB failed to read {path!r}: {exc}")
                 raise
