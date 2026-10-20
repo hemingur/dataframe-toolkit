@@ -3,6 +3,9 @@ Tests for dftk.common.io: read and printdf.
 """
 
 import io as _io
+import os
+import threading
+import time
 from types import SimpleNamespace
 
 import pandas as pd
@@ -57,6 +60,63 @@ class TestReadDuckdbBackend:
         monkeypatch.setattr("sys.stdin", SimpleNamespace(buffer=_io.BytesIO(b"x\n1\n")))
         io.read(make_args(DATAFILE="-", backend="duckdb"))
         assert list(tmp_path.iterdir()) == []
+
+    @staticmethod
+    def _fifo(tmp_path, text):
+        # A named pipe stands in for <(...): DuckDB's second read of it is empty
+        path = tmp_path / "pipe"
+        os.mkfifo(path)
+
+        def write():
+            with open(path, "w") as fh:
+                fh.write(text)
+            # Give any later reader an EOF so a regression fails, not hangs
+            deadline = time.monotonic() + 2
+            while time.monotonic() < deadline:
+                try:
+                    os.close(os.open(path, os.O_WRONLY | os.O_NONBLOCK))
+                except OSError:
+                    time.sleep(0.01)
+
+        threading.Thread(target=write, daemon=True).start()
+        return path
+
+    @pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="needs named pipes")
+    def test_reads_named_pipe(self, tmp_path):
+        path = self._fifo(tmp_path, "id\tn\na\t10\nb\t20\n")
+        df = io.read(make_args(DATAFILE=str(path), backend="duckdb"))
+        assert df["id"].tolist() == ["a", "b"]
+        assert df["n"].tolist() == [10, 20]
+
+    @pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="needs named pipes")
+    def test_named_pipe_temp_file_is_removed(self, monkeypatch, tmp_path):
+        spool = tmp_path / "spool"
+        monkeypatch.setattr("dftk.common.io.DFTK_TMPDIR", str(spool))
+        path = self._fifo(tmp_path, "x\n1\n")
+        io.read(make_args(DATAFILE=str(path), backend="duckdb"))
+        assert list(spool.iterdir()) == []
+
+    def test_hash_in_header_and_values_is_data(self, tmp_path):
+        path = tmp_path / "data.tsv"
+        path.write_text("id\tCount #\tname\n1\t10\tA #1\n2\t20\tB\n")
+        df = io.read(make_args(DATAFILE=str(path), backend="duckdb"))
+        assert list(df.columns) == ["id", "Count #", "name"]
+        assert df["name"].tolist() == ["A #1", "B"]
+
+    def test_comment_line_in_data_raises(self, tmp_path):
+        # DuckDB's comment guessing used to cut "Count #" to "Count" here,
+        # or drop the header altogether
+        path = tmp_path / "data.tsv"
+        path.write_text("id\tCount #\tname\n1\t10\tA #1\n# note\n2\t20\tB\n")
+        with pytest.raises(duckdb.Error):
+            io.read(make_args(DATAFILE=str(path), backend="duckdb"))
+
+    def test_comment_lines_above_header_are_skipped(self, tmp_path):
+        path = tmp_path / "data.tsv"
+        path.write_text("# made by x\n# date y\nid\tn\na\t10\nb\t20\n")
+        df = io.read(make_args(DATAFILE=str(path), backend="duckdb"))
+        assert list(df.columns) == ["id", "n"]
+        assert df["n"].tolist() == [10, 20]
 
 
 def _printdf(df, capsys, **overrides):
