@@ -17,6 +17,8 @@ Key features
 * --select [:right:]  expands to all right-file columns, suppressing ``_l``.
 * Both input files can be TSV or Parquet (.parquet extension auto-detected).
   The left file defaults to stdin, making it parquet-pipe friendly.
+* Integer columns that a left, right or outer join leaves gaps in become
+  nullable (Int64) instead of float64.
 """
 
 import argparse
@@ -107,6 +109,35 @@ def _add_cross_col(
     args.drop = drop
 
 
+def _gap_sides(args: argparse.Namespace) -> tuple[bool, bool]:
+    """Return (left, right): which side's columns can get missing values.
+
+    --only runs an outer join before filtering, so both sides count.
+    """
+    return args.type in ("right", "outer"), args.type in ("left", "outer")
+
+
+def _nullable_ints(df: pd.DataFrame, keep: list[str]) -> pd.DataFrame:
+    """Return *df* with numpy integer columns (except *keep*) as Int64 etc.
+
+    A plain int64 column cannot hold a missing value, so pandas turns it into
+    float64 when a join leaves rows unmatched; the nullable type keeps the
+    integers.
+    """
+    cols = [
+        c
+        for c in df.columns
+        if c not in keep
+        and pd.api.types.is_integer_dtype(df[c])
+        and not isinstance(df[c].dtype, pd.api.extensions.ExtensionDtype)
+    ]
+    if not cols:
+        return df
+    # int32 -> Int32, uint8 -> UInt8, ...
+    dtypes = {c: df[c].dtype.name.capitalize().replace("Uint", "UInt") for c in cols}
+    return df.astype(dtypes)
+
+
 def _filter_only(
     df: pd.DataFrame,
     df_left: pd.DataFrame,
@@ -151,6 +182,15 @@ def _do_merge(
         check_cols(df_right, args.right_on, "-ro/--right_on")
 
     suffixes = _expand_select(list(df_left.columns), list(df_right.columns), args)
+
+    # Keep integer columns integers when the join leaves gaps in them.  The
+    # -k keys are filled from both sides, so they never get gaps.
+    keys = args.keys or []
+    left_gaps, right_gaps = _gap_sides(args)
+    if left_gaps:
+        df_left = _nullable_ints(df_left, keys)
+    if right_gaps:
+        df_right = _nullable_ints(df_right, keys)
 
     if args.keys is not None:
         df_merged = pd.merge(
@@ -278,6 +318,14 @@ would be read as if it were the data.
 Named-file self-merge (no stdin required):
 
   dftk merge penguins.tsv -r penguins_adelie.tsv -k species --only left
+
+INTEGER COLUMNS
+---------------
+A left, right or outer join leaves the other side's columns empty in
+unmatched rows.  Integer columns there are made nullable (Int64), so they
+stay integers (100, not 100.0); the -k key columns are not changed.  Read
+TSV input with --backend duckdb to keep integer columns that already have
+empty cells as integers too.
 """
 
 
