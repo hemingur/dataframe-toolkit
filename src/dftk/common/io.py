@@ -27,6 +27,7 @@ import fnmatch
 import io as _io
 import logging
 import os
+import shutil
 import sys
 import tempfile
 
@@ -365,13 +366,29 @@ class io:
             return _name_columns(df)
 
         def _csv_with_duckdb(path: str) -> pd.DataFrame:
-            # DuckDB keeps integer columns with blanks as Int64 (pandas: float64)
+            # DuckDB keeps integer columns with blanks as Int64 (pandas: float64).
+            # comment="" stops it guessing "#" as a comment character: after one
+            # whole-line "#" comment it cuts every line at "#", headers included
             try:
-                df = duckdb.read_csv(path, sep=sep, header=not noheader).df()
+                df = duckdb.read_csv(
+                    path, sep=sep, header=not noheader, comment=""
+                ).df()
             except Exception as exc:
                 logging.error(f"DuckDB failed to read {path!r}: {exc}")
                 raise
             return _name_columns(df)
+
+        def _spooled_csv_with_duckdb(stream) -> pd.DataFrame:
+            # DuckDB reads its input twice (type sniffing, then data), so a
+            # stream must be copied to a temp file first
+            os.makedirs(DFTK_TMPDIR, exist_ok=True)
+            fd, path = tempfile.mkstemp(suffix=".tsv", dir=DFTK_TMPDIR)
+            try:
+                with os.fdopen(fd, "wb") as fh:
+                    shutil.copyfileobj(stream, fh)
+                return _csv_with_duckdb(path)
+            finally:
+                os.unlink(path)
 
         def _csv_from_file(path: str) -> pd.DataFrame:
             df = _pandas_csv(path)
@@ -403,21 +420,18 @@ class io:
                 df = pd.read_parquet(filename)
                 df.attrs["_parquet_meta"] = _read_parquet_meta(filename)
             elif backend == "duckdb" and duckdb is not None:
-                df = _csv_with_duckdb(filename)
+                if os.path.exists(filename) and not os.path.isfile(filename):
+                    # A pipe, e.g. <(grep -v '^#' file): one read would use it up
+                    with open(filename, "rb") as fh:
+                        df = _spooled_csv_with_duckdb(fh)
+                else:
+                    df = _csv_with_duckdb(filename)
             else:
                 df = _csv_from_file(filename)
 
         elif backend == "duckdb" and duckdb is not None:
-            # stdin with DuckDB: it reads files, not buffers (that needs fsspec),
-            # so spool stdin to a temp file and read it like a named file
-            os.makedirs(DFTK_TMPDIR, exist_ok=True)
-            fd, path = tempfile.mkstemp(suffix=".tsv", dir=DFTK_TMPDIR)
-            try:
-                with os.fdopen(fd, "wb") as fh:
-                    fh.write(sys.stdin.buffer.read())
-                df = _csv_with_duckdb(path)
-            finally:
-                os.unlink(path)
+            # stdin with DuckDB: it reads files, not buffers (that needs fsspec)
+            df = _spooled_csv_with_duckdb(sys.stdin.buffer)
 
         else:
             # stdin — read TSV directly

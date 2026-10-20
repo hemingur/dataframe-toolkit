@@ -222,6 +222,21 @@ All commands accept:
 > parquet and prints *its path* to stdout — `-` would try to parse that path
 > as TSV and fail.
 
+### Comment lines and preambles
+
+dftk has no comment or skip-rows option: `#` is ordinary data, so headers
+like `Count #` and values like `A #1` are read as they are. Drop comment
+lines or a preamble in the shell instead:
+
+```bash
+grep -v '^#' data.tsv | dftk print           # drop every line starting with #
+tail -n +3 data.tsv | dftk print             # skip a 2-line preamble
+dftk print <(grep -v '^#' data.tsv)          # the same, as a filename
+```
+
+With `--backend duckdb`, a whole-line `#` comment below the header is an
+error, and `#` lines above the header are skipped.
+
 Standard output options (available on all tabular commands):
 
 - `-o` / `--output` — controls where output goes; takes an *optional* value:

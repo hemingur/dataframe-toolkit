@@ -4,6 +4,8 @@
 
 ### Fixed
 - `merge`: integer columns turned into floats (`100.0`) when a left, right or outer join left rows unmatched, including with `--backend duckdb` and parquet input. Integer columns on the side that can get gaps are now made nullable (`Int64`) before the join, so they stay integers; the `-k` key columns are not changed. `--only left`/`right` also kept the chosen side's integer columns as floats, because the outer join it runs first left gaps in them.
+- `--backend duckdb` read a pipe or process substitution (`dftk print <(grep -v '^#' data.tsv) --backend duckdb`) as a header with no rows, without an error: DuckDB reads its input twice, and the first read used up the pipe. Such input is now copied to a temporary file first, as stdin already was.
+- `--backend duckdb` treated `#` as a comment character in a file with a whole-line `#` comment below the header. It cut every line at `#`, so a `Count #` header became `Count` (or the header was lost) and values like `A #1` were cut short, without an error. DuckDB no longer guesses a comment character: such a file is now an error, and `grep -v '^#'` drops the comment lines (see the README). `#` lines above the header are still skipped.
 
 ## [0.9.0] — 2026-10-17
 
