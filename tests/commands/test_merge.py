@@ -394,3 +394,83 @@ class TestLeftWasStdinDetection:
         with caplog.at_level(logging.WARNING, logger="dftk"):
             self._run(monkeypatch, datafile=None, leftfile="...")
         assert "was not stdin" not in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# Integer columns in unmatched rows
+# ---------------------------------------------------------------------------
+
+
+class TestIntegerGaps:
+    """Joins that leave gaps keep integer columns as nullable integers."""
+
+    @pytest.fixture
+    def left(self):
+        return pd.DataFrame({"id": [1, 2, 3], "age": [34, 51, 47]})
+
+    @pytest.fixture
+    def right(self):
+        return pd.DataFrame({"id": [1, 3, 9], "depth": [100, 300, 900]})
+
+    def test_left_join_right_column_nullable(self, left, right):
+        result = _do_merge(left, right, _merge_args(keys=["id"], type="left"))
+        assert str(result["depth"].dtype) == "Int64"
+        assert result["depth"].tolist() == [100, pd.NA, 300]
+        assert str(result["age"].dtype) == "int64"  # no gaps: unchanged
+        assert str(result["id"].dtype) == "int64"
+
+    def test_right_join_left_column_nullable(self, left, right):
+        result = _do_merge(left, right, _merge_args(keys=["id"], type="right"))
+        assert str(result["age"].dtype) == "Int64"
+        assert str(result["depth"].dtype) == "int64"
+        assert result["age"].tolist() == [34, 47, pd.NA]
+
+    def test_outer_join_both_sides_nullable(self, left, right):
+        result = _do_merge(left, right, _merge_args(keys=["id"], type="outer"))
+        assert str(result["age"].dtype) == "Int64"
+        assert str(result["depth"].dtype) == "Int64"
+        assert str(result["id"].dtype) == "int64"  # keys come from both sides
+        assert result["id"].tolist() == [1, 2, 3, 9]
+
+    def test_inner_join_unchanged(self, left, right):
+        result = _do_merge(left, right, _merge_args(keys=["id"]))
+        assert str(result["age"].dtype) == "int64"
+        assert str(result["depth"].dtype) == "int64"
+
+    def test_only_left_keeps_integers(self, left, right):
+        # --only runs an outer join first, which used to make age float64
+        result = _do_merge(left, right, _merge_args(keys=["id"], only="left"))
+        assert pd.api.types.is_integer_dtype(result["age"])
+        assert result["age"].tolist() == [51]
+
+    def test_mapped_key_on_gap_side_nullable(self, left):
+        right = pd.DataFrame({"person": [1, 3], "depth": [100, 300]})
+        args = _merge_args(left_on=["id"], right_on=["person"], type="left")
+        result = _do_merge(left, right, args)
+        assert str(result["person"].dtype) == "Int64"
+        assert result["person"].tolist() == [1, pd.NA, 3]
+
+    def test_smaller_and_unsigned_ints(self, left):
+        right = pd.DataFrame(
+            {
+                "id": [1],
+                "a": pd.Series([5], dtype="int32"),
+                "b": pd.Series([7], dtype="uint8"),
+            }
+        )
+        result = _do_merge(left, right, _merge_args(keys=["id"], type="left"))
+        assert str(result["a"].dtype) == "Int32"
+        assert str(result["b"].dtype) == "UInt8"
+
+    def test_inputs_not_modified(self, left, right):
+        _do_merge(left, right, _merge_args(keys=["id"], type="outer"))
+        assert str(left["age"].dtype) == "int64"
+        assert str(right["depth"].dtype) == "int64"
+
+    def test_nullable_input_stays_nullable(self, left):
+        right = pd.DataFrame(
+            {"id": [1, 2], "depth": pd.array([100, None], dtype="Int64")}
+        )
+        result = _do_merge(left, right, _merge_args(keys=["id"], type="left"))
+        assert str(result["depth"].dtype) == "Int64"
+        assert result["depth"].tolist() == [100, pd.NA, pd.NA]
