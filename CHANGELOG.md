@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.9.1] — 2026-10-20
 
 ### Fixed
 - `merge`: integer columns turned into floats (`100.0`) when a left, right or outer join left rows unmatched, including with `--backend duckdb` and parquet input. Integer columns on the side that can get gaps are now made nullable (`Int64`) before the join, so they stay integers; the `-k` key columns are not changed. `--only left`/`right` also kept the chosen side's integer columns as floats, because the outer join it runs first left gaps in them.
