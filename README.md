@@ -87,6 +87,7 @@ dftk dataset tips -o \
 | `merge`      | Join two tables on key columns (inner/left/right/outer)                              |
 | `concat`     | Concatenate two or more tables row-wise                                              |
 | `melt`       | Reshape wide-to-long (`pd.melt`)                                                     |
+| `explode`    | Split separated values in a cell (`a,b`) into one row per value                      |
 | `pivot`      | Reshape long-to-wide with per-cell aggregation                                       |
 | `func`       | Column transforms: cumsum, group mean/sum/min/max/count/median/std, rank, qcut:N     |
 | `scale`      | Normalise: z-score, min-shift, sum/max/mean scaling, Blom rank, regression residuals |

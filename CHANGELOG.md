@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- `dftk explode`: splits a column of separated values (`GO:1, GO:2`) into one row per value, repeating the other columns (`--select` keeps only some). `--sep` (default `,`) is a plain string, not a regex, and spaces around items are removed. Several `-c` columns are split in parallel, their n-th items on the same row; a row with different item counts is an error. An empty cell stays as one row unless `--dropempty`, and `--poscol NAME` numbers each item's position in its cell. Split columns whose values are all numbers become numeric, except columns named in `--readasobject`.
+
 ## [0.9.1] — 2026-10-20
 
 ### Fixed

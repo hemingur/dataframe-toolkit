@@ -30,6 +30,7 @@ COMMAND_GROUPS: list[tuple[str, list[tuple[str, str]]]] = [
             ("merge", "merge_cmd:MergeCommand"),
             ("concat", "concat_cmd:ConcatCommand"),
             ("melt", "melt_cmd:MeltCommand"),
+            ("explode", "explode_cmd:ExplodeCommand"),
             ("pivot", "pivot_cmd:PivotCommand"),
             ("func", "func_cmd:FuncCommand"),
             ("scale", "scale_cmd:ScaleCommand"),
