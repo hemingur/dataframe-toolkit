@@ -104,6 +104,7 @@ Transform:
 | Join two tables, including anti-joins | `merge DATAFILE -r OTHER -k KEY [-t left] [--only left]` |
 | Stack tables row-wise | `concat A B C [--sourcecol src]` |
 | Wide to long / long to wide plus aggregation | `melt` / `pivot -i ROWS -g COLS -v VALS -f FUNCS` |
+| Split comma-separated values in a cell into one row each, repeating the other columns | `explode -c COL [--sep SEP]` |
 | Swap rows and columns | `transpose` |
 | Rename columns to lowercase identifiers (`Sample ID` → `sample_id`, `GC %` → `gc_pct`) so SQL, `eval` and formulas need no quoting | `cleannames [--mapping FILE]` |
 | Per-group values broadcast to every row (group mean, rank, cumsum, quantile bin) | `func -c COL -t TRANSFORM -g GROUP` |
