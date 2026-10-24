@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.11.0] — 2026-10-24
 
 ### Fixed
 - `eval -f`: assigning a result of another type to an existing column failed, e.g. `depth = depth.fillna(depth_r)` after a merge (a float column filled from a nullable integer one) or `x = x.isna()`, with a misleading "not available as a special function" error. The column now takes the result's type; no data is copied.
