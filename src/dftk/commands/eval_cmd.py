@@ -14,6 +14,7 @@ import fnmatch
 import hashlib
 import logging
 import os
+import re
 from functools import partial
 from pathlib import Path
 
@@ -516,6 +517,68 @@ def _string_function(formula: str, joinsep: str):
 # ---------------------------------------------------------------------------
 
 
+def _formula_error(formula: str, exc: Exception) -> str:
+    """Return a short message for a mistake pandas found in an -f formula."""
+    msg = str(exc)
+    m = re.search(r"'Series' object has no attribute '(\w+)'", msg)
+    if m:
+        name = m.group(1)
+        col = re.search(rf"(\w+)\.{name}\b", formula)
+        col = col.group(1) if col else "COL"
+        if hasattr(pd.Series.str, name):
+            hint = f"Text methods are under .str: {col}.str.{name}()."
+        else:
+            hint = f"Text methods are under .str, e.g. {col}.str.lower()."
+        return (
+            f"-f {formula!r}: column has no method {name!r}. {hint}  See dftk eval -h."
+        )
+    return f"-f {formula!r}: {msg}"
+
+
+def _apply_special_function(df: pd.DataFrame, formula: str) -> None:
+    """Evaluate a special-function formula and store its column in *df*."""
+    dest, func, cols = _special_function(formula, list(df.columns))
+    if len(df) == 0:
+        df[dest] = True
+    elif isinstance(func, _WhereFunc):
+        df[dest] = func(df)
+    elif isinstance(func, _FrameFunc):
+        # Frame-level functions (idxmax/idxmin) need column labels
+        df[dest] = func(df[cols])
+    elif len(cols) == 1:
+        # Element-wise on a single column (e.g. np.sign, os.path.*)
+        df[dest] = df[cols[0]].apply(func)
+    else:
+        # Multi-column row function: pass numpy array so positional
+        # indexing (row[0], row[1], ...) works in pandas 2.x
+        df[dest] = df[cols].apply(lambda row, f=func: f(row.to_numpy()), axis=1)
+
+
+def _eval_formula(df: pd.DataFrame, formula: str) -> pd.DataFrame:
+    """Evaluate one -f formula: pandas df.eval(), else a special function."""
+    try:
+        # Not inplace: that writes into the existing column, which must keep
+        # its dtype, so x = x.fillna(y) or x = x.isna() failed whenever the
+        # result had another dtype
+        return df.eval(formula)
+    except (AttributeError, TypeError, NameError, KeyError) as exc:
+        # pandas ran the expression: a mistake in it, not a dftk bug
+        raise ValueError(_formula_error(formula, exc)) from exc
+    except (ValueError, SyntaxError) as eval_exc:
+        if re.match(r"\s*\w+\s*=\s*\w+\.", formula):
+            # dest = col.method(...) is never a special function
+            raise ValueError(_formula_error(formula, eval_exc)) from eval_exc
+        logger.debug(f"df.eval failed for {formula!r}, trying special_function")
+        try:
+            _apply_special_function(df, formula)
+        except ValueError as exc:
+            raise ValueError(f"{exc}  (pandas df.eval: {eval_exc})") from exc
+        except Exception:
+            logger.error(f"Could not evaluate formula: {formula!r}")
+            raise
+        return df
+
+
 def _eval(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
     joinsep: str = getattr(args, "joinsep", "")
     intbool: bool = getattr(args, "intbool", False)
@@ -536,31 +599,11 @@ def _eval(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
     # -f: pandas eval with special-function fallback
     for formula in getattr(args, "formula", []):
         try:
-            df.eval(formula, inplace=True)
-        except (ValueError, SyntaxError):
-            logger.debug(f"df.eval failed for {formula!r}, trying special_function")
-            dest, func, cols = _special_function(formula, list(df.columns))
-            if len(df) == 0:
-                df[dest] = True
-            elif isinstance(func, _WhereFunc):
-                df[dest] = func(df)
-            elif isinstance(func, _FrameFunc):
-                # Frame-level functions (idxmax/idxmin) need column labels
-                df[dest] = func(df[cols])
-            elif len(cols) == 1:
-                # Element-wise on a single column (e.g. np.sign, os.path.*)
-                df[dest] = df[cols[0]].apply(func)
-            else:
-                # Multi-column row function: pass numpy array so positional
-                # indexing (row[0], row[1], ...) works in pandas 2.x
-                df[dest] = df[cols].apply(lambda row, f=func: f(row.to_numpy()), axis=1)
+            df = _eval_formula(df, formula)
         except Exception:
-            if len(df) == 0:
-                dest = formula.split("=", 1)[0].strip()
-                df[dest] = True
-            else:
-                logger.error(f"Could not evaluate formula: {formula!r}")
+            if len(df) != 0:
                 raise
+            df[formula.split("=", 1)[0].strip()] = True
 
     # -s: string / row functions
     for strfunc in getattr(args, "strfunc", []):
