@@ -426,3 +426,144 @@ class TestScipySpecial:
         r1 = _eval(sp_df.copy(), _eval_args(formula=["lp = log1p(x)"]))
         r2 = _eval(r1.copy(), _eval_args(formula=["xi = expm1(lp)"]))
         assert list(r2["xi"]) == pytest.approx([0.5, 1.0, 2.0])
+
+
+# ---------------------------------------------------------------------------
+# Filling missing values with -f (pandas methods)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def ts_df():
+    # Two sites, sorted by day, with gaps at the start, middle and end
+    return pd.DataFrame(
+        {
+            "site": ["A", "A", "A", "A", "B", "B", "B", "B"],
+            "day": [1, 2, 3, 4, 1, 2, 3, 4],
+            "temp": [10.0, None, 14.0, None, None, 20.0, None, 26.0],
+        }
+    )
+
+
+def _values(s: pd.Series) -> list:
+    return [None if pd.isna(v) else v for v in s]
+
+
+class TestFillFormulas:
+    def test_fillna_float_from_nullable_int(self):
+        # What a left merge gives: float64 column, Int64 defaults (_r)
+        df = pd.DataFrame(
+            {
+                "depth": [5.0, None, None, None],
+                "depth_r": pd.array([10, 10, 20, None], dtype="Int64"),
+            }
+        )
+        result = _eval(df, _eval_args(formula=["depth = depth.fillna(depth_r)"]))
+        assert _values(result["depth"]) == [5.0, 10.0, 20.0, None]
+
+    def test_fillna_into_new_column_keeps_original(self):
+        df = pd.DataFrame({"x": [1.0, None], "y": [7.0, 8.0]})
+        result = _eval(df, _eval_args(formula=["z = x.fillna(y)"]))
+        assert _values(result["x"]) == [1.0, None]
+        assert _values(result["z"]) == [1.0, 8.0]
+
+    def test_chained_fillna_with_literal(self):
+        df = pd.DataFrame({"x": [None, None, 3.0], "y": [5.0, None, 6.0]})
+        result = _eval(df, _eval_args(formula=["x = x.fillna(y).fillna(0)"]))
+        assert _values(result["x"]) == [5.0, 0.0, 3.0]
+
+    def test_fillna_text_from_other_column(self):
+        df = pd.DataFrame({"gene_id": ["E1", "E2"], "symbol": ["BRCA1", None]})
+        result = _eval(df, _eval_args(formula=["symbol = symbol.fillna(gene_id)"]))
+        assert list(result["symbol"]) == ["BRCA1", "E2"]
+
+    def test_overwrite_with_boolean_result(self):
+        df = pd.DataFrame({"x": [1.0, None]})
+        result = _eval(df, _eval_args(formula=["x = x.isna()"]))
+        assert list(result["x"]) == [False, True]
+
+    def test_ffill_crosses_groups_without_groupby(self, ts_df):
+        result = _eval(ts_df, _eval_args(formula=["temp = temp.ffill()"]))
+        assert result["temp"].iloc[4] == 14.0  # B day 1 took A's last value
+
+    def test_grouped_ffill_and_bfill(self, ts_df):
+        result = _eval(
+            ts_df,
+            _eval_args(
+                formula=[
+                    "f = temp.groupby(site).ffill()",
+                    "b = temp.groupby(site).bfill()",
+                ]
+            ),
+        )
+        assert _values(result["f"]) == [10, 10, 14, 14, None, 20, 20, 26]
+        assert _values(result["b"]) == [10, 14, 14, None, 20, 20, 26, 26]
+
+    def test_grouped_ffill_then_bfill_fills_both_ends(self, ts_df):
+        formula = "temp = temp.groupby(site).ffill().fillna(temp.groupby(site).bfill())"
+        result = _eval(ts_df, _eval_args(formula=[formula]))
+        assert _values(result["temp"]) == [10, 10, 14, 14, 20, 20, 20, 26]
+
+    def test_grouped_ffill_follows_row_order(self, ts_df):
+        # Unsorted rows: A day 4 is filled from the row above it (day 1)
+        df = ts_df.iloc[[0, 3, 2, 1]].reset_index(drop=True)
+        result = _eval(df, _eval_args(formula=["temp = temp.groupby(site).ffill()"]))
+        assert _values(result["day"]) == [1, 4, 3, 2]
+        assert _values(result["temp"]) == [10, 10, 14, 14]
+
+    def test_fillna_with_group_mean(self, ts_df):
+        formula = "temp = temp.fillna(temp.groupby(site).transform('mean'))"
+        result = _eval(ts_df, _eval_args(formula=[formula]))
+        assert _values(result["temp"]) == [10, 12, 14, 12, 23, 20, 23, 26]
+
+    def test_interpolate_is_by_row_position(self):
+        df = pd.DataFrame({"x": [0.0, None, None, 6.0]})
+        result = _eval(df, _eval_args(formula=["x = x.interpolate()"]))
+        assert _values(result["x"]) == [0.0, 2.0, 4.0, 6.0]
+
+    def test_parquet_annotations_are_kept(self):
+        df = pd.DataFrame({"x": [1.0, None], "y": [2.0, 3.0]})
+        df.attrs["_parquet_meta"] = {"source": "test"}
+        result = _eval(df, _eval_args(formula=["x = x.fillna(y)"]))
+        assert result.attrs["_parquet_meta"] == {"source": "test"}
+
+
+class TestFormulaErrors:
+    def test_text_method_without_str_suggests_str(self, str_df):
+        with pytest.raises(ValueError, match=r"name\.str\.lower\(\)"):
+            _eval(str_df, _eval_args(formula=["n = name.lower()"]))
+
+    def test_unknown_method_points_to_str(self, str_df):
+        with pytest.raises(ValueError, match="no method 'tolower'.*name.str.lower"):
+            _eval(str_df, _eval_args(formula=["n = name.tolower()"]))
+
+    def test_unknown_column_is_input_error(self, num_df):
+        with pytest.raises(ValueError, match="'nope' is not defined"):
+            _eval(num_df, _eval_args(formula=["z = nope + 1"]))
+
+    def test_wrong_argument_is_input_error(self, num_df):
+        with pytest.raises(ValueError, match="z = x.fillna.*unexpected keyword"):
+            _eval(num_df, _eval_args(formula=["z = x.fillna(foo=1)"]))
+
+    def test_str_on_numbers_is_input_error(self, num_df):
+        with pytest.raises(ValueError, match="only use .str accessor"):
+            _eval(num_df, _eval_args(formula=["z = x.str.lower()"]))
+
+    def test_method_call_reports_pandas_error(self, ts_df):
+        formula = "temp = temp.groupby(site).transform('interpolate')"
+        with pytest.raises(ValueError, match="not a valid function name") as exc:
+            _eval(ts_df, _eval_args(formula=[formula]))
+        assert "special function" not in str(exc.value)
+
+    def test_unknown_function_includes_pandas_error(self, num_df):
+        with pytest.raises(ValueError, match="special function.*pandas df.eval"):
+            _eval(num_df, _eval_args(formula=["z = frobnicate(x)"]))
+
+    def test_special_functions_still_work(self, num_df):
+        result = _eval(num_df, _eval_args(formula=["z = sum(x, y)"]))
+        assert list(result["z"]) == pytest.approx([11.0, 22.0, 33.0])
+
+    def test_empty_table_with_bad_method_does_not_crash(self):
+        df = pd.DataFrame({"x": pd.Series([], dtype=float)})
+        result = _eval(df, _eval_args(formula=["y = x.tolower()"]))
+        assert "y" in result.columns
