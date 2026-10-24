@@ -7,6 +7,7 @@
 - `eval -f`: a mistake in the expression (an unknown column or method, wrong arguments, `.str` on numbers) came out as "Unexpected error … please report" with a traceback. It's now a short input error that names the formula; for text methods it suggests `.str` (`species.lower()` → `species.str.lower()`). When the special-function fallback also fails, pandas' own error is included.
 
 ### Added
+- `dftk implode`: the inverse of `explode`. Joins a column's values within groups of rows into one cell (`GO:1,GO:2`). Rows are grouped by all the other columns, or by `-i` (the other columns are then dropped); groups keep the order of their first row, and rows with an empty key form their own group. `--sep` (default `,`). Several `-c` columns are joined in the same row order; `--poscol NAME` puts the values back in the order of `NAME` (e.g. from `explode --poscol`) and drops it. `--unique` drops repeats and `--sortvalues` sorts the values (with several columns, both work on whole rows). Empty values are left out, and whole-number columns read as floats are written without `.0`.
 - `eval -h` has a "Filling missing values" section: `fillna` from another column, a fixed value or a group mean, defaults from a merge, `ffill`/`bfill`/`interpolate`, filling within groups with `groupby`, and why rows must be sorted first. The README has a short version.
 
 ## [0.10.0] — 2026-10-22

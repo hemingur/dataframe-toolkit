@@ -106,6 +106,7 @@ Transform:
 | Stack tables row-wise | `concat A B C [--sourcecol src]` |
 | Wide to long / long to wide plus aggregation | `melt` / `pivot -i ROWS -g COLS -v VALS -f FUNCS` |
 | Split comma-separated values in a cell into one row each, repeating the other columns | `explode -c COL [--sep SEP]` |
+| Join a column's values within groups of rows into one cell (`GO:1,GO:2`), the inverse of explode | `implode -c COL [-i KEYS] [--unique] [--sortvalues]` |
 | Swap rows and columns | `transpose` |
 | Rename columns to lowercase identifiers (`Sample ID` → `sample_id`, `GC %` → `gc_pct`) so SQL, `eval` and formulas need no quoting | `cleannames [--mapping FILE]` |
 | Per-group values broadcast to every row (group mean, rank, cumsum, quantile bin) | `func -c COL -t TRANSFORM -g GROUP` |
