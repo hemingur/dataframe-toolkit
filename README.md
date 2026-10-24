@@ -194,6 +194,38 @@ printf "sample\tfluor\ns1\t60\ns2\t110\n" \
   | dftk interp - --ref stdcurve.tsv -x fluor --refx fluor -v conc -d conc_ng_ul
 ```
 
+### Filling missing values
+
+`eval -f` takes pandas column methods (`COL.method(...)`), and `fillna`,
+`ffill`, `bfill` and `interpolate` fill empty cells. Defaults from another
+table, after a merge (a column in both files gets the suffix `_r`):
+
+```bash
+dftk merge data.tsv -r defaults.tsv -k type -t left -o \
+  | dftk eval ... -f "depth = depth.fillna(depth_r)" --drop depth_r
+```
+
+The group mean, a fixed value, or the last value above (`ffill`) within
+each group:
+
+```bash
+dftk dataset penguins -o | dftk eval ... \
+  -f "mean = body_mass_g.groupby(species).transform('mean')" \
+  -f "body_mass_g = body_mass_g.fillna(mean)" --drop mean \
+  -f "sex = sex.fillna('unknown')"
+
+dftk dataset healthexp -o \
+  | dftk eval ... -f "le = Life_Expectancy.where(Year % 10 != 5)" -o \
+  | dftk eval ... -f "le_filled = le.groupby(Country).ffill()"
+```
+
+`ffill`, `bfill` and `interpolate` use the rows in the order they are in:
+sort in a step of its own first (`dftk eval data.tsv --sortasc site day -o
+| dftk eval ... -f ...`), and use `groupby(...)` when the table holds
+several series, or values are taken from the neighbouring group.
+`interpolate()` has no grouped form and works by row position. `dftk eval
+-h` covers these cases, with examples.
+
 ### Bootstrap confidence intervals
 
 Bootstrap mode repeats the full stat computation N times on resampled data

@@ -14,6 +14,7 @@ import fnmatch
 import hashlib
 import logging
 import os
+import re
 from functools import partial
 from pathlib import Path
 
@@ -43,6 +44,88 @@ arithmetic and boolean expressions directly on column names:
   dftk eval data.tsv -f "z = x + y * 2"
   dftk dataset tips -o | dftk eval ... -f "bill_and_tip = total_bill + tip * 2"
   dftk dataset tips -o | dftk eval ... -f "good_tip = (tip > 3) & (total_bill < 30)"
+
+Column methods are pandas Series methods, written COL.method(...); text
+methods are under .str (name.str.lower(), not name.lower() or tolower()):
+
+  x = x.abs()   x = x.round(1)   x = x.clip(lower=0)   y = name.str.upper()
+
+
+FILLING MISSING VALUES (-f)
+---------------------------
+fillna() fills the empty cells of a column; the other cells are kept:
+
+  dftk eval data.tsv -f "x = x.fillna(y)"          from another column
+  -f "x = x.fillna(0)"   -f "sex = sex.fillna('unknown')"     a fixed value
+  -f "x = x.fillna(y).fillna(0)"                   y first, then 0
+  -f "x_filled = x.fillna(y)"                      keep x, add a new column
+  -f "missing = x.isna()"                          mark the empty cells
+
+Defaults from another table: a column that is in both files gets the
+suffix _r from merge, so fill from it and drop it. Here the defaults are
+each species' median body mass:
+
+  dftk dataset penguins -o | dftk pivot ... -i species -v body_mass_g \\
+      -f median --move median_body_mass_g:body_mass_g -o defaults.parquet
+  dftk dataset penguins -o \\
+      | dftk merge ... -r defaults.parquet -k species -t left -o \\
+      | dftk eval ... -f "body_mass_g = body_mass_g.fillna(body_mass_g_r)" \\
+          --drop body_mass_g_r
+
+The group mean (or 'median', 'min', ...), in one step:
+
+  dftk dataset penguins -o | dftk eval ... \\
+      -f "mean = body_mass_g.groupby(species).transform('mean')" \\
+      -f "body_mass_g = body_mass_g.fillna(mean)" --drop mean
+
+From neighbouring rows (the co2 dataset is a weekly series with gaps):
+
+  dftk dataset co2 -o | dftk eval ... -f "ffill = co2.ffill()" \\
+      -f "bfill = co2.bfill()" -f "linear = co2.interpolate()"
+
+  ffill()          the last value above; the first rows stay empty
+  bfill()          the next value below; the last rows stay empty
+  ffill(limit=1)   fill at most one row after each value
+  interpolate()    a straight line between the values above and below, by
+                   row position: rows must be evenly spaced (for x-based
+                   lookup from a reference curve, see dftk interp)
+
+Row order matters: these methods use the rows in the order they are in.
+Sort first, in a step of its own (--sortasc is applied to the output, so
+in the same command it comes after the fill):
+
+  dftk eval data.tsv --sortasc site day -o | dftk eval ... -f "..."
+
+Several series in one table (sites, countries, samples) must be filled
+within each group, or values are taken from the neighbouring group:
+
+  -f "x = x.groupby(site).ffill()"
+  -f "x = x.groupby(site).bfill()"
+  -f "x = x.groupby(site).ffill().fillna(x.groupby(site).bfill())"
+
+A group's rows don't have to be next to each other, but within each group
+they must be in order. In healthexp, rows are sorted by Year with the
+countries mixed together, so a grouped ffill is right as it is:
+
+  dftk dataset healthexp -o \\
+      | dftk eval ... -f "le = Life_Expectancy.where(Year % 10 != 5)" -o \\
+      | dftk eval ... -f "le_filled = le.groupby(Country).ffill()"
+
+interpolate() has no grouped form. Sort so that each group's rows are
+together; then gaps inside a group are right, but a gap at the start or
+end of a group is filled across the boundary. To leave those empty, keep
+only values with something before and after them in the same group:
+
+  dftk dataset healthexp -o \\
+      | dftk eval ... -f "le = Life_Expectancy.where(Year % 10 != 5)" \\
+          --sortasc Country Year -o \\
+      | dftk eval ... -f "before = le.groupby(Country).ffill().notna()" \\
+          -f "after = le.groupby(Country).bfill().notna()" \\
+          -f "le_linear = le.interpolate().where(before & after)" \\
+          --drop before after
+
+Only empty cells are filled; missing rows (a year with no row at all) are
+not added.
 
 If df.eval() fails (e.g. for function calls), the expression is retried
 as a special function call using the syntax:
@@ -516,6 +599,68 @@ def _string_function(formula: str, joinsep: str):
 # ---------------------------------------------------------------------------
 
 
+def _formula_error(formula: str, exc: Exception) -> str:
+    """Return a short message for a mistake pandas found in an -f formula."""
+    msg = str(exc)
+    m = re.search(r"'Series' object has no attribute '(\w+)'", msg)
+    if m:
+        name = m.group(1)
+        col = re.search(rf"(\w+)\.{name}\b", formula)
+        col = col.group(1) if col else "COL"
+        if hasattr(pd.Series.str, name):
+            hint = f"Text methods are under .str: {col}.str.{name}()."
+        else:
+            hint = f"Text methods are under .str, e.g. {col}.str.lower()."
+        return (
+            f"-f {formula!r}: column has no method {name!r}. {hint}  See dftk eval -h."
+        )
+    return f"-f {formula!r}: {msg}"
+
+
+def _apply_special_function(df: pd.DataFrame, formula: str) -> None:
+    """Evaluate a special-function formula and store its column in *df*."""
+    dest, func, cols = _special_function(formula, list(df.columns))
+    if len(df) == 0:
+        df[dest] = True
+    elif isinstance(func, _WhereFunc):
+        df[dest] = func(df)
+    elif isinstance(func, _FrameFunc):
+        # Frame-level functions (idxmax/idxmin) need column labels
+        df[dest] = func(df[cols])
+    elif len(cols) == 1:
+        # Element-wise on a single column (e.g. np.sign, os.path.*)
+        df[dest] = df[cols[0]].apply(func)
+    else:
+        # Multi-column row function: pass numpy array so positional
+        # indexing (row[0], row[1], ...) works in pandas 2.x
+        df[dest] = df[cols].apply(lambda row, f=func: f(row.to_numpy()), axis=1)
+
+
+def _eval_formula(df: pd.DataFrame, formula: str) -> pd.DataFrame:
+    """Evaluate one -f formula: pandas df.eval(), else a special function."""
+    try:
+        # Not inplace: that writes into the existing column, which must keep
+        # its dtype, so x = x.fillna(y) or x = x.isna() failed whenever the
+        # result had another dtype
+        return df.eval(formula)
+    except (AttributeError, TypeError, NameError, KeyError) as exc:
+        # pandas ran the expression: a mistake in it, not a dftk bug
+        raise ValueError(_formula_error(formula, exc)) from exc
+    except (ValueError, SyntaxError) as eval_exc:
+        if re.match(r"\s*\w+\s*=\s*\w+\.", formula):
+            # dest = col.method(...) is never a special function
+            raise ValueError(_formula_error(formula, eval_exc)) from eval_exc
+        logger.debug(f"df.eval failed for {formula!r}, trying special_function")
+        try:
+            _apply_special_function(df, formula)
+        except ValueError as exc:
+            raise ValueError(f"{exc}  (pandas df.eval: {eval_exc})") from exc
+        except Exception:
+            logger.error(f"Could not evaluate formula: {formula!r}")
+            raise
+        return df
+
+
 def _eval(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
     joinsep: str = getattr(args, "joinsep", "")
     intbool: bool = getattr(args, "intbool", False)
@@ -536,31 +681,11 @@ def _eval(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
     # -f: pandas eval with special-function fallback
     for formula in getattr(args, "formula", []):
         try:
-            df.eval(formula, inplace=True)
-        except (ValueError, SyntaxError):
-            logger.debug(f"df.eval failed for {formula!r}, trying special_function")
-            dest, func, cols = _special_function(formula, list(df.columns))
-            if len(df) == 0:
-                df[dest] = True
-            elif isinstance(func, _WhereFunc):
-                df[dest] = func(df)
-            elif isinstance(func, _FrameFunc):
-                # Frame-level functions (idxmax/idxmin) need column labels
-                df[dest] = func(df[cols])
-            elif len(cols) == 1:
-                # Element-wise on a single column (e.g. np.sign, os.path.*)
-                df[dest] = df[cols[0]].apply(func)
-            else:
-                # Multi-column row function: pass numpy array so positional
-                # indexing (row[0], row[1], ...) works in pandas 2.x
-                df[dest] = df[cols].apply(lambda row, f=func: f(row.to_numpy()), axis=1)
+            df = _eval_formula(df, formula)
         except Exception:
-            if len(df) == 0:
-                dest = formula.split("=", 1)[0].strip()
-                df[dest] = True
-            else:
-                logger.error(f"Could not evaluate formula: {formula!r}")
+            if len(df) != 0:
                 raise
+            df[formula.split("=", 1)[0].strip()] = True
 
     # -s: string / row functions
     for strfunc in getattr(args, "strfunc", []):

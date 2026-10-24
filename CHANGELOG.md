@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- `eval -f`: assigning a result of another type to an existing column failed, e.g. `depth = depth.fillna(depth_r)` after a merge (a float column filled from a nullable integer one) or `x = x.isna()`, with a misleading "not available as a special function" error. The column now takes the result's type; no data is copied.
+- `eval -f`: a mistake in the expression (an unknown column or method, wrong arguments, `.str` on numbers) came out as "Unexpected error … please report" with a traceback. It's now a short input error that names the formula; for text methods it suggests `.str` (`species.lower()` → `species.str.lower()`). When the special-function fallback also fails, pandas' own error is included.
+
+### Added
+- `eval -h` has a "Filling missing values" section: `fillna` from another column, a fixed value or a group mean, defaults from a merge, `ffill`/`bfill`/`interpolate`, filling within groups with `groupby`, and why rows must be sorted first. The README has a short version.
+
 ## [0.10.0] — 2026-10-22
 
 ### Added
