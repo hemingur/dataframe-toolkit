@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.11.1] — 2026-10-25
 
 ### Fixed
 - `eval -f`: a formula without `name =` (`-f "a + b"`) crashed with a traceback since 0.11.0. It's now an input error that shows how to write it.
