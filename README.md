@@ -197,35 +197,77 @@ printf "sample\tfluor\ns1\t60\ns2\t110\n" \
 
 ### Filling missing values
 
-`eval -f` takes pandas column methods (`COL.method(...)`), and `fillna`,
-`ffill`, `bfill` and `interpolate` fill empty cells. Defaults from another
-table, after a merge (a column in both files gets the suffix `_r`):
+`eval -f` takes pandas column methods (`COL.method(...)`); `fillna`,
+`ffill`, `bfill` and `interpolate` fill empty cells and keep the others.
+
+| Formula | Fills with |
+|---|---|
+| `x = x.fillna(y)` | the value in column `y` |
+| `x = x.fillna(0)`, `sex = sex.fillna('unknown')` | a fixed value |
+| `x = x.fillna(y).fillna(0)` | `y` first, then 0 |
+| `x = x.fillna(x.groupby(g).transform('mean'))` | the mean of the row's group (or `'median'`, ...) |
+| `x = x.ffill()` / `x = x.bfill()` | the value above / below (`ffill(limit=1)`: at most one row) |
+| `x = x.groupby(g).ffill()` | the value above, within each group of `g` |
+| `x = x.interpolate()` | a straight line between the values above and below, by row position |
+
+Write to a new column (`x_filled = x.fillna(y)`) to keep the original, and
+mark the gaps first (`missing = x.isna()`) to tell filled values apart.
+Only empty cells are filled: a missing row (a year with no row at all) is
+not added.
+
+**Defaults from another table.** A column that is in both files gets the
+suffix `_r` from `merge`; fill from it, then drop it. Here the defaults are
+each species' median body mass:
 
 ```bash
-dftk merge data.tsv -r defaults.tsv -k type -t left -o \
-  | dftk eval ... -f "depth = depth.fillna(depth_r)" --drop depth_r
+dftk dataset penguins -o | dftk pivot ... -i species -v body_mass_g \
+  -f median --move median_body_mass_g:body_mass_g -o defaults.parquet
+dftk dataset penguins -o \
+  | dftk merge ... -r defaults.parquet -k species -t left -o \
+  | dftk eval ... -f "body_mass_g = body_mass_g.fillna(body_mass_g_r)" \
+      --drop body_mass_g_r
 ```
 
-The group mean, a fixed value, or the last value above (`ffill`) within
-each group:
+**From neighbouring rows** (`co2` is a weekly series with gaps):
 
 ```bash
-dftk dataset penguins -o | dftk eval ... \
-  -f "mean = body_mass_g.groupby(species).transform('mean')" \
-  -f "body_mass_g = body_mass_g.fillna(mean)" --drop mean \
-  -f "sex = sex.fillna('unknown')"
+dftk dataset co2 -o | dftk eval ... -f "ffill = co2.ffill()" \
+  -f "bfill = co2.bfill()" -f "linear = co2.interpolate()"
+```
 
+`ffill` leaves the first rows empty and `bfill` the last ones;
+`x.ffill().fillna(x.bfill())` fills both. `interpolate()` counts one step
+per row, so the rows must be evenly spaced; for an x-based lookup from a
+reference curve, see `dftk interp`.
+
+**Row order and groups.** These methods use the rows in the order they are
+in. Sort first, in a step of its own: `--sortasc` applies to a command's
+output, so in the same command it would come after the fill. When a table
+holds several series (sites, countries, samples), fill within each group,
+or values are taken from the neighbouring group. Rows of a group don't need
+to be next to each other, but within each group they must be in order:
+
+```bash
 dftk dataset healthexp -o \
-  | dftk eval ... -f "le = Life_Expectancy.where(Year % 10 != 5)" -o \
+  | dftk eval ... -f "le = Life_Expectancy.where(Year % 10 != 5)" \
+      --sortasc Country Year -o \
   | dftk eval ... -f "le_filled = le.groupby(Country).ffill()"
 ```
 
-`ffill`, `bfill` and `interpolate` use the rows in the order they are in:
-sort in a step of its own first (`dftk eval data.tsv --sortasc site day -o
-| dftk eval ... -f ...`), and use `groupby(...)` when the table holds
-several series, or values are taken from the neighbouring group.
-`interpolate()` has no grouped form and works by row position. `dftk eval
--h` covers these cases, with examples.
+`interpolate()` has no grouped form. Once each group's rows are together,
+gaps inside a group are right, but a gap at a group's start or end is
+filled from the neighbouring group. To leave those empty, keep only values
+with something before and after them in the same group:
+
+```bash
+dftk dataset healthexp -o \
+  | dftk eval ... -f "le = Life_Expectancy.where(Year % 10 != 5)" \
+      --sortasc Country Year -o \
+  | dftk eval ... -f "before = le.groupby(Country).ffill().notna()" \
+      -f "after = le.groupby(Country).bfill().notna()" \
+      -f "le_linear = le.interpolate().where(before & after)" \
+      --drop before after
+```
 
 ### Bootstrap confidence intervals
 

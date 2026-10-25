@@ -10,35 +10,23 @@ Three formula types are supported, each with its own flag:
 """
 
 import argparse
-import fnmatch
-import hashlib
 import logging
-import os
 import re
-from functools import partial
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 from dftk.commands.base import BaseCommand
-from dftk.common import seq as _seq
+from dftk.common.evalfuncs import (
+    SPECIAL_FUNCTIONS,
+    FormulaMistake,
+    apply_special_function,
+    is_special_call,
+    string_function,
+)
 from dftk.common.io import io
 
 logger = logging.getLogger(__name__)
-
-# Optional dependency: python-Levenshtein
-try:
-    import Levenshtein as _lev
-
-    _HAS_LEVENSHTEIN = True
-except ImportError:
-    _HAS_LEVENSHTEIN = False
-
-
-class _FormulaMistake(ValueError):
-    """A mistake in a formula whatever the column types (an unknown name,
-    bad syntax, no assignment): reported even on an empty table."""
 
 
 _EPILOG = """\
@@ -59,84 +47,35 @@ methods are under .str (name.str.lower(), not name.lower() or tolower()):
 
 FILLING MISSING VALUES (-f)
 ---------------------------
-fillna() fills the empty cells of a column; the other cells are kept:
+  -f "x = x.fillna(y)"              from another column (or a value: fillna(0))
+  -f "x = x.fillna(y).fillna(0)"    y first, then 0
+  -f "x = x.ffill()"                the value above (bfill(): the value below)
+  -f "x = x.interpolate()"          a straight line, by row position
+  -f "x = x.groupby(g).ffill()"     within each group of g (also bfill)
+  -f "x = x.fillna(x.groupby(g).transform('mean'))"   the group mean
 
-  dftk eval data.tsv -f "x = x.fillna(y)"          from another column
-  -f "x = x.fillna(0)"   -f "sex = sex.fillna('unknown')"     a fixed value
-  -f "x = x.fillna(y).fillna(0)"                   y first, then 0
-  -f "x_filled = x.fillna(y)"                      keep x, add a new column
-  -f "missing = x.isna()"                          mark the empty cells
-
-Defaults from another table: a column that is in both files gets the
-suffix _r from merge, so fill from it and drop it. Here the defaults are
-each species' median body mass:
-
-  dftk dataset penguins -o | dftk pivot ... -i species -v body_mass_g \\
-      -f median --move median_body_mass_g:body_mass_g -o defaults.parquet
-  dftk dataset penguins -o \\
-      | dftk merge ... -r defaults.parquet -k species -t left -o \\
-      | dftk eval ... -f "body_mass_g = body_mass_g.fillna(body_mass_g_r)" \\
-          --drop body_mass_g_r
-
-The group mean (or 'median', 'min', ...), in one step:
-
-  dftk dataset penguins -o | dftk eval ... \\
-      -f "mean = body_mass_g.groupby(species).transform('mean')" \\
-      -f "body_mass_g = body_mass_g.fillna(mean)" --drop mean
-
-From neighbouring rows (the co2 dataset is a weekly series with gaps):
-
-  dftk dataset co2 -o | dftk eval ... -f "ffill = co2.ffill()" \\
-      -f "bfill = co2.bfill()" -f "linear = co2.interpolate()"
-
-  ffill()          the last value above; the first rows stay empty
-  bfill()          the next value below; the last rows stay empty
-  ffill(limit=1)   fill at most one row after each value
-  interpolate()    a straight line between the values above and below, by
-                   row position: rows must be evenly spaced (for x-based
-                   lookup from a reference curve, see dftk interp)
-
-Row order matters: these methods use the rows in the order they are in.
-Sort first, in a step of its own (--sortasc is applied to the output, so
-in the same command it comes after the fill):
-
-  dftk eval data.tsv --sortasc site day -o | dftk eval ... -f "..."
-
-Several series in one table (sites, countries, samples) must be filled
-within each group, or values are taken from the neighbouring group:
-
-  -f "x = x.groupby(site).ffill()"
-  -f "x = x.groupby(site).bfill()"
-  -f "x = x.groupby(site).ffill().fillna(x.groupby(site).bfill())"
-
-A group's rows don't have to be next to each other, but within each group
-they must be in order. In healthexp, rows are sorted by Year with the
-countries mixed together, so a grouped ffill is right as it is:
-
-  dftk dataset healthexp -o \\
-      | dftk eval ... -f "le = Life_Expectancy.where(Year % 10 != 5)" -o \\
-      | dftk eval ... -f "le_filled = le.groupby(Country).ffill()"
-
-interpolate() has no grouped form. Sort so that each group's rows are
-together; then gaps inside a group are right, but a gap at the start or
-end of a group is filled across the boundary. To leave those empty, keep
-only values with something before and after them in the same group:
+ffill, bfill and interpolate use the rows in their order: sort first, in a
+step of its own (--sortasc applies to the output), and fill within groups
+when the table holds several series, or values come from the next group:
 
   dftk dataset healthexp -o \\
       | dftk eval ... -f "le = Life_Expectancy.where(Year % 10 != 5)" \\
           --sortasc Country Year -o \\
-      | dftk eval ... -f "before = le.groupby(Country).ffill().notna()" \\
-          -f "after = le.groupby(Country).bfill().notna()" \\
-          -f "le_linear = le.interpolate().where(before & after)" \\
-          --drop before after
+      | dftk eval ... -f "le_filled = le.groupby(Country).ffill()"
 
-Only empty cells are filled; missing rows (a year with no row at all) are
-not added.
+interpolate() has no grouped form. The README ("Filling missing values")
+covers defaults from a merge, interpolating within groups, and more.
 
-If df.eval() fails (e.g. for function calls), the expression is retried
-as a special function call using the syntax:
+
+DFTK FUNCTIONS (-f)
+-------------------
+A formula whose right-hand side is one call to a function below runs that
+function; any other formula goes to pandas df.eval():
 
   dest = func(col1, col2, ...)
+
+The call must be the whole right-hand side: for z = sum(a, b) * 2, write
+-f "tmp = sum(a, b)" -f "z = tmp * 2".
 
 Available special functions:
 
@@ -251,356 +190,6 @@ Apply a string or row-level function using the same dest = func(cols) syntax:
 """
 
 # ---------------------------------------------------------------------------
-# Formula parser
-# ---------------------------------------------------------------------------
-
-
-def _parse_formula(formula: str) -> tuple[str, str, list[str], str]:
-    """Parse 'dest = func(col1, col2, ...)' into (dest, func, cols, body).
-
-    Returns the raw argument string as *body* so callers can use it as a
-    glob pattern (e.g. for colsum).
-    """
-    try:
-        dest, right = (x.strip() for x in formula.split("=", 1))
-        func, right = (x.strip() for x in right.split("(", 1))
-        body, _ = (x.strip() for x in right.rsplit(")", 1))
-    except Exception:
-        raise _FormulaMistake(
-            f"Bad formula syntax: {formula!r}  Expected: dest = func(col1, col2, ...)"
-        ) from None
-    cols = [x.strip() for x in body.split(",")]
-    return dest, func, cols, body
-
-
-# ---------------------------------------------------------------------------
-# Special functions (used as pandas agg fallback inside -f)
-# ---------------------------------------------------------------------------
-
-# The function tables below hold names, not function objects: dftk.common.stats
-# and scipy.special are imported only when a formula actually uses one of them,
-# so plain `dftk eval -f` formulas don't pay scipy's import time.
-
-# dftk.common.stats functions, same name in the formula as in the module
-_STATS_DISPATCH = {
-    "binom_test",
-    "fisher_test",
-    "fisher_OR",
-    "boschloo_test",
-    "boschloo_OR",
-    "pval2se",
-    "t2pval",
-    "chi2_to_neglogp",
-    "neglogp_to_chi2",
-    "pval_to_chi2",
-    "generalized_poisson_nll",
-}
-
-_PATH_FUNCS = {"basename", "dirname", "exists", "getsize", "realpath"}
-_NP_FUNCS = {"sign", "cbrt", "log1p", "expm1"}
-_ROW_AGG_FUNCS = {"sum", "mean", "std", "min", "max", "median"}
-_ROW_IDX_FUNCS = {"idxmax", "idxmin"}
-
-# scipy.special single-column functions (element-wise, vectorised):
-# formula name -> scipy.special attribute name
-_SCIPY_SINGLE = {
-    "gamma": "gamma",  # Γ(x)
-    "lgamma": "gammaln",  # log Γ(x)
-    "digamma": "digamma",  # ψ(x)  (log-derivative of Γ)
-    "erf": "erf",  # error function
-    "erfc": "erfc",  # complementary error function
-    "erfinv": "erfinv",  # inverse error function
-    "expit": "expit",  # logistic sigmoid  1/(1+exp(-x))
-    "logit": "logit",  # log(x/(1-x))
-    # Bessel J (first kind), fixed order
-    "j0": "j0",
-    "j1": "j1",
-    # Bessel Y (second kind), fixed order
-    "y0": "y0",
-    "y1": "y1",
-    # Modified Bessel I, fixed order
-    "i0": "i0",
-    "i1": "i1",
-    # Modified Bessel K, fixed order
-    "k0": "k0",
-    "k1": "k1",
-}
-
-# scipy.special two-column functions: func(col_a, col_b)
-_SCIPY_DUAL = {"beta", "betaln"}  # B(a, b), log B(a, b)
-
-# scipy.special parametric Bessel: func_name(order_literal, col)
-# Covers all-order variants: jn(n,x), yn(n,x), iv(v,x), kv(v,x)
-_SCIPY_BESSEL_ORDER = {"jn", "yn", "iv", "kv"}
-
-
-class _FrameFunc:
-    """Callable that applies a named pandas DataFrame method along axis=1.
-
-    Used for idxmax/idxmin, which need the column labels and therefore cannot
-    go through the standard ``func(row.to_numpy())`` dispatch path.
-    """
-
-    def __init__(self, method: str) -> None:
-        self.method = method
-
-    def __call__(self, df_subset):
-        return getattr(df_subset, self.method)(axis=1)
-
-
-def _resolve_where_val(val: str, df: pd.DataFrame):
-    """Resolve a where() argument to a scalar, Series, or literal string.
-
-    Resolution order:
-      1. Quoted string literal  ("foo" or 'foo')
-      2. Column name present in *df*
-      3. Integer literal
-      4. Float literal
-      5. Bare string (returned as-is)
-    """
-    s = val.strip()
-    if (s.startswith('"') and s.endswith('"')) or (
-        s.startswith("'") and s.endswith("'")
-    ):
-        return s[1:-1]
-    if s in df.columns:
-        return df[s]
-    try:
-        return int(s)
-    except ValueError:
-        pass
-    try:
-        return float(s)
-    except ValueError:
-        pass
-    return s
-
-
-class _WhereFunc:
-    """Callable for ``where(cond_col, true_val, false_val)`` using ``np.where``.
-
-    Receives the full DataFrame so that *true_val* and *false_val* can be
-    resolved as column references, quoted string literals, or numeric literals.
-    """
-
-    def __init__(self, cond_col: str, true_val: str, false_val: str) -> None:
-        self.cond_col = cond_col
-        self.true_val = true_val
-        self.false_val = false_val
-
-    def __call__(self, df: pd.DataFrame):
-        cond = df[self.cond_col]
-        true_res = _resolve_where_val(self.true_val, df)
-        false_res = _resolve_where_val(self.false_val, df)
-        return np.where(cond, true_res, false_res)
-
-
-_VALID_SPECIAL = (
-    {
-        "sum",
-        "mean",
-        "std",
-        "min",
-        "max",
-        "median",
-        "overlap",
-        "applymask",
-        "colsum",
-        "where",
-    }
-    | _ROW_IDX_FUNCS
-    | _PATH_FUNCS
-    | _NP_FUNCS
-    | set(_STATS_DISPATCH)
-    | set(_SCIPY_SINGLE)
-    | set(_SCIPY_DUAL)
-    | _SCIPY_BESSEL_ORDER
-)
-
-
-def _special_function(formula: str, df_columns: list[str]):
-    """Return (dest, func, cols) for a special-function formula."""
-    dest, func_name, cols, body = _parse_formula(formula)
-
-    if func_name not in _VALID_SPECIAL:
-        raise _FormulaMistake(
-            f"Function {func_name!r} is not available as a "
-            "special function.  See dftk eval --help."
-        )
-
-    if func_name == "where":
-        if len(cols) != 3:
-            raise ValueError(
-                "where() requires exactly 3 arguments: "
-                "where(cond_col, true_val, false_val)"
-            )
-        return dest, _WhereFunc(cols[0], cols[1], cols[2]), []
-
-    if func_name == "overlap":
-        func = partial(lambda x: max(0, min(x[1], x[3]) - max(x[0] - 1, x[2] - 1)))
-    elif func_name == "applymask":
-        func = partial(lambda x: x[0] & x[1])
-    elif func_name == "colsum":
-        cols = fnmatch.filter(df_columns, body)
-        func = np.sum
-    elif func_name in _ROW_AGG_FUNCS:
-        func = getattr(np, func_name)
-        # Each argument may be a glob pattern: expand to matching column names
-        cols = [c for pat in cols for c in (fnmatch.filter(df_columns, pat) or [pat])]
-    elif func_name in _ROW_IDX_FUNCS:
-        func = _FrameFunc(func_name)
-        cols = [c for pat in cols for c in (fnmatch.filter(df_columns, pat) or [pat])]
-    elif func_name in _NP_FUNCS:
-        func = getattr(np, func_name)
-    elif func_name in _PATH_FUNCS:
-        func = np.frompyfunc(getattr(os.path, func_name), 1, 1)
-    elif func_name in _STATS_DISPATCH:
-        from dftk.common import stats as _stats
-
-        func = getattr(_stats, func_name)
-    elif func_name in _SCIPY_SINGLE:
-        from scipy import special as _sp
-
-        func = getattr(_sp, _SCIPY_SINGLE[func_name])
-    elif func_name in _SCIPY_DUAL:
-        from scipy import special as _sp
-
-        dual = getattr(_sp, func_name)
-        func = partial(lambda x: dual(x[0], x[1]))
-    elif func_name in _SCIPY_BESSEL_ORDER:
-        from scipy import special as _sp
-
-        try:
-            order = float(cols[0])
-        except (ValueError, IndexError):
-            raise ValueError(
-                f"{func_name}() first argument must be a numeric order literal, "
-                f"e.g.  result = {func_name}(2, xcol)"
-            ) from None
-        func = partial(getattr(_sp, func_name), order)
-        cols = cols[1:]
-    else:
-        func = func_name  # bare string passed to pandas agg
-
-    return dest, func, cols
-
-
-# ---------------------------------------------------------------------------
-# String / row functions (used by -s)
-# ---------------------------------------------------------------------------
-
-
-def _string_function(formula: str, joinsep: str):
-    """Return (dest, func, cols) for a string/row-function formula."""
-    dest, func_name, cols, _body = _parse_formula(formula)
-
-    if func_name == "translate":
-        trs = str.maketrans(*cols[1:])
-        return dest, partial(lambda x: x.translate(trs)), cols[0:1]
-    if func_name == "len":
-        return dest, partial(lambda x: len(str(x))), cols
-    if func_name == "join":
-        return dest, partial(lambda x: joinsep.join(str(v) for v in x)), cols
-    if func_name == "lower":
-        return dest, partial(lambda x: str(x).lower()), cols
-    if func_name == "upper":
-        return dest, partial(lambda x: str(x).upper()), cols
-    if func_name == "zfill":
-        return dest, partial(lambda x: str(x).zfill(int(cols[1]))), cols[0:1]
-    if func_name == "find":
-        return dest, partial(lambda x: str(x).find(str(cols[1]))), cols[0:1]
-    if func_name == "match":
-        return dest, partial(lambda x: str(x[0]).find(str(x[1]))), cols
-    if func_name == "substr":
-        start, length = int(cols[1]), int(cols[2])
-        return dest, partial(lambda x: str(x)[start : start + length]), cols[0:1]
-    if func_name == "substring":
-        length = int(cols[2])
-        return dest, partial(lambda x: str(x[0])[x[1] : x[1] + length]), cols[0:2]
-    if func_name == "replace":
-        return dest, partial(lambda x: str(x).replace(cols[1], cols[2])), cols[0:1]
-
-    if func_name == "leftsplit":
-        sep, idx = cols[1], int(cols[2])
-
-        def _leftsplit(x):
-            s = str(x)
-            if sep in s:
-                parts = s.split(sep, 1)
-                return parts[0] if idx == 0 else parts[1]
-            return s if idx == 0 else ""
-
-        return dest, _leftsplit, cols[0:1]
-
-    if func_name == "rightsplit":
-        sep, idx = cols[1], int(cols[2])
-
-        def _rightsplit(x):
-            s = str(x)
-            if sep in s:
-                parts = s.rsplit(sep, 1)
-                return parts[0] if idx == 0 else parts[1]
-            return s if idx == 0 else ""
-
-        return dest, _rightsplit, cols[0:1]
-
-    if func_name == "levenshtein":
-        if not _HAS_LEVENSHTEIN:
-            raise ImportError(
-                "levenshtein() requires the python-Levenshtein package. "
-                "Install it with: uv add python-Levenshtein"
-            )
-        return dest, partial(lambda x: _lev.distance(str(x[0]), str(x[1]))), cols[0:2]
-
-    if func_name == "sort":
-        return dest, partial(lambda x: "".join(sorted(str(x)))), cols
-    if func_name == "ord":
-
-        def _myord(x):
-            try:
-                return min(ord(c) for c in str(x))
-            except (TypeError, ValueError):
-                return 0
-
-        return dest, _myord, cols[0:1]
-    if func_name == "template":
-        return dest, partial(lambda x: _body.format(**x)), []
-    if func_name == "md5":
-        return (
-            dest,
-            partial(lambda x: hashlib.md5(str(x).encode()).hexdigest()),
-            cols[0:1],
-        )
-
-    # Path operations
-    if func_name == "basename":
-        return dest, partial(lambda x: os.path.basename(str(x))), cols
-    if func_name == "stem":
-        return dest, partial(lambda x: Path(str(x)).stem), cols
-    if func_name == "realpath":
-        return dest, partial(lambda x: str(Path(str(x)).resolve())), cols
-    if func_name == "isfile":
-        return dest, partial(lambda x: int(os.path.isfile(str(x)))), cols
-    if func_name == "exists":
-        return dest, partial(lambda x: int(os.path.exists(str(x)))), cols
-
-    # DNA / sequence operations
-    if func_name == "gccontent":
-        return dest, partial(lambda x: _seq.gc_content(x)), cols
-    if func_name == "basecount":
-        return dest, partial(lambda x: _seq.letter_total(x)), cols
-    if func_name == "motifcount":
-        pattern = cols[0]
-        return dest, partial(lambda x: _seq.count_motif(pattern, x)), cols[1:]
-    if func_name == "readoffset":
-        return dest, partial(lambda x: _seq.read_offset(*x)), cols
-
-    raise ValueError(
-        f"String function {func_name!r} is not available. See dftk eval --help."
-    )
-
-
-# ---------------------------------------------------------------------------
 # Core eval logic
 # ---------------------------------------------------------------------------
 
@@ -608,8 +197,8 @@ def _string_function(formula: str, joinsep: str):
 # A message pandas gives for a method that no column has, whatever its dtype
 _NO_METHOD = re.compile(r"'Series' object has no attribute '(\w+)'")
 
-# dest = col.method(...): never a special function
-_METHOD_CALL = re.compile(r"\s*\w+\s*=\s*[A-Za-z_]\w*\.[A-Za-z_]")
+# pandas' message for a function it doesn't know
+_NO_FUNCTION = re.compile(r'"(\w+)" is not a supported function')
 
 
 def _formula_error(formula: str, exc: Exception) -> str:
@@ -627,70 +216,41 @@ def _formula_error(formula: str, exc: Exception) -> str:
         return (
             f"-f {formula!r}: column has no method {name!r}. {hint}  See dftk eval -h."
         )
+    m = _NO_FUNCTION.search(msg)
+    if m:
+        name = m.group(1)
+        if name in SPECIAL_FUNCTIONS:
+            return (
+                f"-f {formula!r}: {name}() must be the whole right-hand side, "
+                f"e.g. -f 'tmp = {name}(...)' -f 'z = tmp * 2'."
+            )
+        return f"-f {formula!r}: unknown function {name!r}.  See dftk eval -h."
     return f"-f {formula!r}: {msg}"
 
 
-def _apply_special_function(df: pd.DataFrame, formula: str) -> None:
-    """Evaluate a special-function formula and store its column in *df*."""
-    dest, func, cols = _special_function(formula, list(df.columns))
-    missing = [c for c in cols if c not in df.columns]
-    if missing:
-        hint = ""
-        if any(re.fullmatch(r"[-+]?[\d.]+(e[-+]?\d+)?", c) for c in missing):
-            hint = (
-                "  For a fixed value, add it as a column first: "
-                "-c 'p = 0.5' -f 'z = func(x, p)'."
-            )
-        raise _FormulaMistake(f"-f {formula!r}: column(s) not found: {missing}.{hint}")
-    if len(df) == 0:
-        df[dest] = True
-    elif isinstance(func, _WhereFunc):
-        df[dest] = func(df)
-    elif isinstance(func, _FrameFunc):
-        # Frame-level functions (idxmax/idxmin) need column labels
-        df[dest] = func(df[cols])
-    elif len(cols) == 1:
-        # Element-wise on a single column (e.g. np.sign, os.path.*)
-        df[dest] = df[cols[0]].apply(func)
-    else:
-        # Multi-column row function: pass numpy array so positional
-        # indexing (row[0], row[1], ...) works in pandas 2.x
-        df[dest] = df[cols].apply(lambda row, f=func: f(row.to_numpy()), axis=1)
-
-
 def _eval_formula(df: pd.DataFrame, formula: str) -> pd.DataFrame:
-    """Evaluate one -f formula: pandas df.eval(), else a special function."""
+    """Evaluate one -f formula: a special function, or else pandas df.eval()."""
+    if is_special_call(formula):
+        apply_special_function(df, formula)
+        return df
     try:
         # Not inplace: that writes into the existing column, which must keep
         # its dtype, so x = x.fillna(y) or x = x.isna() failed whenever the
         # result had another dtype
         result = df.eval(formula)
-    except NameError as exc:
-        # An unknown column (pandas' UndefinedVariableError)
-        raise _FormulaMistake(_formula_error(formula, exc)) from exc
-    except (AttributeError, TypeError, KeyError) as exc:
+    except (NameError, SyntaxError) as exc:
+        # An unknown column (pandas' UndefinedVariableError) or bad syntax
+        raise FormulaMistake(_formula_error(formula, exc)) from exc
+    except (AttributeError, TypeError, KeyError, ValueError) as exc:
         # Raised while pandas evaluated the user's expression, so most likely
         # a mistake in it (wrong method, arguments, or .str on numbers)
-        cls = _FormulaMistake if _NO_METHOD.search(str(exc)) else ValueError
+        msg = str(exc)
+        mistake = _NO_METHOD.search(msg) or _NO_FUNCTION.search(msg)
+        cls = FormulaMistake if mistake else ValueError
         raise cls(_formula_error(formula, exc)) from exc
-    except (ValueError, SyntaxError) as eval_exc:
-        if _METHOD_CALL.match(formula):
-            raise ValueError(_formula_error(formula, eval_exc)) from eval_exc
-        logger.debug(f"df.eval failed for {formula!r}, trying special_function")
-        try:
-            _apply_special_function(df, formula)
-        except ValueError as exc:
-            name = re.search(r"=\s*(\w+)\s*\(", formula)
-            if name and name.group(1) in _VALID_SPECIAL:
-                raise  # a known special function: pandas' error is beside the point
-            raise type(exc)(f"{exc}  (pandas df.eval: {eval_exc})") from exc
-        except Exception:
-            logger.error(f"Could not evaluate formula: {formula!r}")
-            raise
-        return df
     if not isinstance(result, pd.DataFrame):
         # No "dest =": df.eval returned the values instead of a table
-        raise _FormulaMistake(
+        raise FormulaMistake(
             f"-f {formula!r} has no assignment; write it as 'name = {formula}'"
         )
     return result
@@ -713,7 +273,7 @@ def _eval(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
                 constval = constval_str
         df[colname] = constval
 
-    # -f: pandas eval with special-function fallback
+    # -f: special functions, or else pandas df.eval
     for formula in getattr(args, "formula", []):
         try:
             df = _eval_formula(df, formula)
@@ -721,14 +281,14 @@ def _eval(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
             # An empty table has no column types (pandas reads them as
             # float64), so on one only mistakes that don't depend on types
             # are reported; for the rest the column is just added
-            if len(df) != 0 or isinstance(exc, _FormulaMistake):
+            if len(df) != 0 or isinstance(exc, FormulaMistake):
                 raise
             df[formula.split("=", 1)[0].strip()] = True
 
     # -s: string / row functions
     for strfunc in getattr(args, "strfunc", []):
         try:
-            dest, func, cols = _string_function(strfunc, joinsep)
+            dest, func, cols = string_function(strfunc, joinsep)
             if len(df) == 0:
                 df[dest] = True
             elif len(cols) == 0:

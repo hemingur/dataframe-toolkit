@@ -7,7 +7,8 @@ import pandas as pd
 import pytest
 from scipy import special as _sp
 
-from dftk.commands.eval_cmd import _eval, _parse_formula
+from dftk.commands.eval_cmd import _eval
+from dftk.common.evalfuncs import parse_formula as _parse_formula
 from tests.conftest import make_args
 
 # ---------------------------------------------------------------------------
@@ -555,8 +556,8 @@ class TestFormulaErrors:
             _eval(ts_df, _eval_args(formula=[formula]))
         assert "special function" not in str(exc.value)
 
-    def test_unknown_function_includes_pandas_error(self, num_df):
-        with pytest.raises(ValueError, match="special function.*pandas df.eval"):
+    def test_unknown_function(self, num_df):
+        with pytest.raises(ValueError, match="unknown function 'frobnicate'"):
             _eval(num_df, _eval_args(formula=["z = frobnicate(x)"]))
 
     def test_special_functions_still_work(self, num_df):
@@ -608,7 +609,7 @@ class TestEmptyTableFormulas:
         [
             ("c = nope + 1", "'nope' is not defined"),
             ("c = a.nosuch()", "no method 'nosuch'"),
-            ("c = frobnicate(a)", "not available as a special function"),
+            ("c = frobnicate(a)", "unknown function 'frobnicate'"),
             ("c = sum(a, zz)", r"not found: \['zz'\]"),
             ("a + 1", "no assignment"),
         ],
@@ -625,3 +626,43 @@ class TestEmptyTableFormulas:
         result = _eval(empty_df, _eval_args(formula=[formula]))
         assert "c" in result.columns
         assert len(result) == 0
+
+
+class TestFormulaDispatch:
+    def test_special_function_inside_expression_is_an_error(self, num_df):
+        # The old fallback parsed only sum(x, y) and dropped "* 2" silently
+        with pytest.raises(ValueError, match=r"sum\(\) must be the whole right-hand"):
+            _eval(num_df, _eval_args(formula=["z = sum(x, y) * 2"]))
+
+    def test_special_function_then_expression_in_two_steps(self, num_df):
+        args = _eval_args(formula=["tmp = sum(x, y)", "z = tmp * 2"])
+        assert list(_eval(num_df, args)["z"]) == pytest.approx([22.0, 44.0, 66.0])
+
+    def test_pandas_math_functions_stay_with_pandas(self, num_df):
+        result = _eval(num_df, _eval_args(formula=["z = log1p(x) + expm1(x)"]))
+        expected = np.log1p(num_df["x"]) + np.expm1(num_df["x"])
+        assert list(result["z"]) == pytest.approx(list(expected))
+
+    def test_syntax_error_is_reported_by_pandas(self, num_df):
+        with pytest.raises(ValueError, match="'z = x \\+': invalid syntax") as exc:
+            _eval(num_df, _eval_args(formula=["z = x +"]))
+        assert "dest = func" not in str(exc.value)
+
+    def test_exists_is_boolean_in_f_and_s(self, tmp_path):
+        df = pd.DataFrame({"p": [str(tmp_path), str(tmp_path / "nope")]})
+        args = _eval_args(formula=["f = exists(p)"], strfunc=["s = exists(p)"])
+        result = _eval(df, args)
+        assert list(result["f"]) == [True, False]
+        assert list(result["s"]) == [True, False]
+
+    def test_exists_with_intbool_gives_integers(self, tmp_path):
+        df = pd.DataFrame({"p": [str(tmp_path), str(tmp_path / "nope")]})
+        result = _eval(df, _eval_args(strfunc=["s = exists(p)"], intbool=True))
+        assert list(result["s"]) == [1, 0]
+
+    def test_isfile_is_boolean(self, tmp_path):
+        f = tmp_path / "a.txt"
+        f.write_text("x")
+        df = pd.DataFrame({"p": [str(f), str(tmp_path)]})
+        result = _eval(df, _eval_args(strfunc=["s = isfile(p)"]))
+        assert list(result["s"]) == [True, False]
