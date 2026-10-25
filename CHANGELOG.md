@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.11.2] — 2026-10-25
 
 ### Fixed
 - `eval -f`: a dftk function inside a larger expression, e.g. `z = sum(a, b) * 2`, silently ignored the rest (`* 2`). A dftk function must be the whole right-hand side; such a formula is now an error with a two-step example (`-f "tmp = sum(a, b)" -f "z = tmp * 2"`).
