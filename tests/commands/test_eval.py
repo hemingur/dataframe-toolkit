@@ -647,3 +647,15 @@ class TestFormulaDispatch:
         with pytest.raises(ValueError, match="'z = x \\+': invalid syntax") as exc:
             _eval(num_df, _eval_args(formula=["z = x +"]))
         assert "dest = func" not in str(exc.value)
+
+    def test_exists_is_boolean_in_f_and_s(self, tmp_path):
+        df = pd.DataFrame({"p": [str(tmp_path), str(tmp_path / "nope")]})
+        args = _eval_args(formula=["f = exists(p)"], strfunc=["s = exists(p)"])
+        result = _eval(df, args)
+        assert list(result["f"]) == [True, False]
+        assert list(result["s"]) == [True, False]
+
+    def test_exists_with_intbool_gives_integers(self, tmp_path):
+        df = pd.DataFrame({"p": [str(tmp_path), str(tmp_path / "nope")]})
+        result = _eval(df, _eval_args(strfunc=["s = exists(p)"], intbool=True))
+        assert list(result["s"]) == [1, 0]

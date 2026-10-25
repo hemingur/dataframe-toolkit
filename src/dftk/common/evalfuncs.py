@@ -393,7 +393,7 @@ def string_function(formula: str, joinsep: str):
     if func_name == "isfile":
         return dest, partial(lambda x: int(os.path.isfile(str(x)))), cols
     if func_name == "exists":
-        return dest, partial(lambda x: int(os.path.exists(str(x)))), cols
+        return dest, partial(lambda x: os.path.exists(str(x))), cols
 
     # DNA / sequence operations
     if func_name == "gccontent":
