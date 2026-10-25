@@ -21,6 +21,7 @@ from dftk.common.evalfuncs import (
     SPECIAL_FUNCTIONS,
     FormulaMistake,
     apply_special_function,
+    is_special_call,
     string_function,
 )
 from dftk.common.io import io
@@ -245,8 +246,8 @@ Apply a string or row-level function using the same dest = func(cols) syntax:
 # A message pandas gives for a method that no column has, whatever its dtype
 _NO_METHOD = re.compile(r"'Series' object has no attribute '(\w+)'")
 
-# dest = col.method(...): never a special function
-_METHOD_CALL = re.compile(r"\s*\w+\s*=\s*[A-Za-z_]\w*\.[A-Za-z_]")
+# pandas' message for a function it doesn't know
+_NO_FUNCTION = re.compile(r'"(\w+)" is not a supported function')
 
 
 def _formula_error(formula: str, exc: Exception) -> str:
@@ -264,39 +265,38 @@ def _formula_error(formula: str, exc: Exception) -> str:
         return (
             f"-f {formula!r}: column has no method {name!r}. {hint}  See dftk eval -h."
         )
+    m = _NO_FUNCTION.search(msg)
+    if m:
+        name = m.group(1)
+        if name in SPECIAL_FUNCTIONS:
+            return (
+                f"-f {formula!r}: {name}() must be the whole right-hand side, "
+                f"e.g. -f 'tmp = {name}(...)' -f 'z = tmp * 2'."
+            )
+        return f"-f {formula!r}: unknown function {name!r}.  See dftk eval -h."
     return f"-f {formula!r}: {msg}"
 
 
 def _eval_formula(df: pd.DataFrame, formula: str) -> pd.DataFrame:
-    """Evaluate one -f formula: pandas df.eval(), else a special function."""
+    """Evaluate one -f formula: a special function, or else pandas df.eval()."""
+    if is_special_call(formula):
+        apply_special_function(df, formula)
+        return df
     try:
         # Not inplace: that writes into the existing column, which must keep
         # its dtype, so x = x.fillna(y) or x = x.isna() failed whenever the
         # result had another dtype
         result = df.eval(formula)
-    except NameError as exc:
-        # An unknown column (pandas' UndefinedVariableError)
+    except (NameError, SyntaxError) as exc:
+        # An unknown column (pandas' UndefinedVariableError) or bad syntax
         raise FormulaMistake(_formula_error(formula, exc)) from exc
-    except (AttributeError, TypeError, KeyError) as exc:
+    except (AttributeError, TypeError, KeyError, ValueError) as exc:
         # Raised while pandas evaluated the user's expression, so most likely
         # a mistake in it (wrong method, arguments, or .str on numbers)
-        cls = FormulaMistake if _NO_METHOD.search(str(exc)) else ValueError
+        msg = str(exc)
+        mistake = _NO_METHOD.search(msg) or _NO_FUNCTION.search(msg)
+        cls = FormulaMistake if mistake else ValueError
         raise cls(_formula_error(formula, exc)) from exc
-    except (ValueError, SyntaxError) as eval_exc:
-        if _METHOD_CALL.match(formula):
-            raise ValueError(_formula_error(formula, eval_exc)) from eval_exc
-        logger.debug(f"df.eval failed for {formula!r}, trying special_function")
-        try:
-            apply_special_function(df, formula)
-        except ValueError as exc:
-            name = re.search(r"=\s*(\w+)\s*\(", formula)
-            if name and name.group(1) in SPECIAL_FUNCTIONS:
-                raise  # a known special function: pandas' error is beside the point
-            raise type(exc)(f"{exc}  (pandas df.eval: {eval_exc})") from exc
-        except Exception:
-            logger.error(f"Could not evaluate formula: {formula!r}")
-            raise
-        return df
     if not isinstance(result, pd.DataFrame):
         # No "dest =": df.eval returned the values instead of a table
         raise FormulaMistake(
@@ -322,7 +322,7 @@ def _eval(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
                 constval = constval_str
         df[colname] = constval
 
-    # -f: pandas eval with special-function fallback
+    # -f: special functions, or else pandas df.eval
     for formula in getattr(args, "formula", []):
         try:
             df = _eval_formula(df, formula)

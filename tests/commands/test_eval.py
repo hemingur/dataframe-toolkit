@@ -556,8 +556,8 @@ class TestFormulaErrors:
             _eval(ts_df, _eval_args(formula=[formula]))
         assert "special function" not in str(exc.value)
 
-    def test_unknown_function_includes_pandas_error(self, num_df):
-        with pytest.raises(ValueError, match="special function.*pandas df.eval"):
+    def test_unknown_function(self, num_df):
+        with pytest.raises(ValueError, match="unknown function 'frobnicate'"):
             _eval(num_df, _eval_args(formula=["z = frobnicate(x)"]))
 
     def test_special_functions_still_work(self, num_df):
@@ -609,7 +609,7 @@ class TestEmptyTableFormulas:
         [
             ("c = nope + 1", "'nope' is not defined"),
             ("c = a.nosuch()", "no method 'nosuch'"),
-            ("c = frobnicate(a)", "not available as a special function"),
+            ("c = frobnicate(a)", "unknown function 'frobnicate'"),
             ("c = sum(a, zz)", r"not found: \['zz'\]"),
             ("a + 1", "no assignment"),
         ],

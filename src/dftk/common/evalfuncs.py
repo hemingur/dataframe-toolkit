@@ -1,8 +1,9 @@
 """
 dftk.common.evalfuncs — the functions behind dftk eval's -f and -s options.
 
--f: special functions (row sum/mean, where, sign, statistics,
-scipy.special, path functions), tried when pandas df.eval() fails.
+-f: a formula whose right-hand side is a single call to one of
+SPECIAL_FUNCTIONS (row sum/mean, where, sign, statistics, scipy.special,
+path functions) runs that function; anything else goes to pandas df.eval().
 -s: string / row functions (string_function).
 """
 
@@ -56,7 +57,7 @@ def parse_formula(formula: str) -> tuple[str, str, list[str], str]:
 
 
 # ---------------------------------------------------------------------------
-# Special functions (used as pandas agg fallback inside -f)
+# Special functions (-f)
 # ---------------------------------------------------------------------------
 
 # The function tables below hold names, not function objects: dftk.common.stats
@@ -198,6 +199,34 @@ SPECIAL_FUNCTIONS = (
     | set(_SCIPY_DUAL)
     | _SCIPY_BESSEL_ORDER
 )
+
+
+# Also built into pandas df.eval, which handles them faster: leave them to it
+_PANDAS_FUNCS = {"log1p", "expm1"}
+
+# "dest = name(" at the start of a formula
+_CALL = re.compile(r"\s*[A-Za-z_]\w*\s*=\s*([A-Za-z_]\w*)\s*\(")
+
+
+def is_special_call(formula: str) -> bool:
+    """Return True if *formula* is 'dest = name(...)' with a special function.
+
+    The call must be the whole right-hand side, so 'z = sum(a, b) * 2' is
+    not one: pandas then reports that sum can't be used inside an expression.
+    """
+    m = _CALL.match(formula)
+    if not m or m.group(1) not in SPECIAL_FUNCTIONS or m.group(1) in _PANDAS_FUNCS:
+        return False
+    rest = formula[m.end() - 1 :].rstrip()
+    depth = 0
+    for i, ch in enumerate(rest):
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth == 0:
+                return i == len(rest) - 1
+    return False
 
 
 def special_function(formula: str, df_columns: list[str]):
