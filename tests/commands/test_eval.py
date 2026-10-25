@@ -563,7 +563,65 @@ class TestFormulaErrors:
         result = _eval(num_df, _eval_args(formula=["z = sum(x, y)"]))
         assert list(result["z"]) == pytest.approx([11.0, 22.0, 33.0])
 
-    def test_empty_table_with_bad_method_does_not_crash(self):
+    def test_empty_table_still_reports_unknown_method(self):
         df = pd.DataFrame({"x": pd.Series([], dtype=float)})
-        result = _eval(df, _eval_args(formula=["y = x.tolower()"]))
-        assert "y" in result.columns
+        with pytest.raises(ValueError, match="no method 'tolower'"):
+            _eval(df, _eval_args(formula=["y = x.tolower()"]))
+
+
+@pytest.fixture
+def empty_df():
+    # An empty TSV is read with float64 columns: the types are unknown
+    return pd.DataFrame(
+        {"a": pd.Series([], dtype=float), "name": pd.Series([], dtype=float)}
+    )
+
+
+class TestFormulaMistakes:
+    def test_no_assignment(self, num_df):
+        with pytest.raises(ValueError, match="no assignment.*'name = x \\+ y'"):
+            _eval(num_df, _eval_args(formula=["x + y"]))
+
+    def test_special_function_with_unknown_column(self, num_df):
+        with pytest.raises(ValueError, match=r"column\(s\) not found: \['x y'\]"):
+            _eval(num_df, _eval_args(formula=["z = sum(x y)"]))
+
+    def test_special_function_with_number_suggests_constant_column(self):
+        df = pd.DataFrame({"k": [3], "n": [10]})
+        with pytest.raises(ValueError, match="-c 'p = 0.5'") as exc:
+            _eval(df, _eval_args(formula=["z = binom_test(k, n, 0.5)"]))
+        assert "pandas df.eval" not in str(exc.value)
+
+    def test_constant_column_works_with_special_function(self):
+        df = pd.DataFrame({"k": [3], "n": [10]})
+        args = _eval_args(constant=["p = 0.5"], formula=["z = binom_test(k, n, p)"])
+        assert _eval(df, args)["z"].iloc[0] == pytest.approx(0.34375)
+
+    def test_numeric_literal_is_not_a_method_call(self, num_df):
+        result = _eval(num_df, _eval_args(formula=["z = 1.5 * x"]))
+        assert list(result["z"]) == pytest.approx([1.5, 3.0, 4.5])
+
+
+class TestEmptyTableFormulas:
+    @pytest.mark.parametrize(
+        "formula, message",
+        [
+            ("c = nope + 1", "'nope' is not defined"),
+            ("c = a.nosuch()", "no method 'nosuch'"),
+            ("c = frobnicate(a)", "not available as a special function"),
+            ("c = sum(a, zz)", r"not found: \['zz'\]"),
+            ("a + 1", "no assignment"),
+        ],
+    )
+    def test_mistakes_are_reported(self, empty_df, formula, message):
+        with pytest.raises(ValueError, match=message):
+            _eval(empty_df, _eval_args(formula=[formula]))
+
+    @pytest.mark.parametrize(
+        "formula",
+        ["c = name.str.lower()", "c = a + 1", "c = sign(a)", "c = basename(name)"],
+    )
+    def test_type_dependent_formulas_add_the_column(self, empty_df, formula):
+        result = _eval(empty_df, _eval_args(formula=[formula]))
+        assert "c" in result.columns
+        assert len(result) == 0
