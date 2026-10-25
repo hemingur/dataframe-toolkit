@@ -45,6 +45,7 @@ src/dftk/
     io.py                   # io.read(args), io.printdf(df, args) — TSV in/out
     stats.py                # Statistical helpers (binom_test, fisher_test, etc.)
     seq.py                  # DNA/sequence utilities
+    evalfuncs.py            # eval's special (-f) and string (-s) functions, formula parser
     copula.py               # Nonparametric tail-dependence diagnostics (used by corr --tail, chi)
 tests/
   conftest.py               # make_args(**kwargs) helper used by all tests
@@ -114,7 +115,7 @@ def execute(self, args):
 - **Heavy imports stay out of module level**: `cli.py` imports only the command being run, so a command module's
   top-level imports are paid only by that command. Keep scipy / statsmodels / matplotlib / seaborn imports
   out of `common/*.py` modules that light commands use (`io.py`, `seq.py`), and in a command that needs one only
-  for some options, import it inside the function that uses it (see `eval_cmd._special_function`).
+  for some options, import it inside the function that uses it (see `evalfuncs.special_function`).
   `tests/test_cli.py::TestLazyImportsCLI` fails if a light command starts importing one of them.
 - **File naming**: all command modules are `<name>_cmd.py` (e.g. `stat_cmd.py`, not `stat.py`).
 - **TSV I/O**: `io.printdf` writes NaN as empty string (trailing tab). Test helpers must convert `""` → `float("nan")` when parsing TSV output.
@@ -126,13 +127,14 @@ def execute(self, args):
 
 ## eval_cmd internals
 
-Three formula modes:
+`eval_cmd.py` is the CLI and dispatch; the functions themselves are in
+`common/evalfuncs.py`. Three formula modes:
 
-- `-f EXPR`: pandas `df.eval()` first; on failure falls back to `_special_function()`
+- `-f EXPR`: if the right-hand side is a single call to a name in `SPECIAL_FUNCTIONS` (`evalfuncs.is_special_call`), that function runs; anything else goes to pandas `df.eval()`. There is no fallback between the two, so a pandas error is always the user's pandas mistake. `log1p`/`expm1` stay with pandas, which has them built in. Errors that are mistakes whatever the column types raise `FormulaMistake` and are reported even on an empty table (whose columns are all read as float64); other errors are skipped there
 - `-c EXPR`: constant column assignment (`dest = value`, value coerced to int/float/str)
 - `-s EXPR`: string / row functions
 
-**Special functions** available in `-f` (fallback path):
+**Special functions** available in `-f`:
 
 - Row aggregation: `sum mean std min max median` (glob patterns supported)
 - Row index: `idxmax idxmin` (returns column name of max/min per row)
@@ -143,7 +145,7 @@ Three formula modes:
 - Path: `basename dirname exists getsize realpath`
 - Stats: `binom_test fisher_test fisher_OR boschloo_test pval2se t2pval chi2_to_neglogp neglogp_to_chi2 pval_to_chi2 generalized_poisson_nll`
 
-**Dispatch classes** (`_FrameFunc`, `_WhereFunc`): used when the function needs the full DataFrame rather than a single row/column. Detected by `isinstance` checks in `_eval`.
+**Dispatch classes** (`_FrameFunc`, `_WhereFunc`): used when the function needs the full DataFrame rather than a single row/column. Detected by `isinstance` checks in `evalfuncs.apply_special_function`.
 
 ---
 

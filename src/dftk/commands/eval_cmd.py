@@ -47,84 +47,35 @@ methods are under .str (name.str.lower(), not name.lower() or tolower()):
 
 FILLING MISSING VALUES (-f)
 ---------------------------
-fillna() fills the empty cells of a column; the other cells are kept:
+  -f "x = x.fillna(y)"              from another column (or a value: fillna(0))
+  -f "x = x.fillna(y).fillna(0)"    y first, then 0
+  -f "x = x.ffill()"                the value above (bfill(): the value below)
+  -f "x = x.interpolate()"          a straight line, by row position
+  -f "x = x.groupby(g).ffill()"     within each group of g (also bfill)
+  -f "x = x.fillna(x.groupby(g).transform('mean'))"   the group mean
 
-  dftk eval data.tsv -f "x = x.fillna(y)"          from another column
-  -f "x = x.fillna(0)"   -f "sex = sex.fillna('unknown')"     a fixed value
-  -f "x = x.fillna(y).fillna(0)"                   y first, then 0
-  -f "x_filled = x.fillna(y)"                      keep x, add a new column
-  -f "missing = x.isna()"                          mark the empty cells
-
-Defaults from another table: a column that is in both files gets the
-suffix _r from merge, so fill from it and drop it. Here the defaults are
-each species' median body mass:
-
-  dftk dataset penguins -o | dftk pivot ... -i species -v body_mass_g \\
-      -f median --move median_body_mass_g:body_mass_g -o defaults.parquet
-  dftk dataset penguins -o \\
-      | dftk merge ... -r defaults.parquet -k species -t left -o \\
-      | dftk eval ... -f "body_mass_g = body_mass_g.fillna(body_mass_g_r)" \\
-          --drop body_mass_g_r
-
-The group mean (or 'median', 'min', ...), in one step:
-
-  dftk dataset penguins -o | dftk eval ... \\
-      -f "mean = body_mass_g.groupby(species).transform('mean')" \\
-      -f "body_mass_g = body_mass_g.fillna(mean)" --drop mean
-
-From neighbouring rows (the co2 dataset is a weekly series with gaps):
-
-  dftk dataset co2 -o | dftk eval ... -f "ffill = co2.ffill()" \\
-      -f "bfill = co2.bfill()" -f "linear = co2.interpolate()"
-
-  ffill()          the last value above; the first rows stay empty
-  bfill()          the next value below; the last rows stay empty
-  ffill(limit=1)   fill at most one row after each value
-  interpolate()    a straight line between the values above and below, by
-                   row position: rows must be evenly spaced (for x-based
-                   lookup from a reference curve, see dftk interp)
-
-Row order matters: these methods use the rows in the order they are in.
-Sort first, in a step of its own (--sortasc is applied to the output, so
-in the same command it comes after the fill):
-
-  dftk eval data.tsv --sortasc site day -o | dftk eval ... -f "..."
-
-Several series in one table (sites, countries, samples) must be filled
-within each group, or values are taken from the neighbouring group:
-
-  -f "x = x.groupby(site).ffill()"
-  -f "x = x.groupby(site).bfill()"
-  -f "x = x.groupby(site).ffill().fillna(x.groupby(site).bfill())"
-
-A group's rows don't have to be next to each other, but within each group
-they must be in order. In healthexp, rows are sorted by Year with the
-countries mixed together, so a grouped ffill is right as it is:
-
-  dftk dataset healthexp -o \\
-      | dftk eval ... -f "le = Life_Expectancy.where(Year % 10 != 5)" -o \\
-      | dftk eval ... -f "le_filled = le.groupby(Country).ffill()"
-
-interpolate() has no grouped form. Sort so that each group's rows are
-together; then gaps inside a group are right, but a gap at the start or
-end of a group is filled across the boundary. To leave those empty, keep
-only values with something before and after them in the same group:
+ffill, bfill and interpolate use the rows in their order: sort first, in a
+step of its own (--sortasc applies to the output), and fill within groups
+when the table holds several series, or values come from the next group:
 
   dftk dataset healthexp -o \\
       | dftk eval ... -f "le = Life_Expectancy.where(Year % 10 != 5)" \\
           --sortasc Country Year -o \\
-      | dftk eval ... -f "before = le.groupby(Country).ffill().notna()" \\
-          -f "after = le.groupby(Country).bfill().notna()" \\
-          -f "le_linear = le.interpolate().where(before & after)" \\
-          --drop before after
+      | dftk eval ... -f "le_filled = le.groupby(Country).ffill()"
 
-Only empty cells are filled; missing rows (a year with no row at all) are
-not added.
+interpolate() has no grouped form. The README ("Filling missing values")
+covers defaults from a merge, interpolating within groups, and more.
 
-If df.eval() fails (e.g. for function calls), the expression is retried
-as a special function call using the syntax:
+
+DFTK FUNCTIONS (-f)
+-------------------
+A formula whose right-hand side is one call to a function below runs that
+function; any other formula goes to pandas df.eval():
 
   dest = func(col1, col2, ...)
+
+The call must be the whole right-hand side: for z = sum(a, b) * 2, write
+-f "tmp = sum(a, b)" -f "z = tmp * 2".
 
 Available special functions:
 
