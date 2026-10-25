@@ -232,3 +232,29 @@ class TestImplodeExecute:
     def test_missing_poscol(self, go_df):
         with pytest.raises(ValueError, match="--poscol"):
             _run(go_df, poscol="nope")
+
+
+class TestImplodeEdgeCases:
+    def test_inf_is_written_as_inf(self):
+        df = pd.DataFrame({"g": ["A", "A"], "v": [float("inf"), 2.0]})
+        assert _implode(df, _make_args())["v"].tolist() == ["inf,2.0"]
+
+    def test_column_named_gid_is_kept(self):
+        df = pd.DataFrame(
+            {"g": ["A", "A", "B"], "_gid": [9, 9, 8], "v": ["x", "y", "z"]}
+        )
+        result = _implode(df, _make_args())
+        assert result["_gid"].tolist() == [9, 8]
+        assert result["v"].tolist() == ["x,y", "z"]
+
+    def test_indexcols_with_poscol(self):
+        df = pd.DataFrame(
+            {"g": ["A"] * 3, "v": ["y", "x", "z"], "n": [2, 1, 3], "w": [0, 1, 2]}
+        )
+        result = _implode(df, _make_args(indexcols=["g"], poscol="n"))
+        assert list(result.columns) == ["g", "v"]
+        assert result["v"].tolist() == ["x,y,z"]
+
+    def test_column_with_only_empty_values(self):
+        df = pd.DataFrame({"g": ["A", "B"], "v": [None, None]})
+        assert _values(_implode(df, _make_args())["v"]) == [None, None]
