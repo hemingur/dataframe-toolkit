@@ -391,7 +391,7 @@ def string_function(formula: str, joinsep: str):
     if func_name == "realpath":
         return dest, partial(lambda x: str(Path(str(x)).resolve())), cols
     if func_name == "isfile":
-        return dest, partial(lambda x: int(os.path.isfile(str(x)))), cols
+        return dest, partial(lambda x: os.path.isfile(str(x))), cols
     if func_name == "exists":
         return dest, partial(lambda x: os.path.exists(str(x))), cols
 

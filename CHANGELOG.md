@@ -7,7 +7,7 @@
 
 ### Changed
 - `eval -f` decides up front whether a formula is a call to a dftk function or a pandas expression, instead of trying pandas first and falling back. Results are the same; error messages are simpler (a pandas syntax error no longer says "Expected: dest = func(...)", and an unknown function gets one line).
-- `eval -s "y = exists(path)"` returns True/False, like `-f`'s `exists`, instead of 1/0. Use `--intbool` for 1/0.
+- `eval -s`: `exists(path)` and `isfile(path)` return True/False instead of 1/0, like `-f`'s `exists`. Use `--intbool` for 1/0.
 - `eval -h` is shorter: the "Filling missing values" section is a table of the fill methods, the sorting and grouping rules and one example. The full explanation, with defaults from a merge and interpolating within groups, is in the README.
 - Internal: eval's function registry moved from `commands/eval_cmd.py` to `common/evalfuncs.py`.
 

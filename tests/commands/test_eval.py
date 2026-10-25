@@ -659,3 +659,10 @@ class TestFormulaDispatch:
         df = pd.DataFrame({"p": [str(tmp_path), str(tmp_path / "nope")]})
         result = _eval(df, _eval_args(strfunc=["s = exists(p)"], intbool=True))
         assert list(result["s"]) == [1, 0]
+
+    def test_isfile_is_boolean(self, tmp_path):
+        f = tmp_path / "a.txt"
+        f.write_text("x")
+        df = pd.DataFrame({"p": [str(f), str(tmp_path)]})
+        result = _eval(df, _eval_args(strfunc=["s = isfile(p)"]))
+        assert list(result["s"]) == [True, False]
