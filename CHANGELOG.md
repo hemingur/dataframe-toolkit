@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- `eval -f`: a formula without `name =` (`-f "a + b"`) crashed with a traceback since 0.11.0. It's now an input error that shows how to write it.
+- `eval -f`: a special function given a column that doesn't exist (`sum(a b)`) or a number (`binom_test(k, n, 0.5)`) crashed with a `KeyError`. It's now an input error naming the column; for a number it suggests adding it as a column first (`-c "p = 0.5" -f "z = binom_test(k, n, p)"`).
+- `eval -f` on an empty table skipped every formula error and just added the column, so a typo went unnoticed until there was data. An empty table has no column types, so errors that depend on them are still skipped, but unknown columns, methods and functions, bad syntax and a missing `name =` are reported.
+- `implode`: a number column containing `inf` crashed, and a column named `_gid` in the input was overwritten by dftk's internal group number.
+
 ## [0.11.0] — 2026-10-24
 
 ### Fixed
