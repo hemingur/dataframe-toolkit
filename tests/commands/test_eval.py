@@ -626,3 +626,24 @@ class TestEmptyTableFormulas:
         result = _eval(empty_df, _eval_args(formula=[formula]))
         assert "c" in result.columns
         assert len(result) == 0
+
+
+class TestFormulaDispatch:
+    def test_special_function_inside_expression_is_an_error(self, num_df):
+        # The old fallback parsed only sum(x, y) and dropped "* 2" silently
+        with pytest.raises(ValueError, match=r"sum\(\) must be the whole right-hand"):
+            _eval(num_df, _eval_args(formula=["z = sum(x, y) * 2"]))
+
+    def test_special_function_then_expression_in_two_steps(self, num_df):
+        args = _eval_args(formula=["tmp = sum(x, y)", "z = tmp * 2"])
+        assert list(_eval(num_df, args)["z"]) == pytest.approx([22.0, 44.0, 66.0])
+
+    def test_pandas_math_functions_stay_with_pandas(self, num_df):
+        result = _eval(num_df, _eval_args(formula=["z = log1p(x) + expm1(x)"]))
+        expected = np.log1p(num_df["x"]) + np.expm1(num_df["x"])
+        assert list(result["z"]) == pytest.approx(list(expected))
+
+    def test_syntax_error_is_reported_by_pandas(self, num_df):
+        with pytest.raises(ValueError, match="'z = x \\+': invalid syntax") as exc:
+            _eval(num_df, _eval_args(formula=["z = x +"]))
+        assert "dest = func" not in str(exc.value)
