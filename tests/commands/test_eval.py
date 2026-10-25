@@ -563,7 +563,7 @@ class TestFormulaErrors:
         result = _eval(num_df, _eval_args(formula=["z = sum(x, y)"]))
         assert list(result["z"]) == pytest.approx([11.0, 22.0, 33.0])
 
-    def test_empty_table_with_bad_method_does_not_crash(self):
+    def test_empty_table_still_reports_unknown_method(self):
         df = pd.DataFrame({"x": pd.Series([], dtype=float)})
-        result = _eval(df, _eval_args(formula=["y = x.tolower()"]))
-        assert "y" in result.columns
+        with pytest.raises(ValueError, match="no method 'tolower'"):
+            _eval(df, _eval_args(formula=["y = x.tolower()"]))

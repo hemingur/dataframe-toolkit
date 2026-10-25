@@ -35,6 +35,12 @@ try:
 except ImportError:
     _HAS_LEVENSHTEIN = False
 
+
+class _FormulaMistake(ValueError):
+    """A mistake in a formula whatever the column types (an unknown name,
+    bad syntax, no assignment): reported even on an empty table."""
+
+
 _EPILOG = """\
 FORMULA EXPRESSIONS (-f)
 -------------------------
@@ -260,7 +266,7 @@ def _parse_formula(formula: str) -> tuple[str, str, list[str], str]:
         func, right = (x.strip() for x in right.split("(", 1))
         body, _ = (x.strip() for x in right.rsplit(")", 1))
     except Exception:
-        raise ValueError(
+        raise _FormulaMistake(
             f"Bad formula syntax: {formula!r}  Expected: dest = func(col1, col2, ...)"
         ) from None
     cols = [x.strip() for x in body.split(",")]
@@ -417,7 +423,7 @@ def _special_function(formula: str, df_columns: list[str]):
     dest, func_name, cols, body = _parse_formula(formula)
 
     if func_name not in _VALID_SPECIAL:
-        raise ValueError(
+        raise _FormulaMistake(
             f"Function {func_name!r} is not available as a "
             "special function.  See dftk eval --help."
         )
@@ -599,13 +605,20 @@ def _string_function(formula: str, joinsep: str):
 # ---------------------------------------------------------------------------
 
 
+# A message pandas gives for a method that no column has, whatever its dtype
+_NO_METHOD = re.compile(r"'Series' object has no attribute '(\w+)'")
+
+# dest = col.method(...): never a special function
+_METHOD_CALL = re.compile(r"\s*\w+\s*=\s*[A-Za-z_]\w*\.[A-Za-z_]")
+
+
 def _formula_error(formula: str, exc: Exception) -> str:
     """Return a short message for a mistake pandas found in an -f formula."""
     msg = str(exc)
-    m = re.search(r"'Series' object has no attribute '(\w+)'", msg)
+    m = _NO_METHOD.search(msg)
     if m:
         name = m.group(1)
-        col = re.search(rf"(\w+)\.{name}\b", formula)
+        col = re.search(rf"([A-Za-z_]\w*)\.{name}\b", formula)
         col = col.group(1) if col else "COL"
         if hasattr(pd.Series.str, name):
             hint = f"Text methods are under .str: {col}.str.{name}()."
@@ -620,6 +633,15 @@ def _formula_error(formula: str, exc: Exception) -> str:
 def _apply_special_function(df: pd.DataFrame, formula: str) -> None:
     """Evaluate a special-function formula and store its column in *df*."""
     dest, func, cols = _special_function(formula, list(df.columns))
+    missing = [c for c in cols if c not in df.columns]
+    if missing:
+        hint = ""
+        if any(re.fullmatch(r"[-+]?[\d.]+(e[-+]?\d+)?", c) for c in missing):
+            hint = (
+                "  For a fixed value, add it as a column first: "
+                "-c 'p = 0.5' -f 'z = func(x, p)'."
+            )
+        raise _FormulaMistake(f"-f {formula!r}: column(s) not found: {missing}.{hint}")
     if len(df) == 0:
         df[dest] = True
     elif isinstance(func, _WhereFunc):
@@ -642,23 +664,36 @@ def _eval_formula(df: pd.DataFrame, formula: str) -> pd.DataFrame:
         # Not inplace: that writes into the existing column, which must keep
         # its dtype, so x = x.fillna(y) or x = x.isna() failed whenever the
         # result had another dtype
-        return df.eval(formula)
-    except (AttributeError, TypeError, NameError, KeyError) as exc:
-        # pandas ran the expression: a mistake in it, not a dftk bug
-        raise ValueError(_formula_error(formula, exc)) from exc
+        result = df.eval(formula)
+    except NameError as exc:
+        # An unknown column (pandas' UndefinedVariableError)
+        raise _FormulaMistake(_formula_error(formula, exc)) from exc
+    except (AttributeError, TypeError, KeyError) as exc:
+        # Raised while pandas evaluated the user's expression, so most likely
+        # a mistake in it (wrong method, arguments, or .str on numbers)
+        cls = _FormulaMistake if _NO_METHOD.search(str(exc)) else ValueError
+        raise cls(_formula_error(formula, exc)) from exc
     except (ValueError, SyntaxError) as eval_exc:
-        if re.match(r"\s*\w+\s*=\s*\w+\.", formula):
-            # dest = col.method(...) is never a special function
+        if _METHOD_CALL.match(formula):
             raise ValueError(_formula_error(formula, eval_exc)) from eval_exc
         logger.debug(f"df.eval failed for {formula!r}, trying special_function")
         try:
             _apply_special_function(df, formula)
         except ValueError as exc:
-            raise ValueError(f"{exc}  (pandas df.eval: {eval_exc})") from exc
+            name = re.search(r"=\s*(\w+)\s*\(", formula)
+            if name and name.group(1) in _VALID_SPECIAL:
+                raise  # a known special function: pandas' error is beside the point
+            raise type(exc)(f"{exc}  (pandas df.eval: {eval_exc})") from exc
         except Exception:
             logger.error(f"Could not evaluate formula: {formula!r}")
             raise
         return df
+    if not isinstance(result, pd.DataFrame):
+        # No "dest =": df.eval returned the values instead of a table
+        raise _FormulaMistake(
+            f"-f {formula!r} has no assignment; write it as 'name = {formula}'"
+        )
+    return result
 
 
 def _eval(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
@@ -682,8 +717,11 @@ def _eval(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
     for formula in getattr(args, "formula", []):
         try:
             df = _eval_formula(df, formula)
-        except Exception:
-            if len(df) != 0:
+        except Exception as exc:
+            # An empty table has no column types (pandas reads them as
+            # float64), so on one only mistakes that don't depend on types
+            # are reported; for the rest the column is just added
+            if len(df) != 0 or isinstance(exc, _FormulaMistake):
                 raise
             df[formula.split("=", 1)[0].strip()] = True
 
