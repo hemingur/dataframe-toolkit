@@ -9,6 +9,7 @@ original rows.
 
 import argparse
 
+import numpy as np
 import pandas as pd
 
 from dftk.commands.base import BaseCommand
@@ -68,6 +69,7 @@ def _as_text(s: pd.Series) -> pd.Series:
     if (
         pd.api.types.is_float_dtype(s)
         and len(values)
+        and np.isfinite(values).all()
         and (values == values.round()).all()
     ):
         # Integers with gaps are read as floats: write 10, not 10.0
@@ -97,23 +99,26 @@ def _implode(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
 
     order = [c for c in df.columns if c in keys or c in cols]
     work = df[keys + cols + ([poscol] if poscol else [])].reset_index(drop=True)
+    gid = "_gid"  # helper column for the group number; never one of the user's
+    while gid in work.columns:
+        gid = "_" + gid
     if keys:
-        work["_gid"] = work.groupby(keys, sort=False, dropna=False).ngroup()
+        work[gid] = work.groupby(keys, sort=False, dropna=False).ngroup()
     else:
-        work["_gid"] = 0
+        work[gid] = 0
 
     if args.sortvalues:
-        work = work.sort_values(["_gid", *cols], kind="stable", na_position="last")
+        work = work.sort_values([gid, *cols], kind="stable", na_position="last")
     elif poscol:
-        work = work.sort_values(["_gid", poscol], kind="stable")
+        work = work.sort_values([gid, poscol], kind="stable")
     else:
-        work = work.sort_values("_gid", kind="stable")
+        work = work.sort_values(gid, kind="stable")
     if args.unique:
-        work = work.drop_duplicates(subset=["_gid", *cols])
+        work = work.drop_duplicates(subset=[gid, *cols])
 
     for col in cols:
         work[col] = _as_text(work[col])
-    grouped = work.groupby("_gid", sort=True)
+    grouped = work.groupby(gid, sort=True)
     joined = grouped[cols].agg(lambda s: args.sep.join(s.dropna()))
     joined = joined.where(joined != "")
     result = grouped[keys].first().join(joined) if keys else joined
