@@ -7,7 +7,8 @@ import pandas as pd
 import pytest
 from scipy import special as _sp
 
-from dftk.commands.eval_cmd import _eval, _parse_formula
+from dftk.commands.eval_cmd import _eval
+from dftk.common.evalfuncs import parse_formula as _parse_formula
 from tests.conftest import make_args
 
 # ---------------------------------------------------------------------------
