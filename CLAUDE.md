@@ -64,6 +64,14 @@ skills/dftk/
 
 ## Adding a new subcommand
 
+Before proposing a new command or option, check whether a short command
+already does it — existing dftk options, `query --sql`, or a standard shell
+tool (`grep -v '^#' f | dftk …`, `tail -n +3`, `eval -f "a = a.fillna(b)"`).
+If so, document that one-liner (help, README or SKILL.md) instead of
+building the feature. Build only what is clearly better than the one-liner,
+e.g. `explode`/`implode`, where SQL gets long once order must be kept or
+several columns must stay aligned.
+
 1. Create `src/dftk/commands/<name>_cmd.py` with a class inheriting `BaseCommand`.
 2. Implement `name`, `help`, `add_arguments(parser)`, `execute(args)`.
 3. Add a `("<name>", "<name>_cmd:<ClassName>")` entry to `COMMAND_GROUPS` in `commands/__init__.py`.
