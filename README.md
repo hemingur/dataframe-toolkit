@@ -269,6 +269,47 @@ dftk dataset healthexp -o \
       --drop before after
 ```
 
+### Differences between rows
+
+To compare a value with one in the previous or next row, for example the
+gap between segments given by `Chr`, `Begin`, `End`, use SQL's `LAG()` /
+`LEAD()` in `query --sql`:
+
+```bash
+dftk query segments.tsv --sql \
+  'SELECT *, "Begin" - LAG("End") OVER (PARTITION BY Chr ORDER BY "Begin")
+     AS gap
+   FROM data ORDER BY Chr, "Begin"'
+```
+
+```text
+Chr   Begin  End  Id  gap
+chr1  100    200  a
+chr1  250    400  b   50
+chr1  390    500  c   -10
+chr2  50     80   d
+chr2  100    300  e   20
+```
+
+A negative gap is an overlap, and the first segment on each chromosome
+gets an empty cell. `lead("Begin") OVER (...) - "End"` gives the gap to
+the next segment instead.
+
+- `Begin` and `End` are SQL keywords: quote such column names with double
+  quotes and the whole statement with single quotes.
+- No sorting is needed first; `ORDER BY` inside `OVER` sets the order.
+- Integers stay integers.
+
+`eval -f` can do the same with pandas `shift`, but it goes by row order, so
+sort by `Chr` and `Begin` first (results are floats):
+
+```bash
+dftk eval segments.tsv -f 'gap = Begin - End.groupby(Chr).shift()'
+```
+
+Without `groupby(Chr)` the first segment of a chromosome is compared with
+the last one of the previous chromosome.
+
 ### Bootstrap confidence intervals
 
 Bootstrap mode repeats the full stat computation N times on resampled data

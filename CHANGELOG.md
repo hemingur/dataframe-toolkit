@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Documentation
+- `query -h`, README and the agent skill show how to compare a row with the previous or next one with `LAG()`/`LEAD()`, e.g. the gap between segments (`"Begin" - LAG("End") OVER (PARTITION BY Chr ORDER BY "Begin")`), and that keyword column names such as `Begin`/`End` need double quotes. README also shows the `eval -f` form with `shift`.
+
 ## [0.11.2] — 2026-10-25
 
 ### Fixed

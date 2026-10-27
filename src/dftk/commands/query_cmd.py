@@ -166,6 +166,28 @@ Window functions:
     "SELECT *, ROW_NUMBER() OVER (PARTITION BY cut ORDER BY price DESC) AS rank
      FROM data"
 
+Differences between rows: LAG() and LEAD() read a column in the previous
+or next row of the window, so one row's start can be compared with the
+previous row's end. Gaps between segments on each chromosome (negative =
+overlap; the first segment of each chromosome gets an empty cell):
+
+  dftk query segments.tsv --sql \\
+    'SELECT *, "Begin" - LAG("End") OVER (PARTITION BY Chr ORDER BY "Begin")
+       AS gap
+     FROM data ORDER BY Chr, "Begin"'
+
+  Begin and End are SQL keywords: put such column names in double quotes,
+  and the whole statement in single quotes. No sorting is needed first;
+  ORDER BY inside OVER sets the row order. The same on a bundled dataset,
+  change since the previous record and years between records per country:
+
+  dftk dataset healthexp -o | dftk query ... --sql \\
+    "SELECT Country, Year, Spending_USD,
+            ROUND(Spending_USD - LAG(Spending_USD) OVER w, 1) AS change,
+            Year - LAG(Year) OVER w AS years
+     FROM data WINDOW w AS (PARTITION BY Country ORDER BY Year)
+     ORDER BY Country, Year"
+
 CTEs:
 
   dftk dataset diamonds -o | dftk query ... --sql \\
