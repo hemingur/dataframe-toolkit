@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.11.3] — 2026-10-27
 
 ### Security
 - Requires `pillow>=13.0` (used by matplotlib to write plot images), which fixes the security advisories against pillow up to 12.3.0. dftk doesn't use pillow directly; the floor makes an upgrade of dftk also upgrade a pillow already installed.
