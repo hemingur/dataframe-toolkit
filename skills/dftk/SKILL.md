@@ -154,6 +154,11 @@ dftk query results.parquet --sql \
   "SELECT sample, COUNT(*) AS n, AVG(depth) AS mean_depth
    FROM data GROUP BY sample ORDER BY n DESC"
 
+# Gap to the previous segment per chromosome (LAG; quote keyword columns)
+dftk query segments.tsv --sql \
+  'SELECT *, "Begin" - LAG("End") OVER (PARTITION BY Chr ORDER BY "Begin") AS gap
+   FROM data ORDER BY Chr, "Begin"'
+
 # Join with an annotation table, keeping unmatched rows
 dftk merge results.tsv -r annotation.tsv -k gene -t left -o merged.parquet
 

@@ -269,6 +269,70 @@ dftk dataset healthexp -o \
       --drop before after
 ```
 
+### Differences between rows
+
+For the change in a column from one row to the next, `eval -f` takes
+pandas `diff()` and `pct_change()`, also within groups. They use the rows
+in their order, so sort first, in a step of its own:
+
+```bash
+dftk dataset healthexp -o | dftk eval ... --sortasc Country Year -o \
+  | dftk eval ... -f "change = Spending_USD.groupby(Country).diff().round(1)" \
+      -f "pct = (Spending_USD.groupby(Country).pct_change() * 100).round(1)" \
+      -f "years = Year.groupby(Country).diff()"
+```
+
+```text
+Year  Country  Spending_USD  Life_Expectancy  change  pct   years
+1971  Canada   313.391       72.8
+1976  Canada   543.337       73.8             229.9   73.4  5.0
+1979  Canada   692.269       75.1             148.9   27.4  3.0
+1980  Canada   791.812       75.2             99.5    14.4  1.0
+```
+
+The first row of each country gets an empty cell. Without
+`groupby(Country)`, it would be compared with the last row of the
+previous country.
+
+To compare a value with one in another column of the previous or next row, for example the
+gap between segments given by `Chr`, `Begin`, `End`, use SQL's `LAG()` /
+`LEAD()` in `query --sql`:
+
+```bash
+dftk query segments.tsv --sql \
+  'SELECT *, "Begin" - LAG("End") OVER (PARTITION BY Chr ORDER BY "Begin")
+     AS gap
+   FROM data ORDER BY Chr, "Begin"'
+```
+
+```text
+Chr   Begin  End  Id  gap
+chr1  100    200  a
+chr1  250    400  b   50
+chr1  390    500  c   -10
+chr2  50     80   d
+chr2  100    300  e   20
+```
+
+A negative gap is an overlap, and the first segment on each chromosome
+gets an empty cell. `lead("Begin") OVER (...) - "End"` gives the gap to
+the next segment instead.
+
+- `Begin` and `End` are SQL keywords: quote such column names with double
+  quotes and the whole statement with single quotes.
+- No sorting is needed first; `ORDER BY` inside `OVER` sets the order.
+- Integers stay integers.
+
+`eval -f` can do the same with pandas `shift`, but it goes by row order, so
+sort by `Chr` and `Begin` first (results are floats):
+
+```bash
+dftk eval segments.tsv -f 'gap = Begin - End.groupby(Chr).shift()'
+```
+
+Without `groupby(Chr)` the first segment of a chromosome is compared with
+the last one of the previous chromosome.
+
 ### Bootstrap confidence intervals
 
 Bootstrap mode repeats the full stat computation N times on resampled data

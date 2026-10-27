@@ -67,6 +67,24 @@ interpolate() has no grouped form. The README ("Filling missing values")
 covers defaults from a merge, interpolating within groups, and more.
 
 
+DIFFERENCES BETWEEN ROWS (-f)
+-----------------------------
+  -f "dx = x.diff()"                    x minus x in the row above
+  -f "pct = x.pct_change() * 100"       the same as a percentage
+  -f "dx = x.groupby(g).diff()"         within each group of g
+  -f "gap = Begin - End.groupby(Chr).shift()"   another column, row above
+
+Like ffill, these use the rows in their order, so sort first, in a step
+of its own; the first row of each group gets an empty cell:
+
+  dftk dataset healthexp -o | dftk eval ... --sortasc Country Year -o \\
+      | dftk eval ... -f "change = Spending_USD.groupby(Country).diff().round(1)" \\
+          -f "years = Year.groupby(Country).diff()"
+
+query --sql with LAG()/LEAD() does the same without sorting first and
+keeps integers integers (see query -h).
+
+
 DFTK FUNCTIONS (-f)
 -------------------
 A formula whose right-hand side is one call to a function below runs that
