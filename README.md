@@ -271,7 +271,30 @@ dftk dataset healthexp -o \
 
 ### Differences between rows
 
-To compare a value with one in the previous or next row, for example the
+For the change in a column from one row to the next, `eval -f` takes
+pandas `diff()` and `pct_change()`, also within groups. They use the rows
+in their order, so sort first, in a step of its own:
+
+```bash
+dftk dataset healthexp -o | dftk eval ... --sortasc Country Year -o \
+  | dftk eval ... -f "change = Spending_USD.groupby(Country).diff().round(1)" \
+      -f "pct = (Spending_USD.groupby(Country).pct_change() * 100).round(1)" \
+      -f "years = Year.groupby(Country).diff()"
+```
+
+```text
+Year  Country  Spending_USD  Life_Expectancy  change  pct   years
+1971  Canada   313.391       72.8
+1976  Canada   543.337       73.8             229.9   73.4  5.0
+1979  Canada   692.269       75.1             148.9   27.4  3.0
+1980  Canada   791.812       75.2             99.5    14.4  1.0
+```
+
+The first row of each country gets an empty cell. Without
+`groupby(Country)`, it would be compared with the last row of the
+previous country.
+
+To compare a value with one in another column of the previous or next row, for example the
 gap between segments given by `Chr`, `Begin`, `End`, use SQL's `LAG()` /
 `LEAD()` in `query --sql`:
 
