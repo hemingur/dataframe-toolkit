@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Security
+- Requires `pillow>=13.0` (used by matplotlib to write plot images), which fixes the security advisories against pillow up to 12.3.0. dftk doesn't use pillow directly; the floor makes an upgrade of dftk also upgrade a pillow already installed.
+- Lock file: pillow 13.0.0, and for development only (via pre-commit) filelock 4.2.4 and virtualenv 21.15.0.
+
 ### Documentation
 - `query -h`, README and the agent skill show how to compare a row with the previous or next one with `LAG()`/`LEAD()`, e.g. the gap between segments (`"Begin" - LAG("End") OVER (PARTITION BY Chr ORDER BY "Begin")`), and that keyword column names such as `Begin`/`End` need double quotes. README also shows the `eval -f` form with `shift`.
 - `eval -h` and README: differences within a column, `x.diff()` and `x.pct_change()`, also per group (`x.groupby(g).diff()`), and that the rows must be sorted first.
