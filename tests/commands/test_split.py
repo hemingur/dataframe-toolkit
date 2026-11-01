@@ -119,3 +119,27 @@ class TestSplitFiles:
         _split(simple_df, _args(prefix=str(tmp_path) + "/", suffix=".tsv"))
         df_b = pd.read_csv(tmp_path / "B.tsv", sep="\t")
         assert "g" in df_b.columns
+
+
+class TestSplitCreatesFolders:
+    def test_prefix_folder_is_created(self, tmp_path, simple_df):
+        _split(simple_df, _args(prefix=str(tmp_path / "out") + "/", suffix=".tsv"))
+        assert sorted(os.listdir(tmp_path / "out")) == ["A.tsv", "B.tsv"]
+
+    def test_nested_template_folders_are_created(self, tmp_path, multi_group_df):
+        template = str(tmp_path / "out" / "{g1}" / "{g2}.tsv")
+        _split(multi_group_df, _args(groups=["g1", "g2"], template=template))
+        assert sorted(os.listdir(tmp_path / "out" / "X")) == ["P.tsv", "Q.tsv"]
+        assert sorted(os.listdir(tmp_path / "out" / "Y")) == ["P.tsv", "Q.tsv"]
+
+    def test_existing_folder_is_fine(self, tmp_path, simple_df):
+        (tmp_path / "out").mkdir()
+        _split(simple_df, _args(prefix=str(tmp_path / "out") + "/", suffix=".tsv"))
+        assert len(os.listdir(tmp_path / "out")) == 2
+
+    def test_plain_prefix_writes_in_current_folder(
+        self, tmp_path, simple_df, monkeypatch
+    ):
+        monkeypatch.chdir(tmp_path)
+        _split(simple_df, _args(prefix="part_", suffix=".tsv"))
+        assert sorted(os.listdir(tmp_path)) == ["part_A.tsv", "part_B.tsv"]

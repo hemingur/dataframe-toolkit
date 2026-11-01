@@ -40,6 +40,9 @@ def _split(df, args: argparse.Namespace) -> None:
         if args.noclobber and os.path.exists(filename):
             continue
 
+        folder = os.path.dirname(filename)
+        if folder:
+            os.makedirs(folder, exist_ok=True)
         file_args = copy.copy(args)
         file_args.output = filename
         io.printdf(groupdf, file_args)
@@ -49,8 +52,7 @@ _EPILOG = """\
 FILENAME PATTERNS
 -----------------
   By default output files are named:  <prefix><group_key><suffix>
-  (the destination directory, if any, must already exist — split does not
-  create one):
+  (missing folders in the prefix or template are created):
 
     dftk dataset healthexp -o | dftk split -g Country -p out/ -s .tsv
     # → out/Canada.tsv, out/France.tsv, out/Germany.tsv, ...
@@ -58,6 +60,7 @@ FILENAME PATTERNS
   With --template, use {col} placeholders for the group column values:
 
     dftk dataset tips -o | dftk split -g day time --template tips_{day}_{time}.tsv
+    dftk dataset tips -o | dftk split -g day time --template out/{day}/{time}.tsv
 
   Unknown placeholders are left as-is (safe format_map).
 

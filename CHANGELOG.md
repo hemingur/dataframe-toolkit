@@ -14,6 +14,7 @@
 - Help, README and the agent skill no longer use the `...` marker: examples are `dftk a -o | dftk b args`, which works in every shell. The README's Input/output section explains stdin detection and that `...` still works; CLAUDE.md's help-example rule is updated to match.
 
 ### Fixed
+- `split` stopped with a traceback when the folder in `-p`/`--template` didn't exist (`-p out/`). Missing folders are now created, also nested ones (`--template out/{day}/{time}.tsv`).
 - A directory as DATAFILE (what an expanded `...` becomes) crashed with a traceback. It's now a one-line error that names the likely cause.
 - The pandas reader read a one-column file given as a pipe (`<(...)`) twice, so empty lines (missing values) were dropped.
 
