@@ -45,18 +45,18 @@ Runnable version: collect each species' islands into one comma-separated
 cell with SQL, then split them back into rows, numbering each item:
 
   dftk dataset penguins -o \\
-      | dftk query ... -o --sql "SELECT species,
+      | dftk query -o --sql "SELECT species,
             string_agg(DISTINCT island, ',' ORDER BY island) AS islands
             FROM data GROUP BY species ORDER BY species" \\
-      | dftk explode ... -c islands --poscol n
+      | dftk explode -c islands --poscol n
 
 Another separator, keeping only some columns:
 
   dftk dataset tips -o \\
-      | dftk query ... -o --sql "SELECT day,
+      | dftk query -o --sql "SELECT day,
             string_agg(DISTINCT size::VARCHAR, '|' ORDER BY size::VARCHAR) AS sizes
             FROM data GROUP BY day ORDER BY day" \\
-      | dftk explode ... -c sizes --sep '|' --select sizes day
+      | dftk explode -c sizes --sep '|' --select sizes day
 """
 
 

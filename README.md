@@ -65,15 +65,15 @@ Copy it again after upgrading dftk so it matches the installed version.
 dftk dataset tips | dftk stat - -c tip total_bill -g day
 ```
 
-Chain commands with `-o` (write to a temp parquet, print its path) and `...`
-(read a parquet path from stdin) instead of piping TSV text directly — faster
-for large data, and the recommended pattern once a pipeline has more than one
-step:
+Chain commands with a bare `-o` (write a temp parquet, print its path)
+instead of piping TSV text: the next command sees the path on stdin and reads
+that file. It's faster for large data, keeps column types exact, and is the
+recommended pattern once a pipeline has more than one step:
 
 ```bash
 dftk dataset tips -o \
-  | dftk pivot ... -i day -v tip -f mean -o \
-  | dftk print ...
+  | dftk pivot -i day -v tip -f mean -o \
+  | dftk print
 ```
 
 ## Subcommands
@@ -133,7 +133,7 @@ publication-quality output.
 | `sample`   | Random row sampling (with or without replacement, by count or fraction)   |
 | `split`    | Split a dataframe into one file per group                                 |
 | `annotate` | Read and write provenance metadata (genome, source, …) in parquet files  |
-| `print`    | Read any dftk input (TSV, stdin, `...` parquet pipe) and write TSV     |
+| `print`    | Read any dftk input (TSV, parquet, stdin) and write TSV                |
 | `clean`    | Remove leftover temp parquet pipe files from interrupted pipelines       |
 | `help`     | List all subcommands or show full help for one: `dftk help stat`       |
 
@@ -144,8 +144,8 @@ publication-quality output.
 ```bash
 # z-score sepal_length within species, then fit against petal_length
 dftk dataset iris -o \
-  | dftk scale ... -c sepal_length -g species -o \
-  | dftk fit ... -f "sepal_length_scaled ~ petal_length" -g species
+  | dftk scale -c sepal_length -g species -o \
+  | dftk fit -f "sepal_length_scaled ~ petal_length" -g species
 ```
 
 ### Clean up spreadsheet headers
@@ -154,8 +154,8 @@ Headers such as `Country Name` or `1960` need quoting in SQL. `cleannames` turns
 
 ```bash
 dftk dataset fertility -o \
-  | dftk cleannames ... -o \
-  | dftk query ... --sql "SELECT country_name, x1960, x2000 FROM data LIMIT 3"
+  | dftk cleannames -o \
+  | dftk query --sql "SELECT country_name, x1960, x2000 FROM data LIMIT 3"
 ```
 
 For your own export, `dftk cleannames data.tsv --backend duckdb -o data.parquet` also keeps integer columns with empty cells as integers.
@@ -166,7 +166,7 @@ With tens of thousands of points a scatter plot is a solid blob. `--hexbin` coun
 
 ```bash
 dftk dataset diamonds -o \
-  | dftk scat ... -x carat -y price --hexbin --hexlog --logx --logy -f diamonds.png
+  | dftk scat -x carat -y price --hexbin --hexlog --logx --logy -f diamonds.png
 ```
 
 `--colorcol COL` colours each hexagon by the mean of `COL` instead of the count; with `--subgraphcol` all panels share one colour scale.
@@ -175,8 +175,8 @@ dftk dataset diamonds -o \
 
 ```bash
 dftk dataset tips -o \
-  | dftk stat ... -c tip -g day -o \
-  | dftk line ... -x day -y mean --yerr sem -f fig.png
+  | dftk stat -c tip -g day -o \
+  | dftk line -x day -y mean --yerr sem -f fig.png
 ```
 
 ### Wide-to-long then plot overlaid histograms
@@ -220,18 +220,18 @@ suffix `_r` from `merge`; fill from it, then drop it. Here the defaults are
 each species' median body mass:
 
 ```bash
-dftk dataset penguins -o | dftk pivot ... -i species -v body_mass_g \
+dftk dataset penguins -o | dftk pivot -i species -v body_mass_g \
   -f median --move median_body_mass_g:body_mass_g -o defaults.parquet
 dftk dataset penguins -o \
-  | dftk merge ... -r defaults.parquet -k species -t left -o \
-  | dftk eval ... -f "body_mass_g = body_mass_g.fillna(body_mass_g_r)" \
+  | dftk merge -r defaults.parquet -k species -t left -o \
+  | dftk eval -f "body_mass_g = body_mass_g.fillna(body_mass_g_r)" \
       --drop body_mass_g_r
 ```
 
 **From neighbouring rows** (`co2` is a weekly series with gaps):
 
 ```bash
-dftk dataset co2 -o | dftk eval ... -f "ffill = co2.ffill()" \
+dftk dataset co2 -o | dftk eval -f "ffill = co2.ffill()" \
   -f "bfill = co2.bfill()" -f "linear = co2.interpolate()"
 ```
 
@@ -249,9 +249,9 @@ to be next to each other, but within each group they must be in order:
 
 ```bash
 dftk dataset healthexp -o \
-  | dftk eval ... -f "le = Life_Expectancy.where(Year % 10 != 5)" \
+  | dftk eval -f "le = Life_Expectancy.where(Year % 10 != 5)" \
       --sortasc Country Year -o \
-  | dftk eval ... -f "le_filled = le.groupby(Country).ffill()"
+  | dftk eval -f "le_filled = le.groupby(Country).ffill()"
 ```
 
 `interpolate()` has no grouped form. Once each group's rows are together,
@@ -261,9 +261,9 @@ with something before and after them in the same group:
 
 ```bash
 dftk dataset healthexp -o \
-  | dftk eval ... -f "le = Life_Expectancy.where(Year % 10 != 5)" \
+  | dftk eval -f "le = Life_Expectancy.where(Year % 10 != 5)" \
       --sortasc Country Year -o \
-  | dftk eval ... -f "before = le.groupby(Country).ffill().notna()" \
+  | dftk eval -f "before = le.groupby(Country).ffill().notna()" \
       -f "after = le.groupby(Country).bfill().notna()" \
       -f "le_linear = le.interpolate().where(before & after)" \
       --drop before after
@@ -276,8 +276,8 @@ pandas `diff()` and `pct_change()`, also within groups. They use the rows
 in their order, so sort first, in a step of its own:
 
 ```bash
-dftk dataset healthexp -o | dftk eval ... --sortasc Country Year -o \
-  | dftk eval ... -f "change = Spending_USD.groupby(Country).diff().round(1)" \
+dftk dataset healthexp -o | dftk eval --sortasc Country Year -o \
+  | dftk eval -f "change = Spending_USD.groupby(Country).diff().round(1)" \
       -f "pct = (Spending_USD.groupby(Country).pct_change() * 100).round(1)" \
       -f "years = Year.groupby(Country).diff()"
 ```
@@ -342,9 +342,9 @@ confidence interval:
 
 ```bash
 dftk dataset tips -o \
-  | dftk stat ... -c tip -g day --bootstrap 1000 --randomseed 42 -o \
-  | dftk pivot ... -i day -v mean -f mean cilo cihi -o \
-  | dftk print ...
+  | dftk stat -c tip -g day --bootstrap 1000 --randomseed 42 -o \
+  | dftk pivot -i day -v mean -f mean cilo cihi -o \
+  | dftk print
 ```
 
 ## Input/output
@@ -352,15 +352,21 @@ dftk dataset tips -o \
 All commands accept:
 
 - A TSV filename as a positional argument
-- `-` to read TSV from stdin
-- `...` to receive a parquet path from stdin (written by a previous `-o` command)
 - A `.parquet` filename to read a named parquet file directly
+- Nothing, or `-`, to read stdin: either TSV, or the parquet path printed by
+  a previous command's bare `-o` (that temp file is then read and deleted)
+- A pipe as the filename, e.g. `<(grep -v '^#' data.tsv)` or `<(dftk … -o)`,
+  read the same way as stdin
 
-> **`-` vs `...`** — these are not interchangeable. Use `-` when the previous
-> command in the pipe wrote plain TSV to stdout (the default). Use `...` when
-> the previous command used bare `-o` (pipe mode), which writes a temp
-> parquet and prints *its path* to stdout — `-` would try to parse that path
-> as TSV and fail.
+```bash
+dftk dataset tips -o | dftk stat -c tip -g day        # parquet path on stdin
+dftk dataset tips | dftk stat -c tip -g day           # TSV on stdin
+dftk merge -l tips.tsv -r <(dftk pivot tips.tsv -i day -v tip -f mean -o) -k day
+```
+
+Older scripts give `...` as the file to read a parquet path from stdin; that
+still works. In zsh with Oh My Zsh an unquoted `...` becomes `../..`, so
+leave it out (or use `-`) in scripts you share.
 
 ### Comment lines and preambles
 

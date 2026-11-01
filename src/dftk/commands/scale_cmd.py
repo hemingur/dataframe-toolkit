@@ -138,35 +138,35 @@ Default (scale) — bundled `tips` dataset, scaling the tip column:
   dftk scale data.tsv -c y                    z-score (mean shift, std scale)
 
   # z-score (mean shift, std scale)
-  dftk dataset tips -o | dftk scale ... -c tip
+  dftk dataset tips -o | dftk scale -c tip
   # shift so min=0, scale by std
-  dftk dataset tips -o | dftk scale ... -c tip --shift min
+  dftk dataset tips -o | dftk scale -c tip --shift min
   # shift so min=0, scale so max=1
-  dftk dataset tips -o | dftk scale ... -c tip --shift min --scale max
+  dftk dataset tips -o | dftk scale -c tip --shift min --scale max
   # no shift, scale so sum=1
-  dftk dataset tips -o | dftk scale ... -c tip --shift none --scale sum
+  dftk dataset tips -o | dftk scale -c tip --shift none --scale sum
   # shift to zero mean, no scaling
-  dftk dataset tips -o | dftk scale ... -c tip --scale none
+  dftk dataset tips -o | dftk scale -c tip --scale none
 
 Rank normalization (--rank):
 
   # normal scores (default)
-  dftk dataset tips -o | dftk scale ... -c tip --rank
+  dftk dataset tips -o | dftk scale -c tip --rank
   # uniform [0, 1]
-  dftk dataset tips -o | dftk scale ... -c tip --rank --rankdist uniform
+  dftk dataset tips -o | dftk scale -c tip --rank --rankdist uniform
 
 Regression detrending (--resid):
 
-  dftk dataset tips -o | dftk scale ... -c tip --resid -f "tip ~ total_bill"
-  dftk dataset tips -o | dftk scale ... -c tip --resid -f "tip ~ total_bill" \\
+  dftk dataset tips -o | dftk scale -c tip --resid -f "tip ~ total_bill"
+  dftk dataset tips -o | dftk scale -c tip --resid -f "tip ~ total_bill" \\
       --nointercept
 
 Grouping:
 
   # z-score within each day
-  dftk dataset tips -o | dftk scale ... -c tip -g day
+  dftk dataset tips -o | dftk scale -c tip -g day
   # rank within each day
-  dftk dataset tips -o | dftk scale ... -c tip --rank -g day
+  dftk dataset tips -o | dftk scale -c tip --rank -g day
 
 SHIFT OPTIONS (--shift)
 -----------------------

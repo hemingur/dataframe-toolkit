@@ -243,7 +243,7 @@ Common-key merge  (key column has the same name in both files):
   dftk dataset penguins -o penguins.tsv
   dftk merge penguins.tsv -r penguins.tsv -k species
   cat penguins.tsv | dftk merge -r penguins.tsv -k species -o \\
-    | dftk stat ... -c body_mass_g
+    | dftk stat -c body_mass_g
 
 Mapped-key merge  (key columns have different names — here penguins.tsv
 merged against a copy of itself with the key column renamed, to show real
@@ -303,9 +303,9 @@ Both files accept .parquet paths; the extension is detected automatically.
 Either side can come from stdin, as TSV or as the parquet path printed by
 a previous -o:
 
-  stdin on the left:   ... | dftk merge -l - -r right.tsv -k id
-  stdin on the right:  ... | dftk merge -l left.tsv -r - -k id
-                       (or leave -r out: ... | dftk merge -l left.tsv -k id)
+  stdin on the left:   dftk CMD -o | dftk merge -l - -r right.tsv -k id
+  stdin on the right:  dftk CMD -o | dftk merge -l left.tsv -r - -k id
+                       (or leave -r out: -l left.tsv -k id)
 
 With stdin on the left (-l -, or no -l and no DATAFILE), -r - joins it with
 itself: stdin is read once and the right side is a copy:

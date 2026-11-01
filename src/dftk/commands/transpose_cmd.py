@@ -26,8 +26,8 @@ Runnable version — the bundled `longley` dataset, limited to 3 rows via
 --sql LIMIT (dataset has no --nrows of its own) so the transposed output
 stays legible:
 
-  dftk dataset longley -o | dftk query ... --sql "SELECT * FROM data LIMIT 3" -o \\
-      | dftk transpose ...
+  dftk dataset longley -o | dftk query --sql "SELECT * FROM data LIMIT 3" -o \\
+      | dftk transpose
 """
 
 import argparse

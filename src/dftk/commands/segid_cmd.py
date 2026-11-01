@@ -58,8 +58,8 @@ Runnable version — sort the bundled `diamonds` dataset by `cut` first, so
 real contiguous runs exist for segid to detect:
 
   dftk dataset diamonds -o \\
-      | dftk query ... --sql "SELECT * FROM data ORDER BY cut" -o \\
-      | dftk segid ... -c cut
+      | dftk query --sql "SELECT * FROM data ORDER BY cut" -o \\
+      | dftk segid -c cut
 """
 
 

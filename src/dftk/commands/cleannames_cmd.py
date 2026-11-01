@@ -57,13 +57,13 @@ column per year (1960, 1961, ...); after cleaning they can be used
 unquoted in SQL:
 
   dftk dataset fertility -o \\
-      | dftk cleannames ... -o \\
-      | dftk query ... --sql "SELECT country_name, x1960, x2000 FROM data LIMIT 3"
+      | dftk cleannames -o \\
+      | dftk query --sql "SELECT country_name, x1960, x2000 FROM data LIMIT 3"
 
 Write the old and new names to a TSV file, e.g. for a data dictionary:
 
   dftk dataset fertility -o \\
-      | dftk cleannames ... --mapping names.tsv -o fertility.parquet
+      | dftk cleannames --mapping names.tsv -o fertility.parquet
 """
 
 # Letters that Unicode does not decompose into ASCII letter + accent

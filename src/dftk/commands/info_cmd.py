@@ -8,8 +8,8 @@ statistical distributions and quality flags instead.
 Example
 -------
     dftk info data.tsv
-    dftk dataset iris -o | dftk info ...
-    dftk dataset iris -o | dftk info ... --summary
+    dftk dataset iris -o | dftk info
+    dftk dataset iris -o | dftk info --summary
 """
 
 import argparse

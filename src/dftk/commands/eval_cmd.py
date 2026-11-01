@@ -36,8 +36,8 @@ Each -f argument is first passed to pandas df.eval().  This handles
 arithmetic and boolean expressions directly on column names:
 
   dftk eval data.tsv -f "z = x + y * 2"
-  dftk dataset tips -o | dftk eval ... -f "bill_and_tip = total_bill + tip * 2"
-  dftk dataset tips -o | dftk eval ... -f "good_tip = (tip > 3) & (total_bill < 30)"
+  dftk dataset tips -o | dftk eval -f "bill_and_tip = total_bill + tip * 2"
+  dftk dataset tips -o | dftk eval -f "good_tip = (tip > 3) & (total_bill < 30)"
 
 Column methods are pandas Series methods, written COL.method(...); text
 methods are under .str (name.str.lower(), not name.lower() or tolower()):
@@ -59,9 +59,9 @@ step of its own (--sortasc applies to the output), and fill within groups
 when the table holds several series, or values come from the next group:
 
   dftk dataset healthexp -o \\
-      | dftk eval ... -f "le = Life_Expectancy.where(Year % 10 != 5)" \\
+      | dftk eval -f "le = Life_Expectancy.where(Year % 10 != 5)" \\
           --sortasc Country Year -o \\
-      | dftk eval ... -f "le_filled = le.groupby(Country).ffill()"
+      | dftk eval -f "le_filled = le.groupby(Country).ffill()"
 
 interpolate() has no grouped form. The README ("Filling missing values")
 covers defaults from a merge, interpolating within groups, and more.
@@ -77,8 +77,8 @@ DIFFERENCES BETWEEN ROWS (-f)
 Like ffill, these use the rows in their order, so sort first, in a step
 of its own; the first row of each group gets an empty cell:
 
-  dftk dataset healthexp -o | dftk eval ... --sortasc Country Year -o \\
-      | dftk eval ... -f "change = Spending_USD.groupby(Country).diff().round(1)" \\
+  dftk dataset healthexp -o | dftk eval --sortasc Country Year -o \\
+      | dftk eval -f "change = Spending_USD.groupby(Country).diff().round(1)" \\
           -f "years = Year.groupby(Country).diff()"
 
 query --sql with LAG()/LEAD() does the same without sorting first and
@@ -106,7 +106,7 @@ Available special functions:
         true_val and false_val can each be: a column name, a quoted
         string literal ("foo"), or a numeric literal.
       Example:
-        dftk dataset tips -o | dftk eval ... \
+        dftk dataset tips -o | dftk eval \
           -f "big = total_bill > 30" \
           -f "label = where(big, \"large\", \"small\")"
 
@@ -164,8 +164,8 @@ CONSTANT COLUMNS (-c)
 ----------------------
 Add a column with a fixed value:
 
-  dftk dataset tips -o | dftk eval ... -c "batch = 3"
-  dftk dataset tips -o | dftk eval ... -c "region = northeast"
+  dftk dataset tips -o | dftk eval -c "batch = 3"
+  dftk dataset tips -o | dftk eval -c "region = northeast"
 
 The value is coerced to numeric when possible.
 

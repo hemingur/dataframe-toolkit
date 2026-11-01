@@ -28,12 +28,12 @@ Example
 -------
     dftk test data.tsv -c col1:col2 -d pvalue --test student_t
     dftk dataset iris -o \\
-        | dftk test ... -c sepal_length:petal_length -d pvalue --test student_t
+        | dftk test -c sepal_length:petal_length -d pvalue --test student_t
     dftk dataset iris -o \\
-        | dftk test ... -c sepal_length:petal_length sepal_width:petal_width \\
+        | dftk test -c sepal_length:petal_length sepal_width:petal_width \\
               -d p1 p2 -g species --test mannwhitneyu
     dftk dataset iris -o \\
-        | dftk test ... -c sepal_length:petal_length -d p \\
+        | dftk test -c sepal_length:petal_length -d p \\
               --test bootstrap --randomseed 42
 """
 

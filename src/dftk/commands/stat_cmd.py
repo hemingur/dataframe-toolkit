@@ -21,14 +21,14 @@ into ``dftk pivot`` to aggregate across samples.
 Example
 -------
     dftk stat data.tsv -c height weight -g sex
-    dftk dataset penguins -o | dftk stat ... -c bill_length_mm flipper_length_mm -g sex
+    dftk dataset penguins -o | dftk stat -c bill_length_mm flipper_length_mm -g sex
 
     # Empirical bootstrap CI: resample, then collapse with percentile aggfuncs
     dftk dataset penguins -o \\
-        | dftk stat ... -c bill_length_mm -g species \\
+        | dftk stat -c bill_length_mm -g species \\
               --bootstrap 1000 --randomseed 42 -o \\
-        | dftk pivot ... -i species -v mean -f mean cilo cihi -o \\
-        | dftk print ...
+        | dftk pivot -i species -v mean -f mean cilo cihi -o \\
+        | dftk print
 """
 
 import argparse

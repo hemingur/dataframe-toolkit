@@ -409,7 +409,7 @@ class io:
                 os.unlink(path)
 
         def _from_stream(stream) -> pd.DataFrame:
-            # stdin or a pipe: the path printed by "dftk ... -o", or TSV.
+            # stdin or a pipe: the path printed by "dftk CMD -o", or TSV.
             # A pipe can't be rewound, so the first line is kept and read
             # again as the start of the TSV. Binary reads only: the text
             # layer (sys.stdin.readline) reads ahead and would lose rows.
@@ -456,7 +456,7 @@ class io:
                 df = pd.read_parquet(filename)
                 df.attrs["_parquet_meta"] = _read_parquet_meta(filename)
             elif os.path.exists(filename) and not os.path.isfile(filename):
-                # A pipe, e.g. <(grep -v '^#' file) or <(dftk ... -o): it can
+                # A pipe, e.g. <(grep -v '^#' file) or <(dftk CMD -o): it can
                 # be read only once, and may hold a parquet path
                 with open(filename, "rb") as fh:
                     df = _from_stream(fh)
@@ -466,7 +466,7 @@ class io:
                 df = _csv_from_file(filename)
 
         else:
-            # stdin: TSV, or the parquet path printed by "dftk ... -o"
+            # stdin: TSV, or the parquet path printed by "dftk CMD -o"
             df = _from_stream(sys.stdin.buffer)
 
         # -- prequery ------------------------------------------------------

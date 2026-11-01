@@ -249,56 +249,56 @@ EXAMPLES
 Basic scatter:
 
   dftk scat data.tsv -x weight -y height
-  dftk dataset tips -o | dftk scat ... -x total_bill -y tip
+  dftk dataset tips -o | dftk scat -x total_bill -y tip
 
 Colour by group:
 
-  dftk dataset tips -o | dftk scat ... -x total_bill -y tip -g day
+  dftk dataset tips -o | dftk scat -x total_bill -y tip -g day
 
 Subplot grid by time-of-day, colour by smoker:
 
-  dftk dataset tips -o | dftk scat ... -x total_bill -y tip \\
+  dftk dataset tips -o | dftk scat -x total_bill -y tip \\
       --subgraphcol time -g smoker
 
 Fit OLS line, or one per group in the group's colour:
 
-  dftk dataset tips -o | dftk scat ... -x total_bill -y tip --fit
-  dftk dataset tips -o | dftk scat ... -x total_bill -y tip -g smoker --fit
+  dftk dataset tips -o | dftk scat -x total_bill -y tip --fit
+  dftk dataset tips -o | dftk scat -x total_bill -y tip -g smoker --fit
 
 LOWESS curve (local regression; smaller --frac follows the data more
 closely). At the ends of the x range, where few points are left, the curve
 can overshoot the data; a larger --frac or --xlim helps:
 
-  dftk dataset tips -o | dftk scat ... -x total_bill -y tip --fit lowess
+  dftk dataset tips -o | dftk scat -x total_bill -y tip --fit lowess
 
 Hexagonal binning for large tables (54,000 diamonds), log colour scale and
 log axes; hexagons are binned on the log scale:
 
-  dftk dataset diamonds -o | dftk scat ... -x carat -y price \
+  dftk dataset diamonds -o | dftk scat -x carat -y price \
       --hexbin --hexlog --logx --logy
 
 Colour each hexagon by the mean of another column instead of the count:
 
-  dftk dataset diamonds -o | dftk scat ... -x carat -y price \
+  dftk dataset diamonds -o | dftk scat -x carat -y price \
       --hexbin --colorcol depth --gridsize 50
 
 One hexbin panel per group, all on the same colour scale:
 
-  dftk dataset diamonds -o | dftk scat ... -x carat -y price \
+  dftk dataset diamonds -o | dftk scat -x carat -y price \
       --hexbin --hexlog --subgraphcol cut --gridsize 40
 
 Publication figure (Nature single column, PDF):
 
-  dftk dataset tips -o | dftk scat ... -x total_bill -y tip \\
+  dftk dataset tips -o | dftk scat -x total_bill -y tip \\
       --size single --fontsize publication -f fig.pdf
 
 Bubble chart (point size from column):
 
-  dftk dataset tips -o | dftk scat ... -x total_bill -y tip --sizecol size
+  dftk dataset tips -o | dftk scat -x total_bill -y tip --sizecol size
 
 Continuous colour mapping:
 
-  dftk dataset tips -o | dftk scat ... -x total_bill -y tip --colorcol tip
+  dftk dataset tips -o | dftk scat -x total_bill -y tip --colorcol tip
 """
 
 

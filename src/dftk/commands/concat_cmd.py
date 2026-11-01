@@ -12,7 +12,7 @@ Examples
     dftk concat penguins.tsv penguins.tsv --sourcecol source
     dftk dataset penguins -o penguins.parquet
     dftk concat penguins.parquet penguins.parquet -o
-    dftk dataset penguins -o | dftk eval ... -f "x=1" -o | dftk concat ... penguins.tsv
+    dftk dataset penguins -o | dftk eval -f "x=1" -o | dftk concat - penguins.tsv
 """
 
 import argparse
@@ -51,7 +51,7 @@ EXAMPLES
   dftk concat penguins.tsv penguins.tsv --sourcecol source
   dftk dataset penguins -o penguins.parquet
   dftk concat penguins.parquet penguins.parquet -o result.parquet
-  dftk dataset penguins -o | dftk eval ... -f "x=1" -o | dftk concat ... penguins.tsv
+  dftk dataset penguins -o | dftk eval -f "x=1" -o | dftk concat - penguins.tsv
 
 Mismatched columns are outer-joined and filled (NaN by default, or --fill):
 
@@ -65,7 +65,7 @@ Mismatched columns are outer-joined and filled (NaN by default, or --fill):
             metavar="FILE",
             help=(
                 "Input files to concatenate (TSV or .parquet).  "
-                "Use - for TSV stdin or ... for a parquet pipe path on stdin.  "
+                "Use - for stdin (TSV, or a parquet path from -o).  "
                 "At most one stdin source is allowed."
             ),
         )

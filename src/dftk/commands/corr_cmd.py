@@ -195,7 +195,7 @@ COLUMN PAIRS (-c)
   Pairs are specified as col1:col2.  Multiple pairs may be given:
 
     dftk corr data.tsv -c x:y
-    dftk dataset tips -o | dftk corr ... -c total_bill:tip tip:size
+    dftk dataset tips -o | dftk corr -c total_bill:tip tip:size
 
 METHODS (--method)
 ------------------
@@ -261,13 +261,13 @@ TAIL DEPENDENCE (--tail / --tail-q)
 EXAMPLES
 --------
   dftk corr data.tsv -c x:y
-  dftk dataset tips -o | dftk corr ... -c total_bill:tip
-  dftk dataset tips -o | dftk corr ... -c total_bill:tip -g day --method spearman
-  dftk dataset tips -o | dftk corr ... -c total_bill:tip --ci
+  dftk dataset tips -o | dftk corr -c total_bill:tip
+  dftk dataset tips -o | dftk corr -c total_bill:tip -g day --method spearman
+  dftk dataset tips -o | dftk corr -c total_bill:tip --ci
   dftk dataset tips -o \\
-      | dftk corr ... -c total_bill:tip --method spearman \\
+      | dftk corr -c total_bill:tip --method spearman \\
             --bootstrap 2000 --randomseed 42
-  dftk dataset diamonds -o | dftk corr ... -c carat:price --tail --tail-q 0.02 0.05 0.1
+  dftk dataset diamonds -o | dftk corr -c carat:price --tail --tail-q 0.02 0.05 0.1
 """
 
 
