@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.12.0] — 2026-11-01
 
 ### Added
 - `dftk skill install`: installs the agent skill that now ships with dftk into `~/.claude/skills/dftk` and/or `~/.codex/skills/dftk` (whichever agent is found), or `--claude`, `--codex`, `--dir DIR`. It prints where it installed it, and replaces only an earlier copy of the dftk skill. `dftk skill path` prints the packaged folder. Run it again after upgrading dftk. The skill moved from `skills/dftk/` to `src/dftk/skills/dftk/` so it is in the wheel.
