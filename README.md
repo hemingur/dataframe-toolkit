@@ -47,17 +47,20 @@ uv tool install .
 
 ### Skill for coding agents
 
-`skills/dftk/` is an agent skill: a short guide that coding agents such as
-Codex and Claude Code load when a task involves dftk. It covers the piping
+dftk ships an agent skill: a short guide that coding agents such as Codex
+and Claude Code load when a task involves dftk. It covers the piping
 conventions, which command to use for what, and patterns for Snakemake and
-Make. Copy it into your agent's skills directory, for example:
+Make. Install it with:
 
 ```bash
-cp -r skills/dftk ~/.codex/skills/     # Codex
-cp -r skills/dftk ~/.claude/skills/    # Claude Code
+dftk skill install            # every agent found: ~/.claude and/or ~/.codex
+dftk skill install --codex    # only one (--claude or --codex; creates the folder)
+dftk skill install --dir DIR  # another agent's skills folder
 ```
 
-Copy it again after upgrading dftk so it matches the installed version.
+It prints where it installed the skill. Run it again after upgrading dftk
+so the skill matches the installed version; it replaces only the earlier
+dftk skill. The source is in `src/dftk/skills/dftk/`.
 
 ## Quick example
 
