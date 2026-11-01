@@ -1,5 +1,5 @@
 """
-Keep the agent skill in skills/dftk/ in step with the CLI.
+Keep the agent skill in src/dftk/skills/dftk/ in step with the CLI.
 
 The skill is read by coding agents instead of --help, so a renamed command or
 option there would teach them a command line that no longer works.  These
@@ -15,7 +15,7 @@ import pytest
 
 from dftk.commands import COMMAND_GROUPS, COMMAND_NAMES, load_command
 
-SKILL_DIR = Path(__file__).parents[1] / "skills" / "dftk"
+SKILL_DIR = Path(__file__).parents[1] / "src" / "dftk" / "skills" / "dftk"
 SKILL_FILES = sorted(SKILL_DIR.rglob("*.md"))
 
 _FENCED = re.compile(r"^```[^\n]*\n(.*?)^```", re.DOTALL | re.MULTILINE)
