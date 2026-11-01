@@ -128,10 +128,10 @@ Each expression is applied as a boolean row filter in sequence; multiple
 names:
 
   dftk query data.tsv -q "x > 0"
-  dftk dataset tips -o | dftk query ... -q "tip > 5"
-  dftk dataset tips -o | dftk query ... -q "day == 'Sat'" -q "size >= 4"
-  dftk dataset tips -o | dftk query ... -q "total_bill > 40 and tip < 5"
-  dftk dataset tips -o | dftk query ... -q "day.str.startswith('S')"
+  dftk dataset tips -o | dftk query -q "tip > 5"
+  dftk dataset tips -o | dftk query -q "day == 'Sat'" -q "size >= 4"
+  dftk dataset tips -o | dftk query -q "total_bill > 40 and tip < 5"
+  dftk dataset tips -o | dftk query -q "day.str.startswith('S')"
 
 Backtick-quoting handles column names with spaces or special characters
 (none of dftk's bundled datasets have one, but yours might):
@@ -149,20 +149,20 @@ a virtual table named "data" (or the name given by --table).
 Simple filtering:
 
   dftk dataset diamonds -o \\
-    | dftk query ... --sql "SELECT * FROM data WHERE price > 15000"
+    | dftk query --sql "SELECT * FROM data WHERE price > 15000"
   dftk dataset diamonds -o \\
-    | dftk query ... --sql "SELECT * FROM data WHERE price > 15000" -o \\
-    | dftk stat ... -c price
+    | dftk query --sql "SELECT * FROM data WHERE price > 15000" -o \\
+    | dftk stat -c price
 
 Aggregation (replaces dftk pivot for simple cases):
 
-  dftk dataset diamonds -o | dftk query ... --sql \\
+  dftk dataset diamonds -o | dftk query --sql \\
     "SELECT cut, AVG(price) AS mean, STDDEV(price) AS std, COUNT(*) AS n
      FROM data GROUP BY cut"
 
 Window functions:
 
-  dftk dataset diamonds -o | dftk query ... --sql \\
+  dftk dataset diamonds -o | dftk query --sql \\
     "SELECT *, ROW_NUMBER() OVER (PARTITION BY cut ORDER BY price DESC) AS rank
      FROM data"
 
@@ -181,7 +181,7 @@ overlap; the first segment of each chromosome gets an empty cell):
   ORDER BY inside OVER sets the row order. The same on a bundled dataset,
   change since the previous record and years between records per country:
 
-  dftk dataset healthexp -o | dftk query ... --sql \\
+  dftk dataset healthexp -o | dftk query --sql \\
     "SELECT Country, Year, Spending_USD,
             ROUND(Spending_USD - LAG(Spending_USD) OVER w, 1) AS change,
             Year - LAG(Year) OVER w AS years
@@ -190,7 +190,7 @@ overlap; the first segment of each chromosome gets an empty cell):
 
 CTEs:
 
-  dftk dataset diamonds -o | dftk query ... --sql \\
+  dftk dataset diamonds -o | dftk query --sql \\
     "WITH ranked AS (
        SELECT *, RANK() OVER (PARTITION BY cut ORDER BY price DESC) AS rank
        FROM data
@@ -214,7 +214,7 @@ For piped input (stdin or parquet-pipe), the data is loaded into pandas
 first and then registered with DuckDB — in-memory, same as pandas mode.
 The same named-checkpoint approach works after a transform step too:
 
-  dftk dataset diamonds -o | dftk eval ... -f "price_per_carat = price / carat" \\
+  dftk dataset diamonds -o | dftk eval -f "price_per_carat = price / carat" \\
     -o diamonds_derived.parquet
   dftk query diamonds_derived.parquet --sql \\
     "SELECT * FROM data WHERE price_per_carat > 5000"

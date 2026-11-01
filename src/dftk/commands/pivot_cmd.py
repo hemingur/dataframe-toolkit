@@ -29,12 +29,12 @@ Pass one or more names from this list:
 Bare names apply the same function(s) to every value column:
 
   dftk pivot data.tsv -v sales cost -i region -f mean std
-  dftk dataset diamonds -o | dftk pivot ... -v carat price -i cut -f mean std
+  dftk dataset diamonds -o | dftk pivot -v carat price -i cut -f mean std
 
 Per-column functions use COL:FUNC syntax — all items must use this form if
 any do:
 
-  dftk dataset diamonds -o | dftk pivot ... -v carat price -i cut \\
+  dftk dataset diamonds -o | dftk pivot -v carat price -i cut \\
     -f carat:mean price:sum
 
 When -f is omitted, pandas default aggregation (mean) is used.
@@ -48,14 +48,14 @@ Three sampling strategies are available, determined by which flags are given.
      Sample every row in the dataset with replacement, ignoring group
      structure.  Use this when there is no meaningful grouping to preserve.
 
-       dftk dataset diamonds -o | dftk pivot ... -v price -i cut -f mean \\
+       dftk dataset diamonds -o | dftk pivot -v price -i cut -f mean \\
          --bootstrap 500 --fullsampling
 
   2. Group-based row sampling (--samplinggroup COLS)
      Resample rows with replacement *within* each group defined by
      COLS.  Group sizes are preserved across samples.
 
-       dftk dataset diamonds -o | dftk pivot ... -v price -i clarity -g cut \\
+       dftk dataset diamonds -o | dftk pivot -v price -i clarity -g cut \\
          -f mean --bootstrap 500 --samplinggroup color
 
      If neither --fullsampling nor --samplinggroup nor --samplingcols is
@@ -85,9 +85,9 @@ Three sampling strategies are available, determined by which flags are given.
      the row level:
 
        dftk dataset penguins -o \\
-         | dftk randvar ... -d subject_id --dist randint \\
+         | dftk randvar -d subject_id --dist randint \\
              --parameters low:0,high:50 --randomseed 1 -o \\
-         | dftk pivot ... -v bill_length_mm -i species -f mean \\
+         | dftk pivot -v bill_length_mm -i species -f mean \\
              --bootstrap 500 --samplingcols subject_id
 
      Note: --samplingcols values are combined with --samplinggroup values
@@ -102,8 +102,8 @@ PIPE MODE
 Use -o alone to pass data to the next dftk command without writing to a
 file:
 
-  dftk dataset diamonds -o | dftk pivot ... -v price -i color -g cut -f mean -o \\
-    | dftk stat ... -c mean_price_Ideal mean_price_Premium
+  dftk dataset diamonds -o | dftk pivot -v price -i color -g cut -f mean -o \\
+    | dftk stat -c mean_price_Ideal mean_price_Premium
 """
 
 

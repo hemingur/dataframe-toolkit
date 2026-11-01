@@ -116,21 +116,21 @@ EXAMPLES
 Basic chi-plot:
 
   dftk chi data.tsv -x recomb_rate -y gc_content
-  dftk dataset tips -o | dftk chi ... -x total_bill -y tip
+  dftk dataset tips -o | dftk chi -x total_bill -y tip
 
 Split into a subplot grid by category, to check whether tail dependence is
 consistent across the whole dataset or driven by a few subgroups (e.g.
 chromosome, sector, region — here, diamond cut quality):
 
-  dftk dataset diamonds -o | dftk chi ... -x carat -y price --subgraphcol cut
+  dftk dataset diamonds -o | dftk chi -x carat -y price --subgraphcol cut
 
 Colour-code by group instead of splitting into subplots:
 
-  dftk dataset diamonds -o | dftk chi ... -x carat -y price -g cut
+  dftk dataset diamonds -o | dftk chi -x carat -y price -g cut
 
 Publication figure (Nature single column, PDF):
 
-  dftk dataset tips -o | dftk chi ... -x total_bill -y tip \\
+  dftk dataset tips -o | dftk chi -x total_bill -y tip \\
       --size single --fontsize publication -f fig.pdf
 """
 

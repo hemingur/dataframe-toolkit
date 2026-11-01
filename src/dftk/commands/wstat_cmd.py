@@ -82,7 +82,7 @@ COLUMN PAIRS (-c / -w)
   every stat column (e.g. -c x y -w w uses w for both x and y):
 
     dftk wstat data.tsv -c value -w count
-    dftk dataset tips -o | dftk wstat ... -c total_bill -w size
+    dftk dataset tips -o | dftk wstat -c total_bill -w size
 
 OUTPUT COLUMNS
 --------------
@@ -97,9 +97,9 @@ OUTPUT COLUMNS
 
 EXAMPLES
 --------
-  dftk dataset tips -o | dftk wstat ... -c total_bill tip -w size
-  dftk dataset tips -o | dftk wstat ... -c total_bill -w size -g day
-  dftk dataset tips -o | dftk wstat ... -c total_bill tip -w size --confidencelevel 99
+  dftk dataset tips -o | dftk wstat -c total_bill tip -w size
+  dftk dataset tips -o | dftk wstat -c total_bill -w size -g day
+  dftk dataset tips -o | dftk wstat -c total_bill tip -w size --confidencelevel 99
 """
 
 

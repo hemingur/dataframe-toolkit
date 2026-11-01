@@ -52,12 +52,12 @@ FILENAME PATTERNS
   (the destination directory, if any, must already exist — split does not
   create one):
 
-    dftk dataset healthexp -o | dftk split ... -g Country -p out/ -s .tsv
+    dftk dataset healthexp -o | dftk split -g Country -p out/ -s .tsv
     # → out/Canada.tsv, out/France.tsv, out/Germany.tsv, ...
 
   With --template, use {col} placeholders for the group column values:
 
-    dftk dataset tips -o | dftk split ... -g day time --template tips_{day}_{time}.tsv
+    dftk dataset tips -o | dftk split -g day time --template tips_{day}_{time}.tsv
 
   Unknown placeholders are left as-is (safe format_map).
 
@@ -71,9 +71,9 @@ OPTIONS
 EXAMPLES
 --------
   dftk split data.tsv -g group
-  dftk dataset healthexp -o | dftk split ... -g Country -p health_ -s .tsv
-  dftk dataset tips -o | dftk split ... -g day time -p tips_ -s .tsv
-  dftk dataset tips -o | dftk split ... -g day --template 'split_{day}.tsv'
+  dftk dataset healthexp -o | dftk split -g Country -p health_ -s .tsv
+  dftk dataset tips -o | dftk split -g day time -p tips_ -s .tsv
+  dftk dataset tips -o | dftk split -g day --template 'split_{day}.tsv'
 """
 
 

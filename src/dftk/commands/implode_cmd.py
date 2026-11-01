@@ -45,21 +45,21 @@ together; --unique and --sortvalues then work on whole rows.
 Runnable version: each species' islands, one cell per species:
 
   dftk dataset penguins -o \\
-      | dftk implode ... -c island -i species --unique --sortvalues
+      | dftk implode -c island -i species --unique --sortvalues
 
 Numbers, with another separator: the party sizes seen on each day:
 
   dftk dataset tips -o \\
-      | dftk implode ... -c size -i day --unique --sortvalues --sep '|'
+      | dftk implode -c size -i day --unique --sortvalues --sep '|'
 
 Undoing explode: --poscol puts the items back in their original order,
 here after shuffling the rows, and is dropped from the output:
 
   dftk dataset penguins -o \\
-      | dftk implode ... -c island -i species --unique -o \\
-      | dftk explode ... -c island --poscol n -o \\
-      | dftk sample ... -f 1 --randomseed 1 -o \\
-      | dftk implode ... -c island --poscol n
+      | dftk implode -c island -i species --unique -o \\
+      | dftk explode -c island --poscol n -o \\
+      | dftk sample -f 1 --randomseed 1 -o \\
+      | dftk implode -c island --poscol n
 """
 
 

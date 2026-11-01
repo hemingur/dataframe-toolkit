@@ -50,7 +50,7 @@ x-position from a known reference curve:
   dftk dataset sunspots -o sunspots_ref.tsv
   dftk randvar -n 20 -d YEAR --dist uniform \\
       --parameters loc:1700,scale:308 --randomseed 1 -o \\
-      | dftk interp ... --ref sunspots_ref.tsv \\
+      | dftk interp --ref sunspots_ref.tsv \\
           -x YEAR -v SUNACTIVITY -d sunactivity_interp
 
 Different x-column names in each file (rename YEAR to yr_ref in a copy of
@@ -60,7 +60,7 @@ the reference file):
       -o sunspots_ref_renamed.tsv
   dftk randvar -n 20 -d qyear --dist uniform \\
       --parameters loc:1700,scale:308 --randomseed 1 -o \\
-      | dftk interp ... --ref sunspots_ref_renamed.tsv \\
+      | dftk interp --ref sunspots_ref_renamed.tsv \\
           -x qyear --refx yr_ref -v SUNACTIVITY -d sunactivity_interp
 
 Interpolate multiple y-columns at once, grouped — build a per-cut
@@ -69,12 +69,12 @@ dataset, then look up each row's *expected* price and depth from its own
 cut's curve at its exact carat, for comparison against the actual values:
 
   dftk dataset diamonds -o \\
-      | dftk binx ... -c carat -b 0:5:0.1 -d carat_bin --usevalue m -o \\
-      | dftk pivot ... -v price depth -i carat_bin cut -f mean -o \\
-      | dftk query ... --sql "SELECT * FROM data ORDER BY cut, carat_bin" \\
+      | dftk binx -c carat -b 0:5:0.1 -d carat_bin --usevalue m -o \\
+      | dftk pivot -v price depth -i carat_bin cut -f mean -o \\
+      | dftk query --sql "SELECT * FROM data ORDER BY cut, carat_bin" \\
           -o diamonds_ref.tsv
   dftk dataset diamonds -o \\
-      | dftk interp ... --ref diamonds_ref.tsv -x carat --refx carat_bin \\
+      | dftk interp --ref diamonds_ref.tsv -x carat --refx carat_bin \\
           -v mean_price mean_depth -d expected_price expected_depth -g cut
 """
 

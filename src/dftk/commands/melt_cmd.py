@@ -29,7 +29,7 @@ Long format output:
 
 Runnable form:
 
-  dftk dataset elnino -o | dftk melt ... -i YEAR
+  dftk dataset elnino -o | dftk melt -i YEAR
 """
 
 import argparse

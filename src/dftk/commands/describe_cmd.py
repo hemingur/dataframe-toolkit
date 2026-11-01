@@ -37,7 +37,7 @@ Optional flags
 Example
 -------
     dftk describe data.tsv
-    dftk dataset iris -o | dftk describe ... --summary --correlations
+    dftk dataset iris -o | dftk describe --summary --correlations
 """
 
 import argparse
@@ -314,9 +314,9 @@ NOTES FLAGS
 EXAMPLES
 --------
   dftk describe data.tsv
-  dftk dataset iris -o | dftk describe ...
-  dftk dataset iris -o | dftk describe ... --summary --correlations
-  dftk dataset iris -o | dftk describe ... --summary --correlations --corr-threshold 0.5
+  dftk dataset iris -o | dftk describe
+  dftk dataset iris -o | dftk describe --summary --correlations
+  dftk dataset iris -o | dftk describe --summary --correlations --corr-threshold 0.5
 """
         io.parser_read(parser)
 

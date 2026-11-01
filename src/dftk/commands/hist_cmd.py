@@ -137,43 +137,43 @@ EXAMPLES
 Basic histogram (10 bins):
 
   dftk hist data.tsv -x value
-  dftk dataset tips -o | dftk hist ... -x total_bill
+  dftk dataset tips -o | dftk hist -x total_bill
 
 Fixed bin width:
 
-  dftk dataset tips -o | dftk hist ... -x total_bill --binwidth 2
+  dftk dataset tips -o | dftk hist -x total_bill --binwidth 2
 
 Normalised density:
 
-  dftk dataset tips -o | dftk hist ... -x total_bill --normed
+  dftk dataset tips -o | dftk hist -x total_bill --normed
 
 Cumulative:
 
-  dftk dataset tips -o | dftk hist ... -x total_bill --cumulative
+  dftk dataset tips -o | dftk hist -x total_bill --cumulative
 
 KDE (kernel density estimate):
 
-  dftk dataset tips -o | dftk hist ... -x total_bill --kde
+  dftk dataset tips -o | dftk hist -x total_bill --kde
 
 Grouped (overlaid):
 
-  dftk dataset tips -o | dftk hist ... -x total_bill -g day
+  dftk dataset tips -o | dftk hist -x total_bill -g day
 
 Subplot grid by time-of-day:
 
-  dftk dataset tips -o | dftk hist ... -x total_bill --subgraphcol time -g day
+  dftk dataset tips -o | dftk hist -x total_bill --subgraphcol time -g day
 
 Add mean ± σ to title:
 
-  dftk dataset tips -o | dftk hist ... -x total_bill --stats
+  dftk dataset tips -o | dftk hist -x total_bill --stats
 
 Weighted histogram (weight by party size):
 
-  dftk dataset tips -o | dftk hist ... -x total_bill -y size
+  dftk dataset tips -o | dftk hist -x total_bill -y size
 
 Publication figure (Nature single column, PDF):
 
-  dftk dataset tips -o | dftk hist ... -x total_bill \\
+  dftk dataset tips -o | dftk hist -x total_bill \\
       --size single --fontsize publication -f fig.pdf
 """
 
