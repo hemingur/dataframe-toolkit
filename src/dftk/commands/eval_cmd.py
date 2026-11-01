@@ -44,6 +44,12 @@ methods are under .str (name.str.lower(), not name.lower() or tolower()):
 
   x = x.abs()   x = x.round(1)   x = x.clip(lower=0)   y = name.str.upper()
 
+A regular expression test gives True/False; fullmatch checks the whole value
+(match only its start). Here: exactly 7 ASCII letters, empty cells False:
+
+  dftk dataset diamonds -o \\
+      | dftk eval -f "is7 = cut.str.fullmatch('[A-Za-z]{7}')"
+
 
 FILLING MISSING VALUES (-f)
 ---------------------------
