@@ -16,13 +16,14 @@ Key features
   suffix on any duplicates.
 * --select [:right:]  expands to all right-file columns, suppressing ``_l``.
 * Both input files can be TSV or Parquet (.parquet extension auto-detected).
-  The left file defaults to stdin, making it parquet-pipe friendly.
+  Either side can come from stdin (TSV or a parquet path from -o).
 * Integer columns that a left, right or outer join leaves gaps in become
   nullable (Int64) instead of float64.
 """
 
 import argparse
 import logging
+import sys
 import uuid
 
 import pandas as pd
@@ -31,6 +32,9 @@ from dftk.commands.base import BaseCommand
 from dftk.common.io import check_cols, io
 
 logger = logging.getLogger(__name__)
+
+# DATAFILE values that mean stdin ("..." is the old parquet-pipe marker)
+_STDIN = (None, "-", "...")
 
 
 # ---------------------------------------------------------------------------
@@ -296,24 +300,17 @@ is what you see in the output:
 PARQUET INPUT AND SELF-MERGE
 -----------------------------
 Both files accept .parquet paths; the extension is detected automatically.
-The left file defaults to stdin, making it parquet-pipe friendly.
+Either side can come from stdin, as TSV or as the parquet path printed by
+a previous -o:
 
-Self-merge — join a dataframe with itself — is supported with -r - :
+  stdin on the left:   ... | dftk merge -l - -r right.tsv -k id
+  stdin on the right:  ... | dftk merge -l left.tsv -r - -k id
+                       (or leave -r out: ... | dftk merge -l left.tsv -k id)
 
-  dftk dataset penguins | dftk merge -l - -r - -k species
+With stdin on the left (-l -, or no -l and no DATAFILE), -r - joins it with
+itself: stdin is read once and the right side is a copy:
 
-When both -l and -r are -, stdin is read once and df_right is a copy of
-df_left. This works with either a plain TSV pipe (as above, DATAFILE left
-at "-") or the -o | ... parquet-pipe used elsewhere in this file's
-examples — just give ... explicitly as the left file, same as any other
-parquet-pipe read:
-
-  dftk dataset penguins -o | dftk merge ... -r - -k species
-
-Leaving DATAFILE at its default while piping -o output (i.e. omitting
-both -l and ...) does NOT work: -r - reads stdin as raw TSV directly, so
-an upstream bare -o (which prints a parquet *path*, not the data itself)
-would be read as if it were the data.
+  dftk dataset penguins -o | dftk merge -l - -r - -k species
 
 Named-file self-merge (no stdin required):
 
@@ -358,9 +355,9 @@ class MergeCommand(BaseCommand):
             default=None,
             metavar="FILE",
             help=(
-                "Right-hand input file (TSV or .parquet), or - for stdin.  "
-                "When - is used and the left file is also stdin, the left "
-                "DataFrame is reused as-is (self-join / self-merge)."
+                "Right-hand input file (TSV or .parquet), or - for stdin "
+                "(the default when -l names a file).  When the left side is "
+                "also stdin, - joins it with itself (self-merge)."
             ),
         )
         g.add_argument(
@@ -404,16 +401,21 @@ class MergeCommand(BaseCommand):
         )
 
     def execute(self, args: argparse.Namespace) -> None:
-        if args.rightfile is None:
-            raise ValueError("Specify -r FILE (or -r - for self-join).")
-
         # -l overrides the positional DATAFILE when provided
         if args.leftfile is not None:
             args.DATAFILE = args.leftfile
+        left_is_stdin = args.DATAFILE in _STDIN
+        rightfile = args.rightfile
 
-        left_was_stdin = args.DATAFILE in (None, "-", "...")
+        # One side may come from stdin; with -l FILE and no -r it's the right
+        if rightfile is None:
+            if left_is_stdin or sys.stdin.isatty():
+                raise ValueError(
+                    "Specify -r FILE, or give -l FILE and pipe the right "
+                    "side in (-r - with stdin on the left joins it with itself)."
+                )
+            rightfile = "-"
 
-        # Read left file (positional DATAFILE, -l, or stdin)
         try:
             df_left = io.read(args)
         except Exception:
@@ -422,20 +424,15 @@ class MergeCommand(BaseCommand):
 
         _set_suffixes(args)
 
-        # Self-join: -r - reuses the left DataFrame (stdin already consumed)
-        if args.rightfile == "-":
-            if not left_was_stdin:
-                logger.warning(
-                    "-r - used but left file was not stdin; "
-                    "treating as self-join (copy of left)."
-                )
+        if left_is_stdin and rightfile in _STDIN:
+            # Self-join: stdin is read once, the right side is a copy
             df_right = df_left.copy()
         else:
-            args.DATAFILE = args.rightfile
+            args.DATAFILE = rightfile
             try:
                 df_right = io.read(args)
             except Exception:
-                logger.error(f"Failed to read right file: {args.rightfile!r}")
+                logger.error(f"Failed to read right file: {rightfile!r}")
                 raise
 
         df_merged = _do_merge(df_left, df_right, args)
