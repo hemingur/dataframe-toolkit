@@ -3,7 +3,8 @@ Tests for dftk.commands.merge_cmd._do_merge and helper functions.
 """
 
 import argparse
-import logging
+import io as _io
+from types import SimpleNamespace
 
 import pandas as pd
 import pytest
@@ -333,7 +334,7 @@ class TestSelfJoin:
     def test_self_join_no_rightfile_raises(self):
         # execute() must raise when --rightfile is not provided
         cmd = MergeCommand()
-        args = argparse.Namespace(rightfile=None)
+        args = argparse.Namespace(rightfile=None, leftfile=None, DATAFILE=None)
         with pytest.raises(ValueError, match="-r"):
             cmd.execute(args)
 
@@ -345,55 +346,127 @@ class TestSelfJoin:
 
 
 # ---------------------------------------------------------------------------
-# left_was_stdin detection (execute()) — "..." is also stdin
+# Which side reads stdin (execute())
 # ---------------------------------------------------------------------------
 
 
-class TestLeftWasStdinDetection:
-    """DATAFILE="..." (the parquet-pipe marker) means the left file came
-    from stdin just as much as "-" or None does — execute() must not warn
-    that "-r -" is being misused when the left file actually did arrive
-    via a -o | ... parquet pipe.
-    """
+class TestStdinSides:
+    """Either side can come from stdin; both from stdin is a self-join."""
 
-    def _run(self, monkeypatch, datafile, leftfile=None):
+    def _reads(self, monkeypatch, tty=False, **kwargs):
+        """Run execute() and return the DATAFILE of each io.read call."""
         import dftk.commands.merge_cmd as mod
 
-        df = pd.DataFrame({"id": [1, 2], "val": [10.0, 20.0]})
-        monkeypatch.setattr(mod.io, "read", lambda args: df.copy())
+        reads = []
 
-        args = make_args(
+        def fake_read(args):
+            reads.append(args.DATAFILE)
+            return pd.DataFrame({"id": [1, 2], "val": [10.0, 20.0]})
+
+        monkeypatch.setattr(mod.io, "read", fake_read)
+        monkeypatch.setattr(mod.io, "printdf", lambda df, args: None)
+        monkeypatch.setattr("sys.stdin", SimpleNamespace(isatty=lambda: tty))
+        defaults = dict(
             keys=["id"],
             left_on=None,
             right_on=None,
             type="inner",
             only=None,
-            leftfile=leftfile,
-            rightfile="-",
-            DATAFILE=datafile,
+            leftfile=None,
+            rightfile=None,
+            DATAFILE=None,
         )
-        mod.MergeCommand().execute(args)
+        defaults.update(kwargs)
+        mod.MergeCommand().execute(make_args(**defaults))
+        return reads
 
-    def test_ellipsis_datafile_no_spurious_warning(self, caplog, monkeypatch):
-        with caplog.at_level(logging.WARNING, logger="dftk"):
-            self._run(monkeypatch, datafile="...")
-        assert "was not stdin" not in caplog.text
+    @pytest.mark.parametrize("left", [None, "-", "..."])
+    def test_both_stdin_is_a_self_join(self, monkeypatch, left):
+        assert self._reads(monkeypatch, leftfile=left, rightfile="-") == [left]
 
-    def test_dash_datafile_no_spurious_warning(self, caplog, monkeypatch):
-        with caplog.at_level(logging.WARNING, logger="dftk"):
-            self._run(monkeypatch, datafile="-")
-        assert "was not stdin" not in caplog.text
+    def test_positional_stdin_with_dash_right_is_a_self_join(self, monkeypatch):
+        assert self._reads(monkeypatch, DATAFILE="-", rightfile="-") == ["-"]
 
-    def test_named_file_still_warns(self, caplog, monkeypatch):
-        with caplog.at_level(logging.WARNING, logger="dftk"):
-            self._run(monkeypatch, datafile="real_file.tsv")
-        assert "was not stdin" in caplog.text
+    def test_stdin_left_named_right(self, monkeypatch):
+        reads = self._reads(monkeypatch, leftfile="-", rightfile="r.tsv")
+        assert reads == ["-", "r.tsv"]
 
-    def test_ellipsis_via_leftfile_flag_no_spurious_warning(self, caplog, monkeypatch):
-        # -l ... should be equivalent to positional DATAFILE=...
-        with caplog.at_level(logging.WARNING, logger="dftk"):
-            self._run(monkeypatch, datafile=None, leftfile="...")
-        assert "was not stdin" not in caplog.text
+    @pytest.mark.parametrize("right", ["-", "..."])
+    def test_named_left_dash_right_reads_stdin(self, monkeypatch, right):
+        reads = self._reads(monkeypatch, leftfile="left.tsv", rightfile=right)
+        assert reads == ["left.tsv", right]
+
+    def test_named_left_no_right_reads_stdin(self, monkeypatch):
+        assert self._reads(monkeypatch, leftfile="left.tsv") == ["left.tsv", "-"]
+
+    def test_positional_left_no_right_reads_stdin(self, monkeypatch):
+        assert self._reads(monkeypatch, DATAFILE="left.tsv") == ["left.tsv", "-"]
+
+    def test_leftfile_overrides_positional(self, monkeypatch):
+        reads = self._reads(monkeypatch, DATAFILE="x.tsv", leftfile="left.tsv")
+        assert reads == ["left.tsv", "-"]
+
+    def test_no_right_and_stdin_left_raises(self, monkeypatch):
+        with pytest.raises(ValueError, match="-r FILE"):
+            self._reads(monkeypatch, leftfile="-")
+
+    def test_no_right_and_nothing_piped_raises(self, monkeypatch):
+        # A terminal on stdin: don't sit waiting for input
+        with pytest.raises(ValueError, match="-r FILE"):
+            self._reads(monkeypatch, tty=True, leftfile="left.tsv")
+
+
+class TestStdinParquetPath:
+    """End to end through io.read: stdin holds the path printed by -o."""
+
+    @staticmethod
+    def _run(monkeypatch, tmp_path, capsys, stdin_df, **kwargs):
+        from dftk.common.io import _write_parquet
+
+        piped = tmp_path / "piped.parquet"
+        _write_parquet(stdin_df, str(piped))
+        monkeypatch.setattr(
+            "sys.stdin",
+            SimpleNamespace(
+                buffer=_io.BytesIO(f"{piped}\n".encode()),
+                isatty=lambda: False,
+            ),
+        )
+        defaults = dict(
+            keys=["id"],
+            left_on=None,
+            right_on=None,
+            type="inner",
+            only=None,
+            leftfile=None,
+            rightfile=None,
+            DATAFILE=None,
+            backend="pandas",
+            output=None,
+        )
+        defaults.update(kwargs)
+        MergeCommand().execute(make_args(**defaults))
+        return pd.read_csv(_io.StringIO(capsys.readouterr().out), sep="\t")
+
+    def test_right_side_from_stdin(self, monkeypatch, tmp_path, capsys):
+        left = tmp_path / "left.tsv"
+        left.write_text("id\ta\n1\tx\n2\ty\n")
+        stdin_df = pd.DataFrame({"id": [2, 1], "b": ["q", "p"]})
+        out = self._run(
+            monkeypatch, tmp_path, capsys, stdin_df, leftfile=str(left), rightfile="-"
+        )
+        assert out.to_dict("list") == {"id": [1, 2], "a": ["x", "y"], "b": ["p", "q"]}
+
+    def test_self_join_from_stdin(self, monkeypatch, tmp_path, capsys):
+        stdin_df = pd.DataFrame({"id": [1, 2], "a": ["x", "y"]})
+        out = self._run(
+            monkeypatch, tmp_path, capsys, stdin_df, leftfile="-", rightfile="-"
+        )
+        assert out.to_dict("list") == {
+            "id": [1, 2],
+            "a": ["x", "y"],
+            "a_r": ["x", "y"],
+        }
 
 
 # ---------------------------------------------------------------------------

@@ -275,3 +275,150 @@ class TestEmptyAndDuplicateHeaders:
         path.write_text("a\ta\n1\t2\n")
         df = io.read(make_args(DATAFILE=str(path), noheader=True))
         assert list(df.columns) == ["V1", "V2"]
+
+
+class TestStdinDetection:
+    """stdin (or a pipe) holds either TSV or the parquet path printed by -o."""
+
+    BACKENDS = ["pandas", "duckdb"]
+
+    @staticmethod
+    def _stdin(monkeypatch, data: bytes):
+        monkeypatch.setattr("sys.stdin", SimpleNamespace(buffer=_io.BytesIO(data)))
+
+    @staticmethod
+    def _parquet(path, df=None):
+        from dftk.common.io import _write_parquet
+
+        df = pd.DataFrame({"id": ["a", "b"], "n": [1, 2]}) if df is None else df
+        _write_parquet(df, str(path))
+        return path
+
+    @pytest.mark.parametrize("backend", BACKENDS)
+    @pytest.mark.parametrize("datafile", [None, "-"])
+    def test_parquet_path_on_stdin(self, monkeypatch, tmp_path, backend, datafile):
+        path = self._parquet(tmp_path / "x.parquet")
+        self._stdin(monkeypatch, f"{path}\n".encode())
+        df = io.read(make_args(DATAFILE=datafile, backend=backend))
+        assert df.to_dict("list") == {"id": ["a", "b"], "n": [1, 2]}
+
+    @pytest.mark.parametrize("ending", ["", "\r\n", "  \n\n"])
+    def test_path_line_endings(self, monkeypatch, tmp_path, ending):
+        path = self._parquet(tmp_path / "x.parquet")
+        self._stdin(monkeypatch, f"{path}{ending}".encode())
+        assert len(io.read(make_args(DATAFILE="-"))) == 2
+
+    def test_temp_parquet_is_deleted(self, monkeypatch, tmp_path):
+        monkeypatch.setattr("dftk.common.io.DFTK_TMPDIR", str(tmp_path))
+        path = self._parquet(tmp_path / "tmpabc.parquet")
+        self._stdin(monkeypatch, f"{path}\n".encode())
+        io.read(make_args(DATAFILE=None))
+        assert not path.exists()
+
+    def test_named_parquet_is_kept(self, monkeypatch, tmp_path):
+        monkeypatch.setattr("dftk.common.io.DFTK_TMPDIR", str(tmp_path / "tmp"))
+        path = self._parquet(tmp_path / "keep.parquet")
+        self._stdin(monkeypatch, f"{path}\n".encode())
+        io.read(make_args(DATAFILE=None))
+        assert path.exists()
+
+    def test_metadata_is_carried(self, monkeypatch, tmp_path):
+        from dftk.common.io import _write_parquet
+
+        path = tmp_path / "x.parquet"
+        _write_parquet(pd.DataFrame({"a": [1]}), str(path), meta={"step": "qc"})
+        self._stdin(monkeypatch, f"{path}\n".encode())
+        df = io.read(make_args(DATAFILE=None))
+        assert df.attrs["_parquet_meta"]["step"] == "qc"
+
+    @pytest.mark.parametrize("backend", BACKENDS)
+    def test_tsv_on_stdin_is_unchanged(self, monkeypatch, backend):
+        self._stdin(monkeypatch, b"id\tn\na\t1\nb\t2\n")
+        df = io.read(make_args(DATAFILE=None, backend=backend))
+        assert df.to_dict("list") == {"id": ["a", "b"], "n": [1, 2]}
+
+    @pytest.mark.parametrize("backend", BACKENDS)
+    def test_header_only_tsv(self, monkeypatch, backend):
+        self._stdin(monkeypatch, b"id\tn\n")
+        df = io.read(make_args(DATAFILE="-", backend=backend))
+        assert list(df.columns) == ["id", "n"]
+        assert len(df) == 0
+
+    @pytest.mark.parametrize("backend", BACKENDS)
+    def test_path_followed_by_data_is_tsv(self, monkeypatch, tmp_path, backend):
+        # A one-column TSV whose header happens to name an existing file
+        path = self._parquet(tmp_path / "x.parquet")
+        self._stdin(monkeypatch, f"{path}\nv1\nv2\n".encode())
+        df = io.read(make_args(DATAFILE="-", backend=backend))
+        assert list(df.columns) == [str(path)]
+        assert df.iloc[:, 0].tolist() == ["v1", "v2"]
+
+    def test_missing_parquet_path_is_tsv(self, monkeypatch, tmp_path):
+        self._stdin(monkeypatch, f"{tmp_path / 'gone.parquet'}\n".encode())
+        df = io.read(make_args(DATAFILE="-"))
+        assert len(df) == 0
+
+    @pytest.mark.parametrize("backend", BACKENDS)
+    def test_first_line_longer_than_path_limit(self, monkeypatch, backend):
+        from dftk.common.io import _MAX_PATH_LINE
+
+        cols = [f"c{i:05d}" for i in range(_MAX_PATH_LINE // 6 + 10)]
+        data = "\t".join(cols) + "\n" + "\t".join("1" for _ in cols) + "\n"
+        assert len(data.split("\n")[0]) > _MAX_PATH_LINE
+        self._stdin(monkeypatch, data.encode())
+        df = io.read(make_args(DATAFILE="-", backend=backend))
+        assert list(df.columns) == cols
+        assert df.iloc[0].tolist() == [1] * len(cols)
+
+    @pytest.mark.parametrize("backend", BACKENDS)
+    def test_crlf_tsv(self, monkeypatch, backend):
+        self._stdin(monkeypatch, b"id\tn\r\na\t1\r\nb\t2\r\n")
+        df = io.read(make_args(DATAFILE="-", backend=backend))
+        assert df["n"].tolist() == [1, 2]
+
+    @pytest.mark.parametrize("backend", BACKENDS)
+    def test_slow_pipe_loses_nothing(self, monkeypatch, backend):
+        # Rows written in pieces with pauses must all arrive, first line too
+        rows = [f"r{i}\t{i}\n" for i in range(5000)]
+        data = ("id\tn\n" + "".join(rows)).encode()
+        read_fd, write_fd = os.pipe()
+
+        def write():
+            with os.fdopen(write_fd, "wb") as fh:
+                for start in range(0, len(data), 7000):
+                    fh.write(data[start : start + 7000])
+                    fh.flush()
+                    time.sleep(0.005)
+
+        threading.Thread(target=write, daemon=True).start()
+        with os.fdopen(read_fd, "rb") as reader:
+            monkeypatch.setattr("sys.stdin", SimpleNamespace(buffer=reader))
+            df = io.read(make_args(DATAFILE="-", backend=backend))
+        assert len(df) == 5000
+        assert df["id"].iloc[0] == "r0"
+        assert df["n"].iloc[-1] == 4999
+
+    def test_ellipsis_still_requires_a_parquet_path(self, monkeypatch):
+        monkeypatch.setattr("sys.stdin", _io.StringIO("id\tn\n"))
+        with pytest.raises(ValueError, match="expects a .parquet path"):
+            io.read(make_args(DATAFILE="..."))
+
+    @pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="needs named pipes")
+    @pytest.mark.parametrize("backend", BACKENDS)
+    def test_named_pipe_with_parquet_path(self, tmp_path, backend):
+        # <(dftk ... -o): the pipe holds a path, not data
+        path = self._parquet(tmp_path / "x.parquet")
+        pipe = TestReadDuckdbBackend._fifo(tmp_path, f"{path}\n")
+        df = io.read(make_args(DATAFILE=str(pipe), backend=backend))
+        assert df.to_dict("list") == {"id": ["a", "b"], "n": [1, 2]}
+
+    @pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="needs named pipes")
+    def test_named_pipe_one_column_keeps_empty_lines(self, tmp_path):
+        # The pandas reader used to read a pipe twice for one-column files
+        pipe = TestReadDuckdbBackend._fifo(tmp_path, "y\na\n\nb\n")
+        df = io.read(make_args(DATAFILE=str(pipe)))
+        assert len(df) == 3
+
+    def test_directory_is_an_error_naming_the_shell(self, tmp_path):
+        with pytest.raises(ValueError, match=r"directory.*\.\.\..*stdin"):
+            io.read(make_args(DATAFILE=str(tmp_path)))

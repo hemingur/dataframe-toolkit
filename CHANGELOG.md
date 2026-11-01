@@ -1,5 +1,19 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Reading stdin no longer needs the `...` marker: when stdin (no DATAFILE, or `-`) holds just the path of an existing `.parquet` file, as printed by `-o`, that file is read; anything else is read as TSV, as before. `dftk a -o | dftk b -c x` now works in every shell. zsh with Oh My Zsh turns an unquoted `...` into `../..`, so scripts using it didn't run there. `...` still works.
+- The same applies to a pipe given as a file: `<(dftk a -o)` used to fail with "Empty CSV file".
+- `merge`: the right side can come from stdin. `-l left.tsv -r -`, or `-l left.tsv` with `-r` left out, reads the right side from stdin.
+
+### Changed
+- `merge -l FILE -r -` used to join FILE with itself (with a warning); `-r -` now reads stdin. With stdin on the left (`-l -`, or no `-l`), `-r -` is still a self-join.
+
+### Fixed
+- A directory as DATAFILE (what an expanded `...` becomes) crashed with a traceback. It's now a one-line error that names the likely cause.
+- The pandas reader read a one-column file given as a pipe (`<(...)`) twice, so empty lines (missing values) were dropped.
+
 ## [0.11.3] — 2026-10-27
 
 ### Security
