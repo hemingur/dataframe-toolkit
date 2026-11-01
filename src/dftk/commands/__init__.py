@@ -73,6 +73,7 @@ COMMAND_GROUPS: list[tuple[str, list[tuple[str, str]]]] = [
             ("annotate", "annotate_cmd:AnnotateCommand"),
             ("print", "print_cmd:PrintCommand"),
             ("clean", "clean_cmd:CleanCommand"),
+            ("skill", "skill_cmd:SkillCommand"),
         ],
     ),
 ]

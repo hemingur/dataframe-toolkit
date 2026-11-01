@@ -137,7 +137,7 @@ tables too large for points), `line`, `hist`
 
 Other: `dataset NAME` loads a bundled example table, `annotate FILE.parquet`
 reads and writes provenance metadata, `clean` removes leftover temp pipe
-files.
+files, `skill install` installs this skill for Claude Code and Codex.
 
 ## Examples
 

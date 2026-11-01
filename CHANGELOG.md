@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Added
+- `dftk skill install`: installs the agent skill that now ships with dftk into `~/.claude/skills/dftk` and/or `~/.codex/skills/dftk` (whichever agent is found), or `--claude`, `--codex`, `--dir DIR`. It prints where it installed it, and replaces only an earlier copy of the dftk skill. `dftk skill path` prints the packaged folder. Run it again after upgrading dftk. The skill moved from `skills/dftk/` to `src/dftk/skills/dftk/` so it is in the wheel.
 - Reading stdin no longer needs the `...` marker: when stdin (no DATAFILE, or `-`) holds just the path of an existing `.parquet` file, as printed by `-o`, that file is read; anything else is read as TSV, as before. `dftk a -o | dftk b -c x` now works in every shell. zsh with Oh My Zsh turns an unquoted `...` into `../..`, so scripts using it didn't run there. `...` still works.
 - The same applies to a pipe given as a file: `<(dftk a -o)` used to fail with "Empty CSV file".
 - `merge`: the right side can come from stdin. `-l left.tsv -r -`, or `-l left.tsv` with `-r` left out, reads the right side from stdin.
