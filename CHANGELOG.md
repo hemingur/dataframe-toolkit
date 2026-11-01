@@ -10,6 +10,9 @@
 ### Changed
 - `merge -l FILE -r -` used to join FILE with itself (with a warning); `-r -` now reads stdin. With stdin on the left (`-l -`, or no `-l`), `-r -` is still a self-join.
 
+### Documentation
+- Help, README and the agent skill no longer use the `...` marker: examples are `dftk a -o | dftk b args`, which works in every shell. The README's Input/output section explains stdin detection and that `...` still works; CLAUDE.md's help-example rule is updated to match.
+
 ### Fixed
 - A directory as DATAFILE (what an expanded `...` becomes) crashed with a traceback. It's now a one-line error that names the likely cause.
 - The pandas reader read a one-column file given as a pipe (`<(...)`) twice, so empty lines (missing values) were dropped.

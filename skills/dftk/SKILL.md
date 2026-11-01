@@ -26,18 +26,19 @@ using a command for the first time.
    (`-c`, `-g`, `--select`, `--drop` …), so a trailing filename is swallowed
    as one more column name, and dftk then reads stdin instead. `-o` also takes
    an optional value, so `dftk stat -c x -o data.tsv` *writes* to `data.tsv`.
-2. **Piping between dftk commands uses `-o` and `...`**: end a command with a
-   bare `-o` and give the next one the literal `...` as its DATAFILE.
+2. **Piping between dftk commands uses a bare `-o`**: end a command with
+   `-o` and leave DATAFILE out of the next one (or give `-`).
    ```bash
-   dftk query data.tsv -q "score > 0" -o | dftk stat ... -c score -g group
+   dftk query data.tsv -q "score > 0" -o | dftk stat -c score -g group
    ```
    A bare `-o` writes a temporary parquet file and prints only its *path*;
-   `...` reads that path from stdin, loads the file and deletes it. Do not use
-   `-` (or omit DATAFILE) after a bare `-o`: those read stdin as TSV data and
-   would silently parse the printed path as a one-row table.
-3. **Plain TSV piping** also works, without `-o` upstream and with no
-   DATAFILE downstream: `dftk dataset tips | dftk print`. Prefer `-o | ...`
-   between dftk commands: it keeps column types exact and is faster.
+   the next command sees a parquet path on stdin, loads that file and deletes
+   it. Don't write the older `...` marker for DATAFILE: zsh with Oh My Zsh
+   turns an unquoted `...` into `../..`.
+3. **Plain TSV piping** also works, without `-o` upstream:
+   `dftk dataset tips | dftk print`. Prefer `-o |` between dftk commands: it
+   keeps column types exact and is faster. In `merge`, stdin can be either
+   side: `-l - -r right.tsv` or `-l left.tsv -r -`.
 4. **Missing values are written as empty TSV fields**, not `NaN`/`NA`.
    When parsing dftk output in other tools, treat an empty field as missing.
 5. **Plots need `-f FILE`** (`.png`, `.pdf`, `.svg`). Without it, dftk
@@ -64,7 +65,7 @@ using a command for the first time.
 | Form | Writes | Prints to stdout |
 |------|--------|------------------|
 | no `-o` | TSV to stdout | the table |
-| `-o` | temp parquet in `$DFTK_TMPDIR` | its path (for `...`) |
+| `-o` | temp parquet in `$DFTK_TMPDIR` | its path (read by the next command) |
 | `-o FILE.parquet` | named parquet, kept | its path |
 | `-o FILE` (any other extension) | TSV file | nothing |
 
@@ -146,8 +147,8 @@ dftk info results.tsv
 
 # Filter, derive a column, summarise per group
 dftk query results.tsv -q "qual >= 30" -o \
-  | dftk eval ... -f "ratio = alt_count / depth" -o \
-  | dftk stat ... -c ratio -g sample
+  | dftk eval -f "ratio = alt_count / depth" -o \
+  | dftk stat -c ratio -g sample
 
 # SQL when a pandas expression gets awkward
 dftk query results.parquet --sql \
@@ -173,7 +174,7 @@ dftk scat merged.parquet -x dose -y expression -g batch -f dose.png
 Try a pipeline on real data before writing it against your own files: the
 bundled datasets (`dftk dataset --list` lists them; `tips`, `penguins`,
 `iris`, `diamonds` are good defaults) work anywhere, e.g.
-`dftk dataset penguins -o | dftk stat ... -c body_mass_g -g species sex`.
+`dftk dataset penguins -o | dftk stat -c body_mass_g -g species sex`.
 
 ## Provenance metadata
 

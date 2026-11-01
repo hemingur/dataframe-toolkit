@@ -5,7 +5,7 @@
 - **One rule per result someone else depends on.** Write it to a named file
   (`-o work/clean.parquet`) so Snakemake can track it, rerun only what changed
   and run independent rules in parallel.
-- **Pipe inside a rule (`-o | ...`) only for steps nothing else needs.** A
+- **Pipe inside a rule (`-o |` into the next command) only for steps nothing else needs.** A
   short chain (filter, summarise, add a label) in one rule avoids writing
   files nobody reads. Split it into separate rules as soon as an intermediate
   table is reused, is expensive to recompute, or is worth inspecting.
@@ -83,8 +83,8 @@ rule species_stats:
     shell:
         """
         (dftk query {input} -q "species == '{wildcards.species}'" -o \
-            | dftk stat ... -c bill_length_mm body_mass_g -g sex -o \
-            | dftk eval ... -c "species = {wildcards.species}" \
+            | dftk stat -c bill_length_mm body_mass_g -g sex -o \
+            | dftk eval -c "species = {wildcards.species}" \
                 --select species + -o {output}) 2> {log}
         """
 
