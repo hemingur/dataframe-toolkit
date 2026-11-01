@@ -11,10 +11,12 @@ Ported from df/src/df/dfio.py with the following changes:
                          (NOT auto-deleted — reusable later in the same pipeline)
       -o FILE          → TSV written to FILE, nothing on stdout
 
-  • Parquet-pipe via ``...`` DATAFILE: use ``...`` as the DATAFILE argument to
-    read a parquet path from the first line of stdin and load that file.
-    Temp files (inside DFTK_TMPDIR) are deleted after reading; named files
-    are left intact so they can be referenced again downstream.
+  • Parquet pipes: when stdin (no DATAFILE, or -) or a pipe given as
+    DATAFILE (<(...)) holds just the path of an existing .parquet file, that
+    file is read; anything else is read as TSV. Temp files (inside
+    DFTK_TMPDIR) are deleted after reading; named files are left intact so
+    they can be referenced again downstream. The older ``...`` DATAFILE
+    marker still works and requires a parquet path.
 
   • Removed --sqlout and --latex (niche output formats).
   • Removed --experimental (unused).
@@ -83,6 +85,22 @@ def _is_temp_pipe_path(path: str) -> bool:
         and os.path.isfile(path)
         and os.path.abspath(os.path.dirname(path)) == os.path.abspath(DFTK_TMPDIR)
     )
+
+
+# Longest first line of stdin checked for a parquet path; a longer line is data
+_MAX_PATH_LINE = 4096
+
+
+def _read_pipe_parquet(path: str) -> pd.DataFrame:
+    """Read the parquet file *path* named on stdin; delete it if it's dftk's temp."""
+    df = pd.read_parquet(path)
+    df.attrs["_parquet_meta"] = _read_parquet_meta(path)
+    if _is_temp_pipe_path(path):
+        try:
+            os.unlink(path)
+        except OSError as exc:
+            logging.warning(f"Could not remove pipe file {path!r}: {exc}")
+    return df
 
 
 def _read_parquet_meta(path: str) -> dict[str, str]:
@@ -273,9 +291,8 @@ class io:
             "DATAFILE",
             help=(
                 "Input file (tab-separated, or .parquet).  "
-                "Omit or use - to read TSV from stdin.  "
-                "Use ... to read a parquet path from stdin "
-                "(written by a previous -o command)."
+                "Omit or use - to read stdin: TSV, or the parquet path "
+                "printed by a previous -o command."
             ),
             nargs="?",
             default=None,
@@ -378,17 +395,34 @@ class io:
                 raise
             return _name_columns(df)
 
-        def _spooled_csv_with_duckdb(stream) -> pd.DataFrame:
+        def _spooled_csv_with_duckdb(head: bytes, stream) -> pd.DataFrame:
             # DuckDB reads its input twice (type sniffing, then data), so a
             # stream must be copied to a temp file first
             os.makedirs(DFTK_TMPDIR, exist_ok=True)
             fd, path = tempfile.mkstemp(suffix=".tsv", dir=DFTK_TMPDIR)
             try:
                 with os.fdopen(fd, "wb") as fh:
+                    fh.write(head)
                     shutil.copyfileobj(stream, fh)
                 return _csv_with_duckdb(path)
             finally:
                 os.unlink(path)
+
+        def _from_stream(stream) -> pd.DataFrame:
+            # stdin or a pipe: the path printed by "dftk ... -o", or TSV.
+            # A pipe can't be rewound, so the first line is kept and read
+            # again as the start of the TSV. Binary reads only: the text
+            # layer (sys.stdin.readline) reads ahead and would lose rows.
+            first = stream.readline(_MAX_PATH_LINE)
+            path = os.fsdecode(first.strip())
+            if _is_pipe_path(path):
+                rest = stream.read()
+                if not rest.strip():
+                    return _read_pipe_parquet(path)
+                stream = _io.BytesIO(rest)
+            if backend == "duckdb" and duckdb is not None:
+                return _spooled_csv_with_duckdb(first, stream)
+            return _csv_from_bytes(first + stream.read())
 
         def _csv_from_file(path: str) -> pd.DataFrame:
             df = _pandas_csv(path)
@@ -400,42 +434,40 @@ class io:
         # -- read ----------------------------------------------------------
 
         if filename == "...":
-            # Parquet-pipe mode: read a path from stdin, load that parquet file.
+            # Parquet-pipe marker: stdin must hold a parquet path. Kept for
+            # old scripts; stdin is now detected without it.
             pipe_path = sys.stdin.readline().rstrip("\r\n")
-            if not pipe_path.endswith(".parquet") or not os.path.isfile(pipe_path):
+            if not _is_pipe_path(pipe_path):
                 raise ValueError(
                     f"'...' expects a .parquet path on stdin, got {pipe_path!r}"
                 )
-            df = pd.read_parquet(pipe_path)
-            df.attrs["_parquet_meta"] = _read_parquet_meta(pipe_path)
-            if _is_temp_pipe_path(pipe_path):
-                try:
-                    os.unlink(pipe_path)
-                except OSError as exc:
-                    logging.warning(f"Could not remove pipe file {pipe_path!r}: {exc}")
+            df = _read_pipe_parquet(pipe_path)
 
         elif filename is not None and filename != "-":
             # Named file
+            if os.path.isdir(filename):
+                raise ValueError(
+                    f"{filename!r} is a directory, not a data file. If you "
+                    "typed ..., your shell turned it into a path (zsh with "
+                    "Oh My Zsh does): use - or leave the file out to read "
+                    "stdin."
+                )
             if filename.endswith(".parquet"):
                 df = pd.read_parquet(filename)
                 df.attrs["_parquet_meta"] = _read_parquet_meta(filename)
+            elif os.path.exists(filename) and not os.path.isfile(filename):
+                # A pipe, e.g. <(grep -v '^#' file) or <(dftk ... -o): it can
+                # be read only once, and may hold a parquet path
+                with open(filename, "rb") as fh:
+                    df = _from_stream(fh)
             elif backend == "duckdb" and duckdb is not None:
-                if os.path.exists(filename) and not os.path.isfile(filename):
-                    # A pipe, e.g. <(grep -v '^#' file): one read would use it up
-                    with open(filename, "rb") as fh:
-                        df = _spooled_csv_with_duckdb(fh)
-                else:
-                    df = _csv_with_duckdb(filename)
+                df = _csv_with_duckdb(filename)
             else:
                 df = _csv_from_file(filename)
 
-        elif backend == "duckdb" and duckdb is not None:
-            # stdin with DuckDB: it reads files, not buffers (that needs fsspec)
-            df = _spooled_csv_with_duckdb(sys.stdin.buffer)
-
         else:
-            # stdin — read TSV directly
-            df = _csv_from_bytes(sys.stdin.buffer.read())
+            # stdin: TSV, or the parquet path printed by "dftk ... -o"
+            df = _from_stream(sys.stdin.buffer)
 
         # -- prequery ------------------------------------------------------
 
