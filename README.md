@@ -397,6 +397,18 @@ dftk print data.txt --noheader --move V1:chr V2:begin V3:end -o named.tsv
 dftk eval data.txt --noheader -f "len = V3 - V2" --removeheader   # no header out
 ```
 
+In `merge`, `--noheader` applies to both files, so both sides are named
+`V1 V2 …`. The key appears once and the right side's other columns get the
+`_r` suffix. `--move` runs after the merge, so it renames the merged names:
+
+```bash
+dftk merge -l left.txt -r right.txt -k V1 --noheader
+# V1  V2  V3  V2_r  V3_r
+dftk merge -l left.txt -r right.txt -k V1 --noheader \
+  --move V1:id V2:n V3:s V2_r:n2 V3_r:s2
+# id  n  s  n2  s2
+```
+
 Parquet always has column names, so `--removeheader` with `-o` and
 `--noheader` on parquet input do nothing (dftk warns).
 

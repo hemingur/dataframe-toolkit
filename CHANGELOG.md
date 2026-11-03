@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Documentation
+- README "Files without a header": merging two headerless files (`V1 V2 V3 V2_r V3_r`) and naming the merged columns with `--move`.
+
 ## [0.13.0] — 2026-11-03
 
 ### Changed
