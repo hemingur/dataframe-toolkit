@@ -75,8 +75,9 @@ left by an interrupted pipe are removed with `dftk clean`.
 ## Options shared by every data command
 
 Input: `--prequery EXPR` (filter rows right after reading), `--noheader`
-(columns become `V1, V2, …`), `--delimiter`, `--readasobject COL…` (keep
-values like IDs as strings).
+(columns become `V1, V2, …`; the output still gets a header unless
+`--removeheader`, and `--move V1:chr …` names them), `--delimiter`,
+`--readasobject COL…` (keep values like IDs as strings).
 
 Output, applied after the command's own work: `--select COL… [+]` (choose
 and order columns; globs allowed; a trailing `+` keeps the remaining

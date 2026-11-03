@@ -386,6 +386,20 @@ dftk print <(grep -v '^#' data.tsv)          # the same, as a filename
 With `--backend duckdb`, a whole-line `#` comment below the header is an
 error, and `#` lines above the header are skipped.
 
+### Files without a header
+
+`--noheader` reads the first line as data and names the columns `V1`,
+`V2`, …. It only describes the input: the output gets a header (`V1 V2 …`)
+unless you add `--removeheader`. Name the columns with `--move`:
+
+```bash
+dftk print data.txt --noheader --move V1:chr V2:begin V3:end -o named.tsv
+dftk eval data.txt --noheader -f "len = V3 - V2" --removeheader   # no header out
+```
+
+Parquet always has column names, so `--removeheader` with `-o` and
+`--noheader` on parquet input do nothing (dftk warns).
+
 Standard output options (available on all tabular commands):
 
 - `-o` / `--output` — controls where output goes; takes an *optional* value:
@@ -397,6 +411,8 @@ Standard output options (available on all tabular commands):
 - `--drop col1 col2 …` — remove these columns
 - `--round N` — round numeric output
 - `--postquery EXPR` — filter output rows after processing
+- `--move OLD:NEW …` — rename columns
+- `--removeheader` — leave out the header row in TSV output
 - `--meta KEY=VALUE` — embed provenance metadata in parquet output (repeatable)
 
 ### Provenance annotations

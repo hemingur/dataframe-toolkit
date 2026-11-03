@@ -8,10 +8,13 @@ dftk pipeline:
     dftk stat -g grp -s val -o \\
       | dftk pivot -i grp -v val_mean -o \\
       | dftk print
+
+With --noheader and --move it names the columns of a headerless file:
+
+    dftk print data.txt --noheader --move V1:chr V2:begin V3:end
 """
 
 import argparse
-import sys
 
 from dftk.commands.base import BaseCommand
 from dftk.common.io import io
@@ -24,10 +27,9 @@ class PrintCommand(BaseCommand):
     help = "Convert any input (TSV or parquet pipe) to TSV on stdout"
 
     def add_arguments(self, parser: argparse.ArgumentParser) -> None:
-        # Only the read-side arguments — no -o/--output, since the whole
-        # point of this command is to force TSV to stdout.
-        io.parser_read(parser)
+        # The standard output options (--move, --select, --removeheader, …)
+        # work too; with -o FILE print writes there instead of stdout
+        self.add_io_arguments(parser)
 
     def execute(self, args: argparse.Namespace) -> None:
-        df = io.read(args)
-        df.to_csv(sys.stdout, sep="\t", index=False)
+        io.printdf(io.read(args), args)

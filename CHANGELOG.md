@@ -2,7 +2,16 @@
 
 ## [Unreleased]
 
+### Changed
+- `--noheader` now only describes the input. TSV output gets a header (`V1 V2 …`, or the names given with `--move`) unless `--removeheader` is given. Before, `--noheader` also left the header out of the output, so tables that commands build (`stat`, `pivot`, …) lost their column names and `--move` names were silently dropped. **Scripts that relied on headerless output: add `--removeheader`.**
+- `print` takes the standard output options (`--move`, `--select`, `--removeheader`, `-o FILE`, …), so `dftk print data.txt --noheader --move V1:chr V2:begin V3:end` names the columns of a headerless file.
+- `--removeheader` with parquet output (`-o`, `-o x.parquet`) and `--noheader` with parquet input now warn that they have no effect (parquet always has column names).
+
+### Fixed
+- `print` wrote `""` for a missing value in a one-column table; it now writes an empty line, like every other command.
+
 ### Documentation
+- README: "Files without a header" (`--noheader`, `--move`, `--removeheader`).
 - `eval -h`: a regular expression test, `x.str.fullmatch('[A-Za-z]{7}')` (True when the whole value is 7 ASCII letters; `match` only checks the start).
 
 ## [0.12.0] — 2026-11-01
