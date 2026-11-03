@@ -422,3 +422,85 @@ class TestStdinDetection:
     def test_directory_is_an_error_naming_the_shell(self, tmp_path):
         with pytest.raises(ValueError, match=r"directory.*\.\.\..*stdin"):
             io.read(make_args(DATAFILE=str(tmp_path)))
+
+
+class TestHeaderOptions:
+    """--noheader describes the input only; --removeheader drops the TSV header."""
+
+    @pytest.fixture
+    def headerless(self, tmp_path):
+        path = tmp_path / "data.txt"
+        path.write_text("chr1\t100\t200\nchr2\t50\t80\n")
+        return path
+
+    def test_headerless_input_gets_v_header_on_output(self, headerless, capsys):
+        args = make_args(DATAFILE=str(headerless), noheader=True)
+        io.printdf(io.read(args), args)
+        assert capsys.readouterr().out.splitlines()[0] == "V1\tV2\tV3"
+
+    def test_move_names_a_headerless_file(self, headerless, capsys):
+        args = make_args(
+            DATAFILE=str(headerless),
+            noheader=True,
+            move=["V1:chr", "V2:begin", "V3:end"],
+        )
+        io.printdf(io.read(args), args)
+        assert capsys.readouterr().out.splitlines() == [
+            "chr\tbegin\tend",
+            "chr1\t100\t200",
+            "chr2\t50\t80",
+        ]
+
+    def test_removeheader_drops_the_header(self, headerless, capsys):
+        args = make_args(DATAFILE=str(headerless), noheader=True, removeheader=True)
+        io.printdf(io.read(args), args)
+        assert capsys.readouterr().out.splitlines() == [
+            "chr1\t100\t200",
+            "chr2\t50\t80",
+        ]
+
+    def test_removeheader_on_named_tsv(self, tmp_path):
+        out = tmp_path / "out.tsv"
+        io.printdf(
+            pd.DataFrame({"a": [1]}), make_args(output=str(out), removeheader=True)
+        )
+        assert out.read_text() == "1\n"
+
+    @pytest.mark.parametrize("output", ["", "x.parquet"])
+    def test_removeheader_with_parquet_output_warns(
+        self, tmp_path, monkeypatch, capsys, caplog, output
+    ):
+        monkeypatch.setattr("dftk.common.io.DFTK_TMPDIR", str(tmp_path))
+        monkeypatch.chdir(tmp_path)
+        io.printdf(
+            pd.DataFrame({"a": [1]}), make_args(output=output, removeheader=True)
+        )
+        path = capsys.readouterr().out.strip()
+        assert "no effect on parquet output" in caplog.text
+        assert list(pd.read_parquet(path).columns) == ["a"]
+
+    def test_removeheader_with_tsv_output_does_not_warn(self, capsys, caplog):
+        _printdf(pd.DataFrame({"a": [1]}), capsys, removeheader=True)
+        assert "no effect" not in caplog.text
+
+    def test_noheader_with_named_parquet_warns(self, tmp_path, caplog):
+        path = tmp_path / "x.parquet"
+        pd.DataFrame({"a": [1]}).to_parquet(path)
+        df = io.read(make_args(DATAFILE=str(path), noheader=True))
+        assert list(df.columns) == ["a"]
+        assert "--noheader has no effect on parquet input" in caplog.text
+
+    def test_noheader_with_parquet_path_on_stdin_warns(
+        self, tmp_path, monkeypatch, caplog
+    ):
+        path = tmp_path / "x.parquet"
+        pd.DataFrame({"a": [1]}).to_parquet(path)
+        monkeypatch.setattr(
+            "sys.stdin", SimpleNamespace(buffer=_io.BytesIO(f"{path}\n".encode()))
+        )
+        io.read(make_args(DATAFILE=None, noheader=True))
+        assert "--noheader has no effect on parquet input" in caplog.text
+
+    def test_noheader_with_tsv_does_not_warn(self, headerless, caplog):
+        io.read(make_args(DATAFILE=str(headerless), noheader=True))
+        assert "no effect" not in caplog.text
