@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Documentation
+- `eval -h`: a regular expression test, `x.str.fullmatch('[A-Za-z]{7}')` (True when the whole value is 7 ASCII letters; `match` only checks the start).
+
 ## [0.12.0] — 2026-11-01
 
 ### Added
