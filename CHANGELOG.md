@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.13.0] — 2026-11-03
 
 ### Changed
 - `--noheader` now only describes the input. TSV output gets a header (`V1 V2 …`, or the names given with `--move`) unless `--removeheader` is given. Before, `--noheader` also left the header out of the output, so tables that commands build (`stat`, `pivot`, …) lost their column names and `--move` names were silently dropped. **Scripts that relied on headerless output: add `--removeheader`.**
