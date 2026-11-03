@@ -91,6 +91,13 @@ def _is_temp_pipe_path(path: str) -> bool:
 _MAX_PATH_LINE = 4096
 
 
+def _warn_noheader_parquet(args: argparse.Namespace) -> None:
+    if getattr(args, "noheader", False):
+        logging.warning(
+            "--noheader has no effect on parquet input; parquet always has column names"
+        )
+
+
 def _read_pipe_parquet(path: str) -> pd.DataFrame:
     """Read the parquet file *path* named on stdin; delete it if it's dftk's temp."""
     df = pd.read_parquet(path)
@@ -305,7 +312,11 @@ class io:
         )
         g.add_argument(
             "--noheader",
-            help="File has no header row; columns are named V1, V2, …",
+            help=(
+                "Input has no header row; columns are named V1, V2, … "
+                "(rename with --move V1:NAME).  Output still gets a header "
+                "unless --removeheader."
+            ),
             action="store_true",
         )
         g.add_argument(
@@ -418,6 +429,7 @@ class io:
             if _is_pipe_path(path):
                 rest = stream.read()
                 if not rest.strip():
+                    _warn_noheader_parquet(args)
                     return _read_pipe_parquet(path)
                 stream = _io.BytesIO(rest)
             if backend == "duckdb" and duckdb is not None:
@@ -441,6 +453,7 @@ class io:
                 raise ValueError(
                     f"'...' expects a .parquet path on stdin, got {pipe_path!r}"
                 )
+            _warn_noheader_parquet(args)
             df = _read_pipe_parquet(pipe_path)
 
         elif filename is not None and filename != "-":
@@ -453,6 +466,7 @@ class io:
                     "stdin."
                 )
             if filename.endswith(".parquet"):
+                _warn_noheader_parquet(args)
                 df = pd.read_parquet(filename)
                 df.attrs["_parquet_meta"] = _read_parquet_meta(filename)
             elif os.path.exists(filename) and not os.path.isfile(filename):
@@ -573,7 +587,8 @@ class io:
         )
         g.add_argument(
             "--removeheader",
-            help="Suppress the header row in TSV output.",
+            help="Leave out the header row in TSV output (parquet always "
+            "keeps column names).",
             action="store_true",
         )
         g.add_argument(
@@ -819,10 +834,13 @@ class io:
             except ValueError:
                 logging.warning(f"--meta: expected KEY=VALUE, got {item!r}")
 
-        # Header: suppressed if the input had no header, or --removeheader set
-        header = not getattr(args, "noheader", False)
-        if header and getattr(args, "removeheader", False):
-            header = False
+        # Header: written unless --removeheader (--noheader is about the input)
+        header = not getattr(args, "removeheader", False)
+        if not header and (output == "" or str(output).endswith(".parquet")):
+            logging.warning(
+                "--removeheader has no effect on parquet output (-o); parquet "
+                "always keeps column names"
+            )
 
         if output == "":
             # Pipe mode — write temp parquet, print path
