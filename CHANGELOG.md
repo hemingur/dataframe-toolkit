@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.14.0] — 2026-11-05
 
 ### Changed
 - `query --sql` reads no input when the SQL doesn't use the `data` table (or `--table NAME`), so `dftk query --sql "SELECT * FROM 'f.jsonl'"` runs on its own. Before, it waited for stdin, or failed with "Empty CSV file" in scripts. A named DATAFILE is still read.
