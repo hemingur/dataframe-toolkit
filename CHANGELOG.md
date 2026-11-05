@@ -2,8 +2,12 @@
 
 ## [Unreleased]
 
+### Changed
+- `query --sql` reads no input when the SQL doesn't use the `data` table (or `--table NAME`), so `dftk query --sql "SELECT * FROM 'f.jsonl'"` runs on its own. Before, it waited for stdin, or failed with "Empty CSV file" in scripts. A named DATAFILE is still read.
+
 ### Documentation
 - README "Files without a header": merging two headerless files (`V1 V2 V3 V2_r V3_r`) and naming the merged columns with `--move`.
+- JSON files: `query -h` and README "JSON files" show reading JSON and JSON Lines with DuckDB, and flattening nested objects (`pos.*`) and lists (`unnest`, `len`).
 
 ## [0.13.0] — 2026-11-03
 
