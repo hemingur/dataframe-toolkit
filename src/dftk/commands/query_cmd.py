@@ -26,6 +26,7 @@ sql mode  (--sql)
 """
 
 import argparse
+import json
 import logging
 import os
 
@@ -85,6 +86,9 @@ def _sql_query(args: argparse.Namespace, sql: str, table: str) -> pd.DataFrame:
     if direct_parquet:
         rel = conn.read_parquet(filename)
         conn.register(table, rel)
+    elif filename is None and not _uses_table(sql, table):
+        # SQL reads its own files (FROM 'f.jsonl'): don't wait for stdin.
+        pass
     else:
         # stdin, TSV files, or parquet-pipe: read into pandas first.
         df = io.read(args)
@@ -97,6 +101,37 @@ def _sql_query(args: argparse.Namespace, sql: str, table: str) -> pd.DataFrame:
     except Exception as exc:
         raise ValueError(f"DuckDB SQL failed: {exc}") from exc
     return _hugeint_to_int64(df, description)
+
+
+def _uses_table(sql: str, table: str) -> bool:
+    """Return True unless DuckDB's parser says *sql* never names *table*.
+
+    Uses json_serialize_sql, which only parses (duckdb.get_table_names also
+    binds, and fails on valid SQL such as SELECT pos.*).  On a parse error
+    the input is read as before and the query itself reports the error.
+    """
+    try:
+        tree = json.loads(
+            duckdb.execute("SELECT json_serialize_sql(?)", [sql]).fetchone()[0]
+        )
+    except Exception:  # an old duckdb without json_serialize_sql
+        return True
+    if tree.get("error"):
+        return True
+    names: set[str] = set()
+
+    def walk(node) -> None:
+        if isinstance(node, dict):
+            if node.get("type") == "BASE_TABLE":
+                names.add(node.get("table_name", "").lower())
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    walk(tree)
+    return table.lower() in names
 
 
 def _hugeint_to_int64(df: pd.DataFrame, description) -> pd.DataFrame:
@@ -197,6 +232,30 @@ CTEs:
      )
      SELECT * FROM ranked WHERE rank <= 3"
 
+JSON FILES
+----------
+DuckDB reads JSON itself: name the file in FROM, in single quotes. A file
+of records ([{...}, {...}]) and JSON Lines (one object per line) both
+work, and 'logs/*.jsonl' reads several files as one table. When the SQL
+doesn't use the data table, dftk reads no input, so nothing is piped in:
+
+  printf '%s\\n' '{"id": 1, "pos": {"chr": "1", "start": 100}, "tags": ["x", "y"]}' \\
+                '{"id": 2, "pos": {"chr": "2", "start": 200}, "tags": []}' \\
+    > records.jsonl
+  dftk query --sql "SELECT * FROM 'records.jsonl'"
+
+Nested objects and lists come out as one text cell each, which later
+commands can't compute on. Flatten them in the same query: pos.* makes a
+column of each field, len() counts a list, unnest() gives a row per item:
+
+  dftk query --sql \\
+    "SELECT * EXCLUDE (pos, tags), pos.*, len(tags) AS ntags
+     FROM 'records.jsonl'"
+  dftk query --sql "SELECT id, unnest(tags) AS tag FROM 'records.jsonl'"
+  dftk query --sql \\
+    "SELECT * EXCLUDE (pos, tags), pos.* FROM 'records.jsonl'" -o \\
+    | dftk stat -c start
+
 OUT-OF-CORE LARGE FILES
 ------------------------
 When the input is a named .parquet file, DuckDB queries it natively without
@@ -254,6 +313,8 @@ class QueryCommand(BaseCommand):
                 "Full DuckDB SQL query.  The input is registered as a virtual "
                 "table named 'data' (see --table).  Named .parquet inputs are "
                 "queried natively without full load into memory.  "
+                "SQL that only reads its own files (FROM 'f.jsonl') "
+                "needs no input.  "
                 "Cannot be combined with -q.  Requires duckdb."
             ),
         )
