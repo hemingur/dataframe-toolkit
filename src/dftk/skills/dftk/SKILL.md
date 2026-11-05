@@ -104,6 +104,7 @@ Transform:
 | New column from a formula: `z = x / y`, `where(...)`, string, DNA and statistical functions | `eval -f`, `eval -c` (constant), `eval -s` (string) |
 | Fill empty cells: from another column, a group mean, the row above (`ffill`, per group with `groupby`) or by interpolation; sort first, fills follow row order | `eval -f "x = x.fillna(y)"`, `"x = x.groupby(g).ffill()"` (see `eval -h`) |
 | Filter rows (pandas expression) or run any DuckDB SQL (`FROM data`) | `query -q` / `query --sql` |
+| Read JSON or JSON Lines (no input needed); flatten nested fields with `pos.*`, lists with `unnest()` | `query --sql "SELECT * EXCLUDE (pos), pos.* FROM 'f.jsonl'"` |
 | Join two tables, including anti-joins | `merge DATAFILE -r OTHER -k KEY [-t left] [--only left]` |
 | Stack tables row-wise | `concat A B C [--sourcecol src]` |
 | Wide to long / long to wide plus aggregation | `melt` / `pivot -i ROWS -g COLS -v VALS -f FUNCS` |

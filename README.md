@@ -163,6 +163,23 @@ dftk dataset fertility -o \
 
 For your own export, `dftk cleannames data.tsv --backend duckdb -o data.parquet` also keeps integer columns with empty cells as integers.
 
+### JSON files
+
+DuckDB reads JSON itself, so `query --sql` takes a JSON file in `FROM` (a file of records, `[{...}, {...}]`, or JSON Lines, one object per line; `'logs/*.jsonl'` reads several). When the SQL doesn't use the `data` table, dftk reads no input. Nested objects and lists would end up as one text cell each, so flatten them in the same query: `pos.*` makes a column of each field, `len()` counts a list and `unnest()` gives one row per item:
+
+```bash
+printf '%s\n' '{"id": 1, "pos": {"chr": "1", "start": 100}, "tags": ["x", "y"]}' \
+              '{"id": 2, "pos": {"chr": "2", "start": 200}, "tags": []}' \
+  > records.jsonl
+dftk query --sql \
+  "SELECT * EXCLUDE (pos, tags), pos.*, len(tags) AS ntags FROM 'records.jsonl'"
+# id  chr  start  ntags
+# 1   1    100    2
+# 2   2    200    0
+dftk query --sql "SELECT id, unnest(tags) AS tag FROM 'records.jsonl'" -o \
+  | dftk pivot -i tag -v id -f count
+```
+
 ### Large tables: hexbin instead of points
 
 With tens of thousands of points a scatter plot is a solid blob. `--hexbin` counts points per hexagon instead (`--hexlog` for a log colour scale), and `--fit lowess` adds a smooth curve:
@@ -360,6 +377,8 @@ All commands accept:
   a previous command's bare `-o` (that temp file is then read and deleted)
 - A pipe as the filename, e.g. `<(grep -v '^#' data.tsv)` or `<(dftk … -o)`,
   read the same way as stdin
+- JSON through `query --sql "SELECT … FROM 'f.jsonl'"`, which needs no
+  other input (see [JSON files](#json-files))
 
 ```bash
 dftk dataset tips -o | dftk stat -c tip -g day        # parquet path on stdin
@@ -395,6 +414,18 @@ unless you add `--removeheader`. Name the columns with `--move`:
 ```bash
 dftk print data.txt --noheader --move V1:chr V2:begin V3:end -o named.tsv
 dftk eval data.txt --noheader -f "len = V3 - V2" --removeheader   # no header out
+```
+
+In `merge`, `--noheader` applies to both files, so both sides are named
+`V1 V2 …`. The key appears once and the right side's other columns get the
+`_r` suffix. `--move` runs after the merge, so it renames the merged names:
+
+```bash
+dftk merge -l left.txt -r right.txt -k V1 --noheader
+# V1  V2  V3  V2_r  V3_r
+dftk merge -l left.txt -r right.txt -k V1 --noheader \
+  --move V1:id V2:n V3:s V2_r:n2 V3_r:s2
+# id  n  s  n2  s2
 ```
 
 Parquet always has column names, so `--removeheader` with `-o` and

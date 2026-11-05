@@ -9,7 +9,12 @@ import tempfile
 import pandas as pd
 import pytest
 
-from dftk.commands.query_cmd import QueryCommand, _pandas_query, _sql_query
+from dftk.commands.query_cmd import (
+    QueryCommand,
+    _pandas_query,
+    _sql_query,
+    _uses_table,
+)
 
 duckdb = pytest.importorskip("duckdb", reason="duckdb not installed")
 
@@ -253,3 +258,85 @@ class TestSqlIntegerSum:
         sql = "SELECT AVG(n) AS a, COUNT(*) AS c, MAX(n) AS m FROM data"
         result = _sql_query(_args(DATAFILE=parquet), sql, "data")
         assert result.dtypes.astype(str).tolist() == ["float64", "int64", "int64"]
+
+
+class TestSqlOwnFiles:
+    """SQL that only reads its own files (FROM 'f.jsonl') reads no input."""
+
+    @pytest.fixture
+    def jsonl(self, tmp_path):
+        path = tmp_path / "records.jsonl"
+        path.write_text(
+            '{"id": 1, "pos": {"chr": "1", "start": 100}, "tags": ["x", "y"]}\n'
+            '{"id": 2, "pos": {"chr": "2", "start": 200}, "tags": []}\n'
+        )
+        return str(path)
+
+    @pytest.fixture
+    def no_input(self, monkeypatch):
+        def fail(args):
+            raise AssertionError("io.read was called")
+
+        monkeypatch.setattr("dftk.commands.query_cmd.io.read", fail)
+
+    def test_jsonl_flattened(self, jsonl, no_input):
+        sql = (
+            "SELECT * EXCLUDE (pos, tags), pos.*, len(tags) AS ntags "
+            f"FROM '{jsonl}' ORDER BY id"
+        )
+        result = _sql_query(_args(), sql, "data")
+        assert list(result.columns) == ["id", "chr", "start", "ntags"]
+        assert result["start"].tolist() == [100, 200]
+        assert result["ntags"].tolist() == [2, 0]
+
+    def test_unnest_gives_row_per_item(self, jsonl, no_input):
+        sql = f"SELECT id, unnest(tags) AS tag FROM '{jsonl}'"
+        result = _sql_query(_args(), sql, "data")
+        assert result["tag"].tolist() == ["x", "y"]
+
+    def test_json_array_of_records(self, tmp_path, no_input):
+        path = tmp_path / "records.json"
+        path.write_text('[{"id": 1, "v": 2.5}, {"id": 2, "v": 3.5}]')
+        result = _sql_query(_args(), f"SELECT * FROM '{path}'", "data")
+        assert result["v"].tolist() == [2.5, 3.5]
+
+    def test_datafile_still_read(self, sample_df, tmp_path):
+        # A named DATAFILE is read even when the SQL doesn't use it.
+        path = tmp_path / "in.tsv"
+        sample_df.to_csv(path, sep="\t", index=False)
+        result = _sql_query(_args(DATAFILE=str(path)), "SELECT 1 AS one", "data")
+        assert result["one"].tolist() == [1]
+
+
+class TestUsesTable:
+    @pytest.mark.parametrize(
+        "sql",
+        [
+            "SELECT * FROM data",
+            "SELECT * FROM DATA d",
+            "SELECT x.* FROM data x",
+            "SELECT * FROM main.data",
+            "WITH a AS (SELECT * FROM data) SELECT * FROM a",
+            "SELECT * FROM t WHERE x IN (SELECT x FROM data)",
+            "SELECT * FROM t UNION ALL SELECT * FROM data",
+            "SELEC broken",  # parse error: read the input as before
+        ],
+    )
+    def test_uses(self, sql):
+        assert _uses_table(sql, "data")
+
+    @pytest.mark.parametrize(
+        "sql",
+        [
+            "SELECT 1",
+            "SELECT * FROM 'f.jsonl'",
+            "SELECT * FROM read_json_auto('missing.jsonl')",
+            "SELECT pos.* FROM 'f.jsonl'",  # get_table_names fails on this
+        ],
+    )
+    def test_does_not_use(self, sql):
+        assert not _uses_table(sql, "data")
+
+    def test_other_table_name(self):
+        assert _uses_table("SELECT * FROM T", "t")
+        assert not _uses_table("SELECT * FROM data", "t")
