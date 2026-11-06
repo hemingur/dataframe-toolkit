@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.15.0] — 2026-11-06
 
 ### Added
 - Output formats for documents and JSON tools: `-o FILE.json` (array of records), `.jsonl` (JSON Lines), `.md` (Markdown table, numeric columns right-aligned) and `.tex` (bare booktabs `tabular` for `\input`, LaTeX special characters escaped, `| < >` too; use `\usepackage[T1]{fontenc}` for straight `"`). `--format tsv|json|jsonl|md|tex` writes them to stdout or overrides the extension. `--digits` applies. Replaces the legacy `df --latex`; no new dependency.
