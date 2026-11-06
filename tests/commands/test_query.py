@@ -3,6 +3,7 @@ Tests for dftk.commands.query_cmd.
 """
 
 import argparse
+import json
 import os
 import tempfile
 
@@ -15,6 +16,7 @@ from dftk.commands.query_cmd import (
     _sql_query,
     _uses_table,
 )
+from tests.conftest import make_args
 
 duckdb = pytest.importorskip("duckdb", reason="duckdb not installed")
 
@@ -340,3 +342,62 @@ class TestUsesTable:
     def test_other_table_name(self):
         assert _uses_table("SELECT * FROM T", "t")
         assert not _uses_table("SELECT * FROM data", "t")
+
+
+class TestSqlJsonColumns:
+    """A field that is a string in one record and a list in another (DuckDB type
+    JSON), and long lists: the shapes of an ExpansionHunter variant catalog."""
+
+    @pytest.fixture
+    def catalog(self, tmp_path):
+        records = [
+            {
+                "LocusId": "AFF2",
+                "ReferenceRegion": "chrX:148500631-148500691",
+                "VariantType": "Repeat",
+            },
+            {
+                "LocusId": "ATXN7",
+                "ReferenceRegion": ["chr3:63912684-63912714", "chr3:63912714-63912726"],
+                "VariantId": ["ATXN7", "ATXN7_GCC"],
+                "VariantType": ["Repeat", "Repeat"],
+            },
+            {
+                "LocusId": "C9ORF72",
+                "ReferenceRegion": "chr9:27573528-27573546",
+                "VariantType": "RareRepeat",
+                "OfftargetRegions": [f"chr1:{i}-{i + 500}" for i in range(75)],
+            },
+        ]
+        path = tmp_path / "variant_catalog.json"
+        path.write_text(json.dumps(records, indent=4))
+        return str(path)
+
+    def _run(self, capsys, sql, **out):
+        cmd = QueryCommand()
+        args = make_args(DATAFILE=None, sql=sql, query=[], table="data", **out)
+        cmd.execute(args)
+        return capsys.readouterr().out
+
+    def test_select_star_prints_tsv(self, catalog, capsys):
+        lines = self._run(capsys, f"SELECT * FROM '{catalog}'").splitlines()
+        assert len(lines) == 4
+        header = lines[0].split("\t")
+        atxn7 = dict(zip(header, lines[2].split("\t"), strict=True))
+        assert atxn7["ReferenceRegion"] == (
+            '["chr3:63912684-63912714","chr3:63912714-63912726"]'
+        )
+        assert atxn7["VariantId"] == '["ATXN7","ATXN7_GCC"]'
+        aff2 = dict(zip(header, lines[1].split("\t"), strict=True))
+        assert aff2["ReferenceRegion"] == "chrX:148500631-148500691"
+
+    def test_json_output_keeps_the_shape(self, catalog, capsys):
+        out = self._run(capsys, f"SELECT * FROM '{catalog}'", format="json")
+        records = json.loads(out)
+        assert records[0]["ReferenceRegion"] == "chrX:148500631-148500691"
+        assert records[1]["ReferenceRegion"] == [
+            "chr3:63912684-63912714",
+            "chr3:63912714-63912726",
+        ]
+        assert len(records[2]["OfftargetRegions"]) == 75
+        assert records[0]["VariantId"] is None  # missing key: null
