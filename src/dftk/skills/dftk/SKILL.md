@@ -87,6 +87,12 @@ columns), `--drop COL…`, `--move OLD:NEW…` (rename), `--postquery EXPR`,
 `--dropna`, `--na_rep VAL`, `--removeheader`, and
 `--meta KEY=VALUE` (provenance, see below).
 
+Output format: TSV unless `-o FILE` ends in `.json` (array of records),
+`.jsonl`, `.md` (Markdown table) or `.tex` (bare booktabs tabular, for
+`\input` in a LaTeX table); `--format tsv|json|jsonl|md|tex` does the same
+on stdout. Lists and nested values are one line of JSON in TSV and stay
+nested in JSON output.
+
 ## Choosing a command
 
 Look at a table first:
