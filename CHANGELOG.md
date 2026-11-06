@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 ### Added
-- Output formats for documents and JSON tools: `-o FILE.json` (array of records), `.jsonl` (JSON Lines), `.md` (Markdown table, numeric columns right-aligned) and `.tex` (bare booktabs `tabular` for `\input`, LaTeX special characters escaped). `--format tsv|json|jsonl|md|tex` writes them to stdout or overrides the extension. `--digits` applies. Replaces the legacy `df --latex`; no new dependency.
+- Output formats for documents and JSON tools: `-o FILE.json` (array of records), `.jsonl` (JSON Lines), `.md` (Markdown table, numeric columns right-aligned) and `.tex` (bare booktabs `tabular` for `\input`, LaTeX special characters escaped, `| < >` too; use `\usepackage[T1]{fontenc}` for straight `"`). `--format tsv|json|jsonl|md|tex` writes them to stdout or overrides the extension. `--digits` applies. Replaces the legacy `df --latex`; no new dependency.
 - JSON output keeps nested values: lists and structs from `query --sql` are written as JSON again, and so are fields that are a string in some records and a list in others (DuckDB type JSON), also after an `-o` parquet pipe. A key missing from a record is written as `null`.
 
 ### Fixed

@@ -548,8 +548,8 @@ class io:
                 "Output format for stdout or -o FILE, instead of the format "
                 "the file extension gives: tsv, json (array of records), "
                 "jsonl (one record per line), md (Markdown table), tex "
-                "(bare booktabs tabular: \\usepackage{booktabs}, then "
-                "\\input the file).  Not with parquet output."
+                "(bare booktabs tabular: \\usepackage{booktabs} and [T1]{fontenc}, "
+                "then \\input the file).  Not with parquet output."
             ),
         )
         g.add_argument(

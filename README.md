@@ -427,7 +427,7 @@ Without `-o`, output is TSV on stdout. `-o` alone, or `-o FILE.parquet`, writes 
 | `FILE.md` | Markdown table (numeric columns right-aligned) |
 | `FILE.tex` | bare LaTeX `tabular` with booktabs rules |
 
-`--format tsv|json|jsonl|md|tex` writes the same formats to stdout, or overrides the extension. `--digits N` applies to all of them. The `.tex` file is only the tabular, with special characters (`_ & % $ # { } ~ ^ \`) escaped; it needs `\usepackage{booktabs}`, and goes inside your own `table` environment with `\input{tips_by_day.tex}`:
+`--format tsv|json|jsonl|md|tex` writes the same formats to stdout, or overrides the extension. `--digits N` applies to all of them. The `.tex` file is only the tabular, with special characters (`_ & % $ # { } ~ ^ \ | < >`) escaped; it needs `\usepackage{booktabs}`, and goes inside your own `table` environment with `\input{tips_by_day.tex}`. Add `\usepackage[T1]{fontenc}` (pdfLaTeX's default font has no straight `"`, which JSON lists contain):
 
 ```bash
 dftk dataset tips -o | dftk pivot -i day -v tip -f mean count --digits 3 --format md

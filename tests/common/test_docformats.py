@@ -204,6 +204,12 @@ class TestLatex:
             "\\end{tabular}",
         ]
 
+    def test_bar_and_angle_brackets_escaped(self, capsys):
+        # The default OT1 font would print an em dash and inverted ! and ?
+        df = pd.DataFrame({"a": ["a|b <x>"]})
+        row = _out(df, capsys, format="tex").splitlines()[4]
+        assert row == "a\\textbar{}b \\textless{}x\\textgreater{} \\\\"
+
     def test_bool_column_is_left_aligned(self, capsys):
         df = pd.DataFrame({"ok": [True]})
         assert _out(df, capsys, format="tex").splitlines()[0] == "\\begin{tabular}{l}"

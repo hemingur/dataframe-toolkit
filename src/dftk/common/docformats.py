@@ -208,6 +208,10 @@ _LATEX_SPECIAL = {
     "}": r"\}",
     "~": r"\textasciitilde{}",
     "^": r"\textasciicircum{}",
+    # The default OT1 font prints these as an em dash and as inverted ! and ?
+    "|": r"\textbar{}",
+    "<": r"\textless{}",
+    ">": r"\textgreater{}",
     "\n": " ",
 }
 
@@ -220,7 +224,9 @@ def write_latex(df: pd.DataFrame, dest, float_format: str | None, header: bool) 
     """Write *df* as a bare booktabs tabular (needs \\usepackage{booktabs}).
 
     Numeric columns are right-aligned (r), others left (l).  Wrap it in your
-    own table environment with \\input{file.tex}.
+    own table environment with \\input{file.tex}.  A " (in JSON lists, say)
+    and ~ ^ print as intended with \\usepackage[T1]{fontenc}; the default
+    OT1 font has no straight double quote.
     """
     names, rows, numeric = _table(df, float_format, _escape_latex)
     spec = "".join("r" if num else "l" for num in numeric)
