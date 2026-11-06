@@ -136,7 +136,7 @@ publication-quality output.
 | `sample`   | Random row sampling (with or without replacement, by count or fraction)   |
 | `split`    | Split a dataframe into one file per group                                 |
 | `annotate` | Read and write provenance metadata (genome, source, …) in parquet files  |
-| `print`    | Read any dftk input (TSV, parquet, stdin) and write TSV                |
+| `print`    | Read any dftk input (TSV, parquet, stdin) and write TSV, JSON, Markdown or LaTeX |
 | `clean`    | Remove leftover temp parquet pipe files from interrupted pipelines       |
 | `help`     | List all subcommands or show full help for one: `dftk help stat`       |
 
@@ -165,7 +165,7 @@ For your own export, `dftk cleannames data.tsv --backend duckdb -o data.parquet`
 
 ### JSON files
 
-DuckDB reads JSON itself, so `query --sql` takes a JSON file in `FROM` (a file of records, `[{...}, {...}]`, or JSON Lines, one object per line; `'logs/*.jsonl'` reads several). When the SQL doesn't use the `data` table, dftk reads no input. Nested objects and lists would end up as one text cell each, so flatten them in the same query: `pos.*` makes a column of each field, `len()` counts a list and `unnest()` gives one row per item:
+DuckDB reads JSON itself, so `query --sql` takes a JSON file in `FROM` (a file of records, `[{...}, {...}]`, or JSON Lines, one object per line; `'logs/*.jsonl'` reads several). When the SQL doesn't use the `data` table, dftk reads no input. In TSV a nested object or list is shown as one line of JSON (`["x","y"]`), which later commands can't compute on, so flatten it in the same query: `pos.*` makes a column of each field, `len()` counts a list and `unnest()` gives one row per item:
 
 ```bash
 printf '%s\n' '{"id": 1, "pos": {"chr": "1", "start": 100}, "tags": ["x", "y"]}' \
@@ -178,6 +178,32 @@ dftk query --sql \
 # 2   2    200    0
 dftk query --sql "SELECT id, unnest(tags) AS tag FROM 'records.jsonl'" -o \
   | dftk pivot -i tag -v id -f count
+```
+
+A field that is a string in some records and a list in others (a variant catalog's `ReferenceRegion`, say) gets DuckDB type JSON; TSV shows its strings without quotes and its lists as JSON. `json_type()` tells them apart, so a list can become one row per item:
+
+```bash
+printf '%s\n' '{"locus": "AFF2", "region": "chrX:1-60"}' \
+              '{"locus": "ATXN7", "region": ["chr3:1-30", "chr3:30-42"]}' \
+  > catalog.jsonl
+dftk query --sql "
+  SELECT locus,
+         unnest(CASE WHEN json_type(region) = 'ARRAY' THEN region->>'\$[*]'
+                     ELSE [region->>'\$'] END) AS region
+  FROM 'catalog.jsonl'"
+# locus  region
+# AFF2   chrX:1-60
+# ATXN7  chr3:1-30
+# ATXN7  chr3:30-42
+```
+
+To get JSON back, write `-o FILE.json` or `.jsonl`, or `--format json` for stdout (see [Output formats](#output-formats)). Nested values and mixed fields are written as JSON again; a key missing from a record is written as `null`:
+
+```bash
+dftk query --sql "SELECT * FROM 'catalog.jsonl' WHERE locus LIKE 'ATXN%'" --format json
+# [
+#   {"locus": "ATXN7", "region": ["chr3:1-30", "chr3:30-42"]}
+# ]
 ```
 
 ### Large tables: hexbin instead of points
@@ -389,6 +415,28 @@ dftk merge -l tips.tsv -r <(dftk pivot tips.tsv -i day -v tip -f mean -o) -k day
 Older scripts give `...` as the file to read a parquet path from stdin; that
 still works. In zsh with Oh My Zsh an unquoted `...` becomes `../..`, so
 leave it out (or use `-`) in scripts you share.
+
+### Output formats
+
+Without `-o`, output is TSV on stdout. `-o` alone, or `-o FILE.parquet`, writes parquet and prints the path for the next command; `-o FILE` writes TSV, except for these extensions:
+
+| `-o` | Writes |
+|------|--------|
+| `FILE.json` | JSON array of records |
+| `FILE.jsonl` | JSON Lines, one record per line |
+| `FILE.md` | Markdown table (numeric columns right-aligned) |
+| `FILE.tex` | bare LaTeX `tabular` with booktabs rules |
+
+`--format tsv|json|jsonl|md|tex` writes the same formats to stdout, or overrides the extension. `--digits N` applies to all of them. The `.tex` file is only the tabular, with special characters (`_ & % $ # { } ~ ^ \ | < >`) escaped; it needs `\usepackage{booktabs}`, and goes inside your own `table` environment with `\input{tips_by_day.tex}`. Add `\usepackage[T1]{fontenc}` (pdfLaTeX's default font has no straight `"`, which JSON lists contain):
+
+```bash
+dftk dataset tips -o | dftk pivot -i day -v tip -f mean count --digits 3 --format md
+# | day | mean_tip | count_tip |
+# | --- | ---: | ---: |
+# | Thur | 2.77 | 62 |
+# ...
+dftk dataset tips -o | dftk pivot -i day -v tip -f mean count --digits 3 -o tips_by_day.tex
+```
 
 ### Comment lines and preambles
 

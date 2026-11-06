@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Output formats for documents and JSON tools: `-o FILE.json` (array of records), `.jsonl` (JSON Lines), `.md` (Markdown table, numeric columns right-aligned) and `.tex` (bare booktabs `tabular` for `\input`, LaTeX special characters escaped, `| < >` too; use `\usepackage[T1]{fontenc}` for straight `"`). `--format tsv|json|jsonl|md|tex` writes them to stdout or overrides the extension. `--digits` applies. Replaces the legacy `df --latex`; no new dependency.
+- JSON output keeps nested values: lists and structs from `query --sql` are written as JSON again, and so are fields that are a string in some records and a list in others (DuckDB type JSON), also after an `-o` parquet pipe. A key missing from a record is written as `null`.
+
+### Fixed
+- TSV output of lists and nested values: `query --sql "SELECT * FROM 'catalog.json'"` crashed ("need to escape, but no escapechar set") when a list was long enough for numpy to wrap it over several lines, and shorter lists were printed numpy-style (`['a' 'b']`). They are now one line of JSON (`["a","b"]`). Plain strings in a DuckDB JSON column are shown without their JSON quotes.
+
+### Documentation
+- README "Output formats"; README "JSON files" shows `json_type()` for mixed fields and JSON output; `query -h`, `print -h` and the skill updated.
+
 ## [0.14.0] — 2026-11-05
 
 ### Changed

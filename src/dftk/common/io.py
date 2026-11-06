@@ -10,6 +10,10 @@ Ported from df/src/df/dfio.py with the following changes:
       -o FILE.parquet  → named parquet written to FILE, path printed to stdout
                          (NOT auto-deleted — reusable later in the same pipeline)
       -o FILE          → TSV written to FILE, nothing on stdout
+      -o FILE.json / .jsonl / .md / .tex
+                       → JSON, JSON Lines, Markdown or LaTeX table written to
+                         FILE (common/docformats.py); --format sends the same
+                         formats to stdout
 
   • Parquet pipes: when stdin (no DATAFILE, or -) or a pipe given as
     DATAFILE (<(...)) holds just the path of an existing .parquet file, that
@@ -18,7 +22,7 @@ Ported from df/src/df/dfio.py with the following changes:
     they can be referenced again downstream. The older ``...`` DATAFILE
     marker still works and requires a parquet path.
 
-  • Removed --sqlout and --latex (niche output formats).
+  • Removed --sqlout.  --latex became -o FILE.tex / --format tex.
   • Removed --experimental (unused).
   • parser_printdf kept as an alias for parser_output for compatibility.
 """
@@ -35,6 +39,8 @@ import tempfile
 
 import numpy as np
 import pandas as pd
+
+from dftk.common import docformats
 
 try:
     import duckdb
@@ -529,12 +535,27 @@ class io:
                 "path to stdout (auto-deleted by the next reader).  "
                 "Use -o FILE.parquet to write a named parquet and print its path to "
                 "stdout (not auto-deleted — reusable later in the same pipeline).  "
-                "Use -o FILE (no .parquet) to write TSV to FILE with no stdout output."
+                "Use -o FILE (no .parquet) to write TSV to FILE with no stdout output; "
+                "FILE.json, .jsonl, .md or .tex writes JSON, JSON Lines, a "
+                "Markdown table or a LaTeX tabular instead."
+            ),
+        )
+        g.add_argument(
+            "--format",
+            choices=docformats.FORMATS,
+            default=None,
+            help=(
+                "Output format for stdout or -o FILE, instead of the format "
+                "the file extension gives: tsv, json (array of records), "
+                "jsonl (one record per line), md (Markdown table), tex "
+                "(bare booktabs tabular: \\usepackage{booktabs} and [T1]{fontenc}, "
+                "then \\input the file).  Not with parquet output."
             ),
         )
         g.add_argument(
             "--digits",
-            help="Significant floating-point digits in TSV output",
+            help="Significant floating-point digits in TSV, JSON, Markdown and "
+            "LaTeX output",
             type=int,
             default=None,
         )
@@ -688,6 +709,7 @@ class io:
             try:
                 old, new = item.split(":")
                 df = df.rename(columns={old: new})
+                docformats.rename_json_columns(df, {old: new})
             except Exception:
                 logging.warning(f"--move: failed to rename from {item!r}")
 
@@ -836,11 +858,21 @@ class io:
 
         # Header: written unless --removeheader (--noheader is about the input)
         header = not getattr(args, "removeheader", False)
-        if not header and (output == "" or str(output).endswith(".parquet")):
+        to_parquet = output == "" or str(output).endswith(".parquet")
+        if not header and to_parquet:
             logging.warning(
                 "--removeheader has no effect on parquet output (-o); parquet "
                 "always keeps column names"
             )
+
+        fmt: str | None = getattr(args, "format", None)
+        if fmt is not None and to_parquet:
+            raise ValueError(
+                f"--format {fmt} can't be combined with parquet output (-o, "
+                "-o FILE.parquet): give -o FILE or leave -o out"
+            )
+        if fmt is None and output:
+            fmt = docformats.EXTENSIONS.get(os.path.splitext(output)[1].lower())
 
         if output == "":
             # Pipe mode — write temp parquet, print path
@@ -857,13 +889,22 @@ class io:
             _write_parquet(df, output, meta=meta or None)
             print(output)
 
+        elif fmt in ("json", "jsonl"):
+            dest = output if output is not None else sys.stdout
+            docformats.write_json(df, dest, lines=fmt == "jsonl", digits=digits)
+
+        elif fmt in ("md", "tex"):
+            dest = output if output is not None else sys.stdout
+            write = docformats.write_markdown if fmt == "md" else docformats.write_latex
+            write(df, dest, float_format=float_format, header=header)
+
         else:
             # TSV — stdout or named file
             if digits is not None:
                 _warn_digits_exponent(df, digits)
             dest = output if output is not None else sys.stdout
             _write_tsv(
-                df,
+                docformats.nested_as_text(df),
                 dest,
                 sep="\t",
                 index=False,
