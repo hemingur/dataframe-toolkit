@@ -33,6 +33,7 @@ import os
 import pandas as pd
 
 from dftk.commands.base import BaseCommand
+from dftk.common import docformats
 from dftk.common.io import io
 
 try:
@@ -100,7 +101,11 @@ def _sql_query(args: argparse.Namespace, sql: str, table: str) -> pd.DataFrame:
         df = result.df()
     except Exception as exc:
         raise ValueError(f"DuckDB SQL failed: {exc}") from exc
-    return _hugeint_to_int64(df, description)
+    df = _hugeint_to_int64(df, description)
+    docformats.mark_json_columns(
+        df, [d[0] for d in description or [] if str(d[1]) == "JSON"]
+    )
+    return df
 
 
 def _uses_table(sql: str, table: str) -> bool:
@@ -255,6 +260,17 @@ column of each field, len() counts a list, unnest() gives a row per item:
   dftk query --sql \\
     "SELECT * EXCLUDE (pos, tags), pos.* FROM 'records.jsonl'" -o \\
     | dftk stat -c start
+
+In TSV output a list or object that is left nested is shown as one line
+of JSON (["x","y"]). A field that is a string in some records and a list
+in others gets DuckDB type JSON; its plain strings are shown without
+quotes. To get JSON back, give -o FILE.json (or .jsonl) or --format json;
+nested values, and such mixed fields, are written as JSON again, and a key
+missing from a record is written as null:
+
+  dftk query --sql "SELECT * FROM 'records.jsonl' WHERE pos.chr = '1'" \\
+    --format json
+  dftk query --sql "SELECT id, tags FROM 'records.jsonl'" -o ids.jsonl
 
 OUT-OF-CORE LARGE FILES
 ------------------------
