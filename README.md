@@ -383,16 +383,19 @@ the last one of the previous chromosome.
 
 ### Correlograms and heatmaps
 
-`corr --all` correlates every pair of numeric columns both ways round, plus the diagonal, which is the square table `heatmap` draws. Values of both signs get diverging colours centred on 0; `--annot` writes the values in the cells and `--lower` keeps the lower triangle:
+`corr --all` correlates every pair of numeric columns both ways round, plus the diagonal, which is the square table `heatmap` draws. Values of both signs get diverging colours centred on 0; `--vmin -1 --vmax 1` keeps the full scale for r, so a weak correlation doesn't look strong. `--annot` writes the values in the cells and `--lower` keeps the lower triangle:
 
 ```bash
 dftk dataset iris -o | dftk corr --all -o \
-  | dftk heatmap -x col1 -y col2 -v correlation --annot -f iris_corr.png
+  | dftk heatmap -x col1 -y col2 -v correlation --annot --vmin -1 --vmax 1 -f iris_corr.png
 dftk dataset diamonds -o | dftk corr --all --method spearman -o \
-  | dftk heatmap -x col1 -y col2 -v correlation --annot --lower --square -f diamonds_corr.png
+  | dftk heatmap -x col1 -y col2 -v correlation --annot --lower --square \
+      --vmin -1 --vmax 1 -f diamonds_corr.png
 ```
 
-For the shape of each relationship, not just r, `pairs` draws every pair of columns as a scatter plot with each column's KDE on the diagonal; `-g` colours groups and `--upper corr` writes r in the upper triangle:
+Missing values are dropped pair by pair, so `nobs` can differ between cells; `dftk print --dropna -o | dftk corr --all` uses the complete rows throughout. p-values are not adjusted for multiple testing.
+
+For the shape of each relationship, not just r, `pairs` draws every pair of columns as a scatter plot with each column's KDE on the diagonal; `-g` colours groups (each group's KDE scaled by its share of the rows) and `--upper corr` writes r in the upper triangle, with `-g` also r within each group, which can differ even in sign from r over all rows:
 
 ```bash
 dftk dataset iris -o | dftk pairs -g species -f iris_pairs.png

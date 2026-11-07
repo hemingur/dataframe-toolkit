@@ -144,7 +144,7 @@ tables too large for points), `line`, `hist`
 (also KDE), `chi` (tail-dependence chi-plot), `heatmap` (coloured grid from a
 long table `-x COL -y COL -v VALUE`, or a wide one with `-y ROWS`; a
 correlogram is `corr --all -o | heatmap -x col1 -y col2 -v correlation
---annot`), `pairs` (scatter-plot matrix with KDEs on the diagonal; `-c COL…`,
+--annot --vmin -1 --vmax 1`), `pairs` (scatter-plot matrix with KDEs on the diagonal; `-c COL…`,
 `-g COL`, `--upper corr`). `-g COL` overlays groups, `--subgraphcol COL`
 makes panels.
 

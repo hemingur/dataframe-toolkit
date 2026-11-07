@@ -140,7 +140,9 @@ heatmap column (--select picks and orders them):
 CORRELOGRAM
 -----------
 corr --all gives every pair of columns both ways round, which is a square
-heatmap. Values of both signs get diverging colours centred on 0:
+heatmap. Values of both signs get diverging colours centred on 0.  Give
+--vmin -1 --vmax 1 for correlations: otherwise the scale stretches to the
+largest |r|, and a weak correlation looks as strong as a strong one would:
 
   dftk dataset iris -o | dftk corr --all -o \\
     | dftk heatmap -x col1 -y col2 -v correlation --annot --vmin -1 --vmax 1
@@ -149,7 +151,8 @@ heatmap. Values of both signs get diverging colours centred on 0:
   cells square:
 
   dftk dataset diamonds -o | dftk corr --all --method spearman -o \\
-    | dftk heatmap -x col1 -y col2 -v correlation --annot --lower --square
+    | dftk heatmap -x col1 -y col2 -v correlation --annot --lower --square \\
+        --vmin -1 --vmax 1
 
 COLOURS AND NUMBERS
 -------------------
