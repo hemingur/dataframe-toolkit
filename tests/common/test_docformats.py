@@ -84,6 +84,10 @@ class TestNestedAsText:
         out = docformats.nested_as_text(mixed)
         assert out["region"].tolist()[:2] == ["chr1:1-2", '["chr3:1-2","chr3:2-3"]']
 
+    def test_nan_in_a_list_is_null(self):
+        df = pd.DataFrame({"l": [np.array([1.0, np.nan, np.inf])]})
+        assert docformats.nested_as_text(df)["l"].iloc[0] == "[1.0,null,null]"
+
     def test_unchanged_frame_is_returned_as_is(self, small):
         assert docformats.nested_as_text(small) is small
 
@@ -97,6 +101,25 @@ class TestTsvNested:
             "b\t\t",
             'c\t[]\t{"chr":"2","start":5}',
         ]
+
+
+class TestRepeatedNames:
+    @pytest.fixture
+    def twice(self, nested):
+        return nested.set_axis(["id", "tags", "id"], axis=1)
+
+    def test_tsv(self, twice, capsys):
+        assert _out(twice, capsys).splitlines()[:2] == [
+            "id\ttags\tid",
+            'a\t["x","y"]\t{"chr":"1","start":100}',
+        ]
+
+    def test_markdown(self, twice, capsys):
+        assert _out(twice, capsys, format="md").splitlines()[0] == "| id | tags | id |"
+
+    def test_json_is_an_error(self, twice):
+        with pytest.raises(ValueError, match="repeated: \\['id'\\]"):
+            io.printdf(twice, make_args(format="json"))
 
 
 class TestJson:
@@ -140,6 +163,10 @@ class TestJson:
     def test_move_renames_a_json_column(self, mixed, capsys):
         records = json.loads(_out(mixed, capsys, format="json", move=["region:loc"]))
         assert records[1]["loc"] == ["chr3:1-2", "chr3:2-3"]
+
+    def test_nan_in_a_list_is_null(self, capsys):
+        df = pd.DataFrame({"l": [np.array([1.0, np.nan])]})
+        assert json.loads(_out(df, capsys, format="json")) == [{"l": [1.0, None]}]
 
     def test_int64_with_missing_and_bool(self, capsys):
         df = pd.DataFrame(
@@ -209,6 +236,11 @@ class TestLatex:
         df = pd.DataFrame({"a": ["a|b <x>"]})
         row = _out(df, capsys, format="tex").splitlines()[4]
         assert row == "a\\textbar{}b \\textless{}x\\textgreater{} \\\\"
+
+    def test_brackets_braced(self, capsys):
+        # "\\" followed by "[" would be read as "\\[length]"
+        df = pd.DataFrame({"a": ["[1]"]})
+        assert _out(df, capsys, format="tex").splitlines()[4] == "{[}1{]} \\\\"
 
     def test_bool_column_is_left_aligned(self, capsys):
         df = pd.DataFrame({"ok": [True]})
