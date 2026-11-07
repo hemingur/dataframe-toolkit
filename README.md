@@ -128,6 +128,7 @@ publication-quality output.
 | `hist`  | Histogram or KDE (`--kde`); normalisation, cumulative mode, mean±σ annotation (`--stats`)                                                                                           |
 | `chi`   | Corner-resolved chi-plot: whether tail dependence sits in the lower or upper corner                                                                                                 |
 | `heatmap` | Coloured grid of values from a long (`-x -y -v`) or wide (`-y`) table; correlograms from `corr --all`, `--annot`, `--lower` |
+| `pairs` | Scatter-plot matrix with KDEs (or histograms) on the diagonal; `-g` colours groups, `--upper corr` puts r in the upper triangle |
 
 ### Utilities
 
@@ -389,6 +390,13 @@ dftk dataset iris -o | dftk corr --all -o \
   | dftk heatmap -x col1 -y col2 -v correlation --annot -f iris_corr.png
 dftk dataset diamonds -o | dftk corr --all --method spearman -o \
   | dftk heatmap -x col1 -y col2 -v correlation --annot --lower --square -f diamonds_corr.png
+```
+
+For the shape of each relationship, not just r, `pairs` draws every pair of columns as a scatter plot with each column's KDE on the diagonal; `-g` colours groups and `--upper corr` writes r in the upper triangle:
+
+```bash
+dftk dataset iris -o | dftk pairs -g species -f iris_pairs.png
+dftk dataset iris -o | dftk pairs -g species --upper corr --diag hist -f iris_pairs_r.png
 ```
 
 `heatmap` draws any table with one row per cell (`-x -y -v`), or a wide one with `-y` naming the row labels and the other numeric columns as heatmap columns, as `pivot` makes it:

@@ -4,6 +4,7 @@
 
 ### Added
 - `heatmap`: a coloured grid of values, from a long table (`-x COL -y COL -v VALUE`, one row per cell, as `corr` and `stat` give it) or a wide one (`-y ROWS`, the other numeric columns as heatmap columns, as `pivot` gives it). `--annot` writes values in the cells (`--fmt`), `--cmap`, `--center`, `--vmin`/`--vmax`, `--lower` (lower triangle), `--square`, and the figure options of the other plots. Values of both signs get diverging colours centred on 0.
+- `pairs`: scatter-plot matrix, every pair of columns (`-c COL…`, globs; default all numeric) as a small scatter plot with each column's KDE on the diagonal (`--diag hist` for histograms). `-g` colours groups with one KDE per group; `--upper corr` writes the correlation (`--method`) in the upper triangle on a cell coloured by its value. Points are rasterized so a PDF stays small; `--alpha` and `--markersize` for large tables.
 - `corr --all [COL…]`: the correlation matrix, every pair both ways round plus the diagonal, in column order, for a correlogram: `corr --all -o | heatmap -x col1 -y col2 -v correlation --annot`. Each pair is computed once; on the diagonal the bootstrap and tail columns are empty.
 - `corr -c` takes globs on either side, expanded to numeric columns: `-c '*:*'` gives every pair once, `-c 'sepal*:petal*'` the cross product.
 

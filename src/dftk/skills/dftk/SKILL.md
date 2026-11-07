@@ -144,7 +144,9 @@ tables too large for points), `line`, `hist`
 (also KDE), `chi` (tail-dependence chi-plot), `heatmap` (coloured grid from a
 long table `-x COL -y COL -v VALUE`, or a wide one with `-y ROWS`; a
 correlogram is `corr --all -o | heatmap -x col1 -y col2 -v correlation
---annot`). `-g COL` overlays groups, `--subgraphcol COL` makes panels.
+--annot`), `pairs` (scatter-plot matrix with KDEs on the diagonal; `-c COL…`,
+`-g COL`, `--upper corr`). `-g COL` overlays groups, `--subgraphcol COL`
+makes panels.
 
 Other: `dataset NAME` loads a bundled example table, `annotate FILE.parquet`
 reads and writes provenance metadata, `clean` removes leftover temp pipe
