@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.15.1] — 2026-11-07
+
+### Fixed
+- `.tex` output: a row whose first cell starts with `[` (a JSON list, say) no longer breaks the table; LaTeX read `\\[` as a line-spacing argument. `[` and `]` are now written as `{[}` and `{]}`.
+- TSV, Markdown and LaTeX output crashed on repeated column names (e.g. after `--move id:s` when `s` exists); it worked before 0.15.0. JSON output, which can't hold a repeated key, now says so instead of keeping only the last column.
+- `NaN` and `Inf` inside lists are written as `null`, so JSON output and the JSON text in TSV are valid JSON.
+- `merge` keeps the JSON columns from `query --sql` (fields that are a string in some records and a list in others): JSON output after a merge writes them as JSON again, not as quoted text.
+
 ## [0.15.0] — 2026-11-06
 
 ### Added
