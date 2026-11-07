@@ -7,7 +7,14 @@ import pandas as pd
 import pytest
 import scipy.stats as ss
 
-from dftk.commands.corr_cmd import METHODS, _bootstrap_stats, _corr
+from dftk.commands.corr_cmd import (
+    METHODS,
+    _all_pairs,
+    _bootstrap_stats,
+    _corr,
+    _expand_pairs,
+    _numeric_columns,
+)
 from tests.conftest import make_args
 
 
@@ -374,3 +381,87 @@ class TestTailDependence:
         result = _corr(df, _args(tail=True, tail_q=[0.01, 0.02, 0.05]), _rng())
         assert result["lambda_lower_q0.01"].iloc[0] == pytest.approx(0.794, abs=0.15)
         assert result["lambda_upper_q0.01"].iloc[0] < 0.2
+
+
+@pytest.fixture
+def three_df():
+    rng = np.random.default_rng(1)
+    a = rng.normal(size=40)
+    return pd.DataFrame(
+        {
+            "a": a,
+            "b": a + rng.normal(size=40),
+            "c": -a + rng.normal(size=40),
+            "flag": [True, False] * 20,
+            "grp": ["x", "y"] * 20,
+        }
+    )
+
+
+class TestPairExpansion:
+    def test_star_star_gives_each_numeric_pair_once(self, three_df):
+        numeric = _numeric_columns(three_df, [])
+        assert numeric == ["a", "b", "c"]
+        assert _expand_pairs(["*:*"], numeric) == [("a", "b"), ("a", "c"), ("b", "c")]
+
+    def test_glob_cross_product(self, three_df):
+        numeric = _numeric_columns(three_df, [])
+        assert _expand_pairs(["a:[bc]"], numeric) == [("a", "b"), ("a", "c")]
+
+    def test_named_pairs_kept_as_given(self):
+        assert _expand_pairs(["b:a", "b:a"], ["a", "b"]) == [("b", "a"), ("b", "a")]
+
+    def test_glob_matching_nothing_is_an_error(self):
+        with pytest.raises(ValueError, match="matches no numeric column"):
+            _expand_pairs(["z*:a"], ["a", "b"])
+
+    def test_corr_expands_globs_in_args_cols(self, three_df):
+        result = _corr(three_df, _args(cols=["*:*"]), _rng())
+        assert list(zip(result["col1"], result["col2"], strict=True)) == [
+            ("a", "b"),
+            ("a", "c"),
+            ("b", "c"),
+        ]
+
+
+class TestAllPairs:
+    def test_square_matrix_in_column_order(self, three_df):
+        pairs = _all_pairs([], _numeric_columns(three_df, []))
+        result = _corr(three_df, _args(cols=None), _rng(), pairs)
+        assert len(result) == 9
+        assert list(result["col1"][:3]) == ["a", "a", "a"]
+        assert list(result["col2"][:3]) == ["a", "b", "c"]
+
+    def test_symmetric_and_unit_diagonal(self, three_df):
+        pairs = _all_pairs([], _numeric_columns(three_df, []))
+        result = _corr(three_df, _args(cols=None), _rng(), pairs)
+        r = result.set_index(["col1", "col2"])["correlation"]
+        assert r["a", "c"] == r["c", "a"]
+        assert r["b", "b"] == pytest.approx(1.0)
+
+    def test_diagonal_has_no_bootstrap_or_tail(self, three_df):
+        pairs = _all_pairs(["a", "b"], ["a", "b", "c"])
+        args = _args(cols=None, bootstrap=20, tail=True, randomseed=1)
+        result = _corr(three_df, args, _rng(), pairs).set_index(["col1", "col2"])
+        assert result.loc[("a", "a"), ["p_perm", "lambda_lower_q0.05"]].isna().all()
+        assert result.loc[("a", "b"), ["p_perm", "lambda_lower_q0.05"]].notna().all()
+
+    def test_group_columns_are_left_out(self, three_df):
+        assert _numeric_columns(three_df, ["a"]) == ["b", "c"]
+
+    def test_needs_two_columns(self):
+        with pytest.raises(ValueError, match="at least two"):
+            _all_pairs(["a"], ["a", "b"])
+
+    def test_cli_requires_cols_or_all(self, capsys):
+        import argparse
+
+        from dftk.commands.corr_cmd import CorrCommand
+
+        parser = argparse.ArgumentParser()
+        CorrCommand().add_arguments(parser)
+        with pytest.raises(SystemExit):
+            parser.parse_args([])
+        with pytest.raises(SystemExit):
+            parser.parse_args(["-c", "a:b", "--all"])
+        assert parser.parse_args(["--all"]).all == []
