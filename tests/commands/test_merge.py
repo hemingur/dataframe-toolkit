@@ -15,6 +15,7 @@ from dftk.commands.merge_cmd import (
     _expand_select,
     _set_suffixes,
 )
+from dftk.common import docformats
 from tests.conftest import make_args
 
 # ---------------------------------------------------------------------------
@@ -198,6 +199,20 @@ class TestDoMergeInner:
 # ---------------------------------------------------------------------------
 # _do_merge — select [:left:] / [:right:]
 # ---------------------------------------------------------------------------
+
+
+class TestJsonColumns:
+    """DuckDB JSON-text columns stay marked through a merge (docformats)."""
+
+    def test_both_sides_marked_with_suffix(self, left_df, right_df):
+        docformats.mark_json_columns(left_df, ["name"])
+        docformats.mark_json_columns(right_df, ["score", "country"])
+        result = _do_merge(left_df, right_df, _merge_args(keys=["id"]))
+        assert docformats.json_columns(result) == ["name", "score_r", "country"]
+
+    def test_unmarked_inputs(self, left_df, right_df):
+        result = _do_merge(left_df, right_df, _merge_args(keys=["id"]))
+        assert docformats.json_columns(result) == []
 
 
 class TestDoMergeSelectToken:

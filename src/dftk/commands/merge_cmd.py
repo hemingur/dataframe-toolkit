@@ -29,6 +29,7 @@ import uuid
 import pandas as pd
 
 from dftk.commands.base import BaseCommand
+from dftk.common import docformats
 from dftk.common.io import check_cols, io
 
 logger = logging.getLogger(__name__)
@@ -111,6 +112,24 @@ def _add_cross_col(
     drop = list(getattr(args, "drop", None) or [])
     drop.append(colname)
     args.drop = drop
+
+
+def _carry_json_columns(
+    merged: pd.DataFrame,
+    left: pd.DataFrame,
+    right: pd.DataFrame,
+    suffixes: tuple[str, str],
+) -> None:
+    """Mark the JSON-text columns of both inputs in *merged* (see docformats)."""
+    names = []
+    for side, other, suffix in ((left, right, suffixes[0]), (right, left, suffixes[1])):
+        for col in docformats.json_columns(side):
+            name = col
+            if col in other.columns and f"{col}{suffix}" in merged.columns:
+                name = f"{col}{suffix}"
+            if name in merged.columns and name not in names:
+                names.append(name)
+    docformats.mark_json_columns(merged, names)
 
 
 def _gap_sides(args: argparse.Namespace) -> tuple[bool, bool]:
@@ -227,6 +246,7 @@ def _do_merge(
     if "_merge" in df_merged.columns:
         df_merged = df_merged.drop(columns=["_merge"])
 
+    _carry_json_columns(df_merged, df_left, df_right, suffixes)
     return df_merged
 
 
