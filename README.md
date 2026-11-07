@@ -109,7 +109,7 @@ dftk dataset tips -o \
 | `wstat`    | Weighted descriptive statistics (wmean, wstd, weighted quantile CI)                                 |
 | `fit`      | OLS/robust/weighted regression via R-style formulas; tidy table, `--summary`, `--anova`             |
 | `test`     | P-values between column pairs: t-test, Mann-Whitney, Wilcoxon, KS, correlations, bootstrap; groups  |
-| `corr`     | Pairwise column correlations (Pearson/Spearman/Kendall) with optional BCa bootstrap CI              |
+| `corr`     | Pairwise column correlations (Pearson/Spearman/Kendall) with optional BCa bootstrap CI; globs (`-c '*:*'`) or a full matrix (`--all`) |
 | `describe` | Quick column-level summary (dtype, n, n_unique, n_null, sample values)                              |
 | `info`     | Per-column dtype, null counts, and memory usage; `--summary` for dataset-level totals               |
 | `randvar`  | Sample from a distribution and append as a new column (norm, alpha, beta, …)                        |
@@ -127,6 +127,7 @@ publication-quality output.
 | `line`  | Line plot; optional error bars (`--yerr`) or CI bands (`--yci lo,hi`) and fit overlay                                                                                               |
 | `hist`  | Histogram or KDE (`--kde`); normalisation, cumulative mode, mean±σ annotation (`--stats`)                                                                                           |
 | `chi`   | Corner-resolved chi-plot: whether tail dependence sits in the lower or upper corner                                                                                                 |
+| `heatmap` | Coloured grid of values from a long (`-x -y -v`) or wide (`-y`) table; correlograms from `corr --all`, `--annot`, `--lower` |
 
 ### Utilities
 
@@ -378,6 +379,24 @@ dftk eval segments.tsv -f 'gap = Begin - End.groupby(Chr).shift()'
 
 Without `groupby(Chr)` the first segment of a chromosome is compared with
 the last one of the previous chromosome.
+
+### Correlograms and heatmaps
+
+`corr --all` correlates every pair of numeric columns both ways round, plus the diagonal, which is the square table `heatmap` draws. Values of both signs get diverging colours centred on 0; `--annot` writes the values in the cells and `--lower` keeps the lower triangle:
+
+```bash
+dftk dataset iris -o | dftk corr --all -o \
+  | dftk heatmap -x col1 -y col2 -v correlation --annot -f iris_corr.png
+dftk dataset diamonds -o | dftk corr --all --method spearman -o \
+  | dftk heatmap -x col1 -y col2 -v correlation --annot --lower --square -f diamonds_corr.png
+```
+
+`heatmap` draws any table with one row per cell (`-x -y -v`), or a wide one with `-y` naming the row labels and the other numeric columns as heatmap columns, as `pivot` makes it:
+
+```bash
+dftk dataset penguins -o | dftk pivot -i species -g island -v body_mass_g -f count -o \
+  | dftk heatmap -y species --annot --cmap Blues -f penguin_counts.png
+```
 
 ### Bootstrap confidence intervals
 
