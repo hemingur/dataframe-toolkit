@@ -8,6 +8,14 @@
 - `corr --all [COL…]`: the correlation matrix, every pair both ways round plus the diagonal, in column order, for a correlogram: `corr --all -o | heatmap -x col1 -y col2 -v correlation --annot --vmin -1 --vmax 1`. Each pair is computed once; on the diagonal r is 1 and the p-value, intervals, bootstrap and tail columns are empty. A pair with fewer than 2 complete rows gets empty statistics and a warning naming it.
 - `corr -c` takes globs on either side, expanded to numeric columns: `-c '*:*'` gives every pair once, `-c 'sepal*:petal*'` the cross product. A column whose name contains `* ? [` (`x[1]`) still matches only itself.
 
+## [0.15.1] — 2026-11-07
+
+### Fixed
+- `.tex` output: a row whose first cell starts with `[` (a JSON list, say) no longer breaks the table; LaTeX read `\\[` as a line-spacing argument. `[` and `]` are now written as `{[}` and `{]}`.
+- TSV, Markdown and LaTeX output crashed on repeated column names (e.g. after `--move id:s` when `s` exists); it worked before 0.15.0. JSON output, which can't hold a repeated key, now says so instead of keeping only the last column.
+- `NaN` and `Inf` inside lists are written as `null`, so JSON output and the JSON text in TSV are valid JSON.
+- `merge` keeps the JSON columns from `query --sql` (fields that are a string in some records and a list in others): JSON output after a merge writes them as JSON again, not as quoted text.
+
 ## [0.15.0] — 2026-11-06
 
 ### Added

@@ -66,28 +66,35 @@ def _is_nested(value) -> bool:
 
 
 def _dumps(value) -> str:
-    return json.dumps(value, default=_plain, ensure_ascii=False, separators=(",", ":"))
+    text = json.dumps(value, default=_plain, ensure_ascii=False, separators=(",", ":"))
+    if "NaN" in text or "Infinity" in text:
+        # NaN and Infinity aren't JSON: write them as null
+        parsed = json.loads(text, parse_constant=lambda _: None)
+        text = json.dumps(parsed, ensure_ascii=False, separators=(",", ":"))
+    return text
 
 
 def nested_as_text(df: pd.DataFrame) -> pd.DataFrame:
     """Return *df* with nested values and JSON-column text as one-line text."""
     jcols = set(json_columns(df))
     out = None
-    for col in df.columns:
-        dtype = df[col].dtype
+    # By position: column names may repeat
+    for i, col in enumerate(df.columns):
+        series = df.iloc[:, i]
+        dtype = series.dtype
         if not (
             pd.api.types.is_object_dtype(dtype) or pd.api.types.is_string_dtype(dtype)
         ):
             continue
         if col in jcols:
-            new = df[col].map(_json_text_cell)
-        elif df[col].map(_is_nested).any():
-            new = df[col].map(lambda v: _dumps(v) if _is_nested(v) else v)
+            new = series.map(_json_text_cell)
+        elif series.map(_is_nested).any():
+            new = series.map(lambda v: _dumps(v) if _is_nested(v) else v)
         else:
             continue
         if out is None:
             out = df.copy()
-        out[col] = new
+        out.isetitem(i, new)
     return df if out is None else out
 
 
@@ -131,6 +138,12 @@ def write_json(df: pd.DataFrame, dest, lines: bool, digits: int | None) -> None:
 
     A missing value is written as null; the key is kept.
     """
+    repeated = df.columns[df.columns.duplicated()].unique().tolist()
+    if repeated:
+        raise ValueError(
+            f"JSON output needs unique column names; repeated: {repeated} "
+            "(rename one with --move OLD:NEW)"
+        )
     jcols = set(json_columns(df))
     cols = list(df.columns)
     records = (
@@ -173,7 +186,7 @@ def _table(df: pd.DataFrame, float_format: str | None, escape):
         [escape(_cell_text(v, float_format)) for v in row]
         for row in df.itertuples(index=False, name=None)
     ]
-    numeric = [_is_numeric(df[c]) for c in df.columns]
+    numeric = [_is_numeric(df.iloc[:, i]) for i in range(df.shape[1])]
     return header, rows, numeric
 
 
@@ -206,6 +219,9 @@ _LATEX_SPECIAL = {
     "_": r"\_",
     "{": r"\{",
     "}": r"\}",
+    # A row starting with [ after \\ would be read as \\[length]
+    "[": "{[}",
+    "]": "{]}",
     "~": r"\textasciitilde{}",
     "^": r"\textasciicircum{}",
     # The default OT1 font prints these as an em dash and as inverted ! and ?
