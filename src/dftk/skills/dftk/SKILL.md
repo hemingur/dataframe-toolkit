@@ -135,13 +135,18 @@ Statistics (all accept `-g` for per-group results):
 | Weighted versions | `wstat` |
 | Linear, robust and weighted regression (R-style formula) | `fit -f "y ~ x + z"` |
 | p-values for column pairs (t, Mann-Whitney, KS, …) | `test -c A:B -d p --test NAME` |
-| Correlations with CIs, bootstrap, tail dependence | `corr -c A:B` |
+| Correlations with CIs, bootstrap, tail dependence | `corr -c A:B` (globs: `-c '*:*'` every pair once) |
+| Correlation matrix, every pair both ways plus the diagonal | `corr --all [COL…]` |
 
 Plots (always with `-f FILE`): `scat` (scatter; `--fit` for an OLS line,
 `--fit lowess` for a smooth curve, per group with `-g`; `--hexbin` for
 tables too large for points), `line`, `hist`
-(also KDE), `chi` (tail-dependence chi-plot). `-g COL` overlays groups,
-`--subgraphcol COL` makes panels.
+(also KDE), `chi` (tail-dependence chi-plot), `heatmap` (coloured grid from a
+long table `-x COL -y COL -v VALUE`, or a wide one with `-y ROWS`; a
+correlogram is `corr --all -o | heatmap -x col1 -y col2 -v correlation
+--annot --vmin -1 --vmax 1`), `pairs` (scatter-plot matrix with KDEs on the diagonal; `-c COL…`,
+`-g COL`, `--upper corr`). `-g COL` overlays groups, `--subgraphcol COL`
+makes panels.
 
 Other: `dataset NAME` loads a bundled example table, `annotate FILE.parquet`
 reads and writes provenance metadata, `clean` removes leftover temp pipe

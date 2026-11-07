@@ -11,6 +11,8 @@ Bootstrap mode (--bootstrap N) produces a single summary row per pair with:
 """
 
 import argparse
+import fnmatch
+import itertools
 import logging
 
 import numpy as np
@@ -140,14 +142,82 @@ def _tail_stats(a: np.ndarray, b: np.ndarray, q_grid: np.ndarray) -> tuple:
     return tuple(out)
 
 
-def _corr(
-    df: pd.DataFrame, args: argparse.Namespace, rng: np.random.Generator
-) -> pd.DataFrame:
-    method_fn = _METHOD_FUNC[args.method]
-    pairs = [c.split(":", maxsplit=1) for c in args.cols]
-    bad = [c for c, p in zip(args.cols, pairs, strict=False) if len(p) != 2]
+_GLOB_CHARS = frozenset("*?[")
+
+
+def _numeric_columns(df: pd.DataFrame, groups: list[str]) -> list[str]:
+    """Numeric, non-boolean columns of *df* other than the group columns."""
+    return [
+        c
+        for c in df.columns
+        if c not in groups
+        and pd.api.types.is_numeric_dtype(df[c])
+        and not pd.api.types.is_bool_dtype(df[c])
+    ]
+
+
+def _is_glob(pattern: str, numeric: list[str]) -> bool:
+    """A glob pattern, unless it is the name of a column (e.g. x[1])."""
+    return bool(_GLOB_CHARS & set(pattern)) and pattern not in numeric
+
+
+def _match(pattern: str, numeric: list[str], option: str) -> list[str]:
+    """A column name as is, or the numeric columns a glob pattern matches."""
+    if not _is_glob(pattern, numeric):
+        return [pattern]
+    matched = fnmatch.filter(numeric, pattern)
+    if not matched:
+        raise ValueError(
+            f"{option}: {pattern!r} matches no numeric column (numeric columns: "
+            f"{numeric})"
+        )
+    return matched
+
+
+def _expand_pairs(cols: list[str], numeric: list[str]) -> list[tuple[str, str]]:
+    """-c COL1:COL2 items as pairs; a glob on either side expands.
+
+    A pair from a glob is left out when both sides are the same column or
+    when the pair already came up the other way round, so -c '*:*' gives
+    every pair once.  Pairs named in full are kept as given.
+    """
+    bad = [c for c in cols if len(c.split(":", maxsplit=1)) != 2]
     if bad:
         raise ValueError(f"-c pairs must be col1:col2, got: {bad}")
+    pairs: list[tuple[str, str]] = []
+    for item in cols:
+        left, right = item.split(":", maxsplit=1)
+        if not (_is_glob(left, numeric) or _is_glob(right, numeric)):
+            pairs.append((left, right))
+            continue
+        for a, b in itertools.product(
+            _match(left, numeric, "-c"), _match(right, numeric, "-c")
+        ):
+            if a != b and (a, b) not in pairs and (b, a) not in pairs:
+                pairs.append((a, b))
+    return pairs
+
+
+def _all_pairs(cols: list[str], numeric: list[str]) -> list[tuple[str, str]]:
+    """--all [COL ...]: every ordered pair, diagonal included (a square matrix)."""
+    names: list[str] = []
+    for pattern in cols or ["*"]:
+        names += [c for c in _match(pattern, numeric, "--all") if c not in names]
+    if len(names) < 2:
+        raise ValueError(f"--all needs at least two numeric columns, got {names}")
+    return list(itertools.product(names, names))
+
+
+def _corr(
+    df: pd.DataFrame,
+    args: argparse.Namespace,
+    rng: np.random.Generator,
+    pairs: list[tuple[str, str]] | None = None,
+) -> pd.DataFrame:
+    """Correlations for *pairs* (default: args.cols, globs expanded)."""
+    if pairs is None:
+        pairs = _expand_pairs(args.cols, _numeric_columns(df, args.groups))
+    method_fn = _METHOD_FUNC[args.method]
 
     ci = args.ci and args.method == "pearson"
     tail = getattr(args, "tail", False)
@@ -163,20 +233,49 @@ def _corr(
             header += [f"lambda_lower_q{q:g}", f"lambda_upper_q{q:g}"]
 
     rows = []
+    n_stats = len(header) - 2  # nobs onwards
 
     def _add_pairs(sub: pd.DataFrame, prefix: tuple = ()):
+        # Every statistic is symmetric in the two columns, so --all's mirrored
+        # pair (b, a) reuses the result for (a, b)
+        done: dict[frozenset, tuple] = {}
         for col1, col2 in pairs:
-            pair_df = sub[[col1, col2]].dropna()
-            a, b = pair_df[col1].values, pair_df[col2].values
-            cr = _compute_correlation(a, b, method_fn, ci)
-            extra = ()
-            if args.bootstrap is not None:
-                extra += _bootstrap_stats(
-                    a, b, method_fn, args.bootstrap, rng, args.confidence / 100.0
-                )
-            if tail:
-                extra += _tail_stats(a, b, q_grid)
-            rows.append((*prefix, col1, col2, *cr, *extra))
+            key = frozenset((col1, col2))
+            if key not in done:
+                if col1 == col2:  # the diagonal of --all; sub[[c, c]] is 2-D
+                    a = b = sub[col1].dropna().values
+                else:
+                    pair_df = sub[[col1, col2]].dropna()
+                    a, b = pair_df[col1].values, pair_df[col2].values
+                if len(a) < 2:
+                    where = f" (group {', '.join(map(str, prefix))})" if prefix else ""
+                    logger.warning(
+                        f"corr: {col1}:{col2}{where} has {len(a)} complete "
+                        "row(s); statistics left empty"
+                    )
+                    stats = (len(a),) + (np.nan,) * (n_stats - 1)
+                elif col1 == col2:
+                    # r is 1 by definition; a p-value or interval of a column
+                    # with itself means nothing and would count as a finding,
+                    # and ties push the tail statistics above 1
+                    r = _compute_correlation(a, b, method_fn, False)[1]
+                    r = 1.0 if np.isfinite(r) else r  # NaN: a constant column
+                    stats = (len(a), r) + (np.nan,) * (n_stats - 2)
+                else:
+                    stats = _compute_correlation(a, b, method_fn, ci)
+                    if args.bootstrap is not None:
+                        stats += _bootstrap_stats(
+                            a,
+                            b,
+                            method_fn,
+                            args.bootstrap,
+                            rng,
+                            args.confidence / 100.0,
+                        )
+                    if tail:
+                        stats += _tail_stats(a, b, q_grid)
+                done[key] = stats
+            rows.append((*prefix, col1, col2, *done[key]))
 
     if args.groups:
         header = [*args.groups, *header]
@@ -196,6 +295,36 @@ COLUMN PAIRS (-c)
 
     dftk corr data.tsv -c x:y
     dftk dataset tips -o | dftk corr -c total_bill:tip tip:size
+
+  A glob on either side expands to the numeric columns it matches (quote
+  it). '*:*' gives every pair once; 'sepal*:petal*' every sepal column
+  with every petal column:
+
+    dftk dataset iris -o | dftk corr -c '*:*'
+    dftk dataset iris -o | dftk corr -c 'sepal*:petal*' --method spearman
+
+CORRELATION MATRIX (--all)
+--------------------------
+  --all gives every pair both ways round plus the diagonal, in column order:
+  the square table a correlogram needs.  Name columns (globs allowed) to
+  limit it; -g gives one matrix per group.  Each pair is computed once.  On
+  the diagonal r is 1 and the other statistics are empty.
+
+    dftk dataset iris -o | dftk corr --all
+    dftk dataset iris -o | dftk corr --all -o \\
+      | dftk heatmap -x col1 -y col2 -v correlation --annot --vmin -1 --vmax 1
+    dftk dataset diamonds -o | dftk corr --all carat depth price -g cut
+
+  Missing values are dropped pair by pair, so nobs can differ from cell to
+  cell, and the matrix need not be a valid correlation matrix.  For one set
+  of rows throughout, drop incomplete rows first:
+
+    dftk dataset penguins -o | dftk print --dropna -o | dftk corr --all
+
+  p-values are not adjusted for multiple testing, and --all lists each
+  p-value twice.  Adjust over one triangle:
+
+    dftk dataset iris -o | dftk corr --all -o | dftk query -q 'col1 < col2'
 
 METHODS (--method)
 ------------------
@@ -287,13 +416,25 @@ class CorrCommand(BaseCommand):
         self.add_io_arguments(parser)
 
         g = parser.add_argument_group("corr options")
-        g.add_argument(
+        which = g.add_mutually_exclusive_group(required=True)
+        which.add_argument(
             "-c",
             "--cols",
             nargs="+",
-            required=True,
             metavar="COL1:COL2",
-            help="Column pair(s) to correlate, e.g. x:y.",
+            help="Column pair(s) to correlate, e.g. x:y.  A glob on either "
+            "side expands to numeric columns: '*:*' is every pair once, "
+            "'sepal*:petal*' every sepal column with every petal column.",
+        )
+        which.add_argument(
+            "--all",
+            nargs="*",
+            default=None,
+            metavar="COL",
+            help="Correlation matrix: every pair of the named columns (globs "
+            "allowed; default: all numeric columns) both ways round, plus the "
+            "diagonal, in column order.  Pipe it to dftk heatmap for a "
+            "correlogram.",
         )
         g.add_argument(
             "-g",
@@ -355,10 +496,15 @@ class CorrCommand(BaseCommand):
         seed = normalize_seed(args.randomseed) if args.randomseed is not None else None
         rng = np.random.default_rng(seed)
 
-        all_cols = [c for pair in args.cols for c in pair.split(":", maxsplit=1)]
         df = io.read(args)
-        check_cols(df, all_cols, "-c/--cols")
         check_cols(df, args.groups, "-g/--groups")
+        numeric = _numeric_columns(df, args.groups)
+        if args.all is not None:
+            pairs = _all_pairs(args.all, numeric)
+            check_cols(df, sorted({c for p in pairs for c in p}), "--all")
+        else:
+            pairs = _expand_pairs(args.cols, numeric)
+            check_cols(df, [c for p in pairs for c in p], "-c/--cols")
 
-        result = _corr(df, args, rng)
+        result = _corr(df, args, rng, pairs)
         io.printdf(result, args)
