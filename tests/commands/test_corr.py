@@ -415,6 +415,12 @@ class TestPairExpansion:
         with pytest.raises(ValueError, match="matches no numeric column"):
             _expand_pairs(["z*:a"], ["a", "b"])
 
+    def test_column_name_with_glob_characters_is_literal(self):
+        numeric = ["x[1]", "x1", "y"]
+        assert _expand_pairs(["x[1]:y"], numeric) == [("x[1]", "y")]
+        assert _expand_pairs(["x[1]:*"], numeric) == [("x[1]", "x1"), ("x[1]", "y")]
+        assert _all_pairs(["x[1]", "y"], numeric)[1] == ("x[1]", "y")
+
     def test_corr_expands_globs_in_args_cols(self, three_df):
         result = _corr(three_df, _args(cols=["*:*"]), _rng())
         assert list(zip(result["col1"], result["col2"], strict=True)) == [
@@ -445,6 +451,27 @@ class TestAllPairs:
         result = _corr(three_df, args, _rng(), pairs).set_index(["col1", "col2"])
         assert result.loc[("a", "a"), ["p_perm", "lambda_lower_q0.05"]].isna().all()
         assert result.loc[("a", "b"), ["p_perm", "lambda_lower_q0.05"]].notna().all()
+
+    def test_diagonal_r_is_one_without_p_or_ci(self, three_df):
+        pairs = _all_pairs(["a", "b"], ["a", "b", "c"])
+        result = _corr(three_df, _args(cols=None, ci=True), _rng(), pairs)
+        result = result.set_index(["col1", "col2"])
+        assert result.loc[("a", "a"), "correlation"] == 1.0
+        assert result.loc[("a", "a"), ["pvalue", "cilo", "cihi"]].isna().all()
+        assert result.loc[("a", "b"), ["pvalue", "cilo", "cihi"]].notna().all()
+
+    def test_column_with_one_value_is_empty_with_warning(self, three_df, caplog):
+        df = three_df.assign(c=[1.0] + [np.nan] * 39)
+        pairs = _all_pairs([], _numeric_columns(df, []))
+        with caplog.at_level(logging.WARNING):
+            result = _corr(df, _args(cols=None, ci=True), _rng(), pairs)
+        result = result.set_index(["col1", "col2"])
+        assert result.loc[("a", "c"), "nobs"] == 1
+        assert result.loc[("a", "c"), ["correlation", "pvalue", "cilo"]].isna().all()
+        assert result.loc[("a", "b"), "correlation"] == pytest.approx(
+            three_df["a"].corr(three_df["b"])
+        )
+        assert "a:c has 1 complete row(s)" in caplog.text
 
     def test_group_columns_are_left_out(self, three_df):
         assert _numeric_columns(three_df, ["a"]) == ["b", "c"]

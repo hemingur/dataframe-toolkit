@@ -156,9 +156,14 @@ def _numeric_columns(df: pd.DataFrame, groups: list[str]) -> list[str]:
     ]
 
 
+def _is_glob(pattern: str, numeric: list[str]) -> bool:
+    """A glob pattern, unless it is the name of a column (e.g. x[1])."""
+    return bool(_GLOB_CHARS & set(pattern)) and pattern not in numeric
+
+
 def _match(pattern: str, numeric: list[str], option: str) -> list[str]:
     """A column name as is, or the numeric columns a glob pattern matches."""
-    if not _GLOB_CHARS & set(pattern):
+    if not _is_glob(pattern, numeric):
         return [pattern]
     matched = fnmatch.filter(numeric, pattern)
     if not matched:
@@ -182,7 +187,7 @@ def _expand_pairs(cols: list[str], numeric: list[str]) -> list[tuple[str, str]]:
     pairs: list[tuple[str, str]] = []
     for item in cols:
         left, right = item.split(":", maxsplit=1)
-        if not _GLOB_CHARS & set(item):
+        if not (_is_glob(left, numeric) or _is_glob(right, numeric)):
             pairs.append((left, right))
             continue
         for a, b in itertools.product(
@@ -228,6 +233,7 @@ def _corr(
             header += [f"lambda_lower_q{q:g}", f"lambda_upper_q{q:g}"]
 
     rows = []
+    n_stats = len(header) - 2  # nobs onwards
 
     def _add_pairs(sub: pd.DataFrame, prefix: tuple = ()):
         # Every statistic is symmetric in the two columns, so --all's mirrored
@@ -241,15 +247,22 @@ def _corr(
                 else:
                     pair_df = sub[[col1, col2]].dropna()
                     a, b = pair_df[col1].values, pair_df[col2].values
-                stats = _compute_correlation(a, b, method_fn, ci)
-                if col1 == col2:
-                    # Bootstrap and tail statistics of a column with itself
-                    # mean nothing (ties even push lambda above 1)
-                    n_extra = (3 if args.bootstrap is not None else 0) + (
-                        2 * len(q_grid) if tail else 0
+                if len(a) < 2:
+                    where = f" (group {', '.join(map(str, prefix))})" if prefix else ""
+                    logger.warning(
+                        f"corr: {col1}:{col2}{where} has {len(a)} complete "
+                        "row(s); statistics left empty"
                     )
-                    stats += (np.nan,) * n_extra
+                    stats = (len(a),) + (np.nan,) * (n_stats - 1)
+                elif col1 == col2:
+                    # r is 1 by definition; a p-value or interval of a column
+                    # with itself means nothing and would count as a finding,
+                    # and ties push the tail statistics above 1
+                    r = _compute_correlation(a, b, method_fn, False)[1]
+                    r = 1.0 if np.isfinite(r) else r  # NaN: a constant column
+                    stats = (len(a), r) + (np.nan,) * (n_stats - 2)
                 else:
+                    stats = _compute_correlation(a, b, method_fn, ci)
                     if args.bootstrap is not None:
                         stats += _bootstrap_stats(
                             a,
@@ -295,12 +308,23 @@ CORRELATION MATRIX (--all)
   --all gives every pair both ways round plus the diagonal, in column order:
   the square table a correlogram needs.  Name columns (globs allowed) to
   limit it; -g gives one matrix per group.  Each pair is computed once.  On
-  the diagonal r is 1 and the bootstrap and tail columns are empty.
+  the diagonal r is 1 and the other statistics are empty.
 
     dftk dataset iris -o | dftk corr --all
     dftk dataset iris -o | dftk corr --all -o \\
-      | dftk heatmap -x col1 -y col2 -v correlation --annot
+      | dftk heatmap -x col1 -y col2 -v correlation --annot --vmin -1 --vmax 1
     dftk dataset diamonds -o | dftk corr --all carat depth price -g cut
+
+  Missing values are dropped pair by pair, so nobs can differ from cell to
+  cell, and the matrix need not be a valid correlation matrix.  For one set
+  of rows throughout, drop incomplete rows first:
+
+    dftk dataset penguins -o | dftk print --dropna -o | dftk corr --all
+
+  p-values are not adjusted for multiple testing, and --all lists each
+  p-value twice.  Adjust over one triangle:
+
+    dftk dataset iris -o | dftk corr --all -o | dftk query -q 'col1 < col2'
 
 METHODS (--method)
 ------------------
