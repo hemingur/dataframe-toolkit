@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.17.0] — 2026-11-09
 
 ### Added
 - `append`: add one row from `-c COL=VALUE` values to a table (DATAFILE or stdin); columns not given are empty (`--fill`), a new column goes at the end. Without input it makes a one-row table, e.g. a small JSON record with `--format json`. Values: numbers and `true`/`false` are typed, a quoted value stays text, an empty one is missing; a value keeps its column's type where it can.
