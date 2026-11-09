@@ -113,6 +113,8 @@ Transform:
 | Read JSON or JSON Lines (no input needed); flatten nested fields with `pos.*`, lists with `unnest()` | `query --sql "SELECT * EXCLUDE (pos), pos.* FROM 'f.jsonl'"` |
 | Join two tables, including anti-joins | `merge DATAFILE -r OTHER -k KEY [-t left] [--only left]` |
 | Stack tables row-wise | `concat A B C [--sourcecol src]` |
+| Add one row (`-c COL=VALUE`; columns not given stay empty); without input, a one-row table, also as JSON (`--format json`) | `append [FILE] -c COL=VALUE … [--fill V] [--strict]` |
+| Add a row to a status log file in place (created if missing, safe for parallel jobs; `.tsv`, `.jsonl` or `.parquet`) | `append log.tsv --inplace -c step=X -c status=ok --timestamp [--strict]` |
 | Wide to long / long to wide plus aggregation | `melt` / `pivot -i ROWS -g COLS -v VALS -f FUNCS` |
 | Split comma-separated values in a cell into one row each, repeating the other columns | `explode -c COL [--sep SEP]` |
 | Join a column's values within groups of rows into one cell (`GO:1,GO:2`), the inverse of explode | `implode -c COL [-i KEYS] [--unique] [--sortvalues]` |
@@ -201,6 +203,10 @@ dftk annotate clean.parquet --get build
 
 Annotations read from an input are written again on every parquet output;
 `--meta` adds keys or overrides them. TSV output has no metadata.
+
+`append -c` values: numbers and `true`/`false` are typed, `'"007"'` (quoted)
+stays text, `note=` is empty. In a TSV log, existing rows are never changed;
+a new column is added at the end (`--strict` refuses one, to catch typos).
 
 ## Make and Snakemake
 
