@@ -220,7 +220,7 @@ dftk append -c sample=S12 -c reads=48213 -c ok=true --format json
 # ]
 ```
 
-`--inplace` adds the row to a file, creating it if missing: a status log that parallel jobs (Snakemake rules, array jobs) can write to, since the file's directory is locked while each row is written. `--timestamp` adds the time, and `--strict` refuses columns the log doesn't have, so a typo can't start a new one:
+`--inplace` adds the row to a file, creating it if missing: a status log that parallel jobs (Snakemake rules, array jobs) can write to, since the file's directory is locked while each row is written. `--timestamp` adds the local time as ISO 8601 text (`2026-11-09T19:13:57`, no space, so `awk` and `cut` see one field; a real timestamp in `.parquet`), and `--strict` refuses columns the log doesn't have, so a typo can't start a new one:
 
 ```bash
 dftk append runs.tsv --inplace -c step=align -c sample=S12 -c status=ok --timestamp

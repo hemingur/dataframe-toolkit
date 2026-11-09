@@ -67,9 +67,11 @@ def _row(args: argparse.Namespace) -> tuple[dict, dict]:
         values[col] = parse_value(text)
         texts[col] = text
     if args.timestamp is not None:
-        now = pd.Timestamp.now().floor("s")
+        # ISO 8601 text, no space: one field for awk and cut; read back as
+        # a datetime by dftk, DuckDB and pandas
+        now = pd.Timestamp.now().floor("s").isoformat()
         values[args.timestamp] = now
-        texts[args.timestamp] = str(now)
+        texts[args.timestamp] = now
     if not values:
         raise ValueError("nothing to append: give -c COL=VALUE or --timestamp")
     return values, texts
@@ -244,6 +246,8 @@ def _inplace_tsv(path: str, values, texts, args) -> None:
 
 
 def _inplace_parquet(path: str, values, texts, args) -> None:
+    if args.timestamp is not None:  # parquet has a timestamp type
+        values = {**values, args.timestamp: pd.Timestamp(values[args.timestamp])}
     if os.path.exists(path):
         df = pd.read_parquet(path)
         df.attrs["_parquet_meta"] = _read_parquet_meta(path)
@@ -335,7 +339,8 @@ STATUS LOGS (--inplace)
 -----------------------
 --inplace adds the row to the file itself, creating it if missing.  Parallel
 jobs can write to the same log: the file's directory is locked while each row
-is written.  --timestamp [COL] adds the time (column timestamp), and --strict
+is written.  --timestamp [COL] adds the local time as ISO 8601 text
+(2026-11-09T19:13:57; a timestamp in .parquet), and --strict
 refuses columns the file doesn't have, so a typo can't start a new one:
 
   dftk append runs.tsv --inplace -c step=align -c status=ok --timestamp
@@ -388,7 +393,8 @@ class AppendCommand(BaseCommand):
             const="timestamp",
             default=None,
             metavar="COL",
-            help="Add the current local time, to the second (column: timestamp).",
+            help="Add the current local time, to the second, as ISO 8601 text "
+            "(2026-11-09T19:13:57) (column: timestamp).",
         )
         g.add_argument(
             "--fill",

@@ -5,6 +5,7 @@ Tests for dftk append: value parsing, adding a row, and --inplace logs.
 import argparse
 import json
 import multiprocessing
+import re
 
 import pandas as pd
 import pytest
@@ -75,6 +76,7 @@ class TestNewTable:
 
     def test_timestamp(self, capsys):
         records = _json(capsys, "-c", "step=a", "--timestamp")
+        assert re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d", records[0]["timestamp"])
         stamp = pd.Timestamp(records[0]["timestamp"])
         assert abs(pd.Timestamp.now() - stamp) < pd.Timedelta(minutes=1)
 
@@ -223,6 +225,11 @@ class TestInplaceParquet:
         assert df["step"].tolist() == ["a", "b"]
         assert df["n"].tolist()[0] == 1 and pd.isna(df["n"].iloc[1])
         assert pd.api.types.is_integer_dtype(df["n"])
+
+    def test_timestamp_is_a_timestamp(self, tmp_path):
+        log = str(tmp_path / "runs.parquet")
+        _run(log, "--inplace", "-c", "step=a", "--timestamp")
+        assert pd.api.types.is_datetime64_any_dtype(pd.read_parquet(log)["timestamp"])
 
     def test_keeps_annotations(self, tmp_path):
         from dftk.common.io import _read_parquet_meta, _write_parquet
