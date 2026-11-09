@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- `append`: add one row from `-c COL=VALUE` values to a table (DATAFILE or stdin); columns not given are empty (`--fill`), a new column goes at the end. Without input it makes a one-row table, e.g. a small JSON record with `--format json`. Values: numbers and `true`/`false` are typed, a quoted value stays text, an empty one is missing; a value keeps its column's type where it can.
+- `append --inplace FILE`: add the row to the file itself, creating it if missing, for status logs. Parallel writers are safe (the file's directory is locked). A TSV row whose columns are all in the header, and any `.jsonl` row, is one more line at the end; a new column or a `.parquet` file rewrites the file through a temp file, leaving existing TSV cells exactly as written. `--timestamp [COL]` adds the local time as ISO 8601 text (`2026-11-09T19:13:57`; a timestamp type in parquet); `--strict` refuses columns the file doesn't have.
+
+### Fixed
+- `eval -c` with a quoted value (`-c 'code = "007"'`) kept the quotes in the value; it is now the text inside them.
+
 ## [0.16.0] — 2026-11-07
 
 ### Added

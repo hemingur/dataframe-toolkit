@@ -89,6 +89,7 @@ dftk dataset tips -o \
 | `query`      | Filter rows with pandas query expressions or SQL (`--sql` via DuckDB)                |
 | `merge`      | Join two tables on key columns (inner/left/right/outer)                              |
 | `concat`     | Concatenate two or more tables row-wise                                              |
+| `append`     | Add one row from `-c COL=VALUE`; `--inplace` adds it to a file, e.g. a status log    |
 | `melt`       | Reshape wide-to-long (`pd.melt`)                                                     |
 | `explode`    | Split separated values in a cell (`a,b`) into one row per value                      |
 | `implode`    | Join a column's values within groups into one cell, the inverse of `explode`         |
@@ -207,6 +208,26 @@ dftk query --sql "SELECT * FROM 'catalog.jsonl' WHERE locus LIKE 'ATXN%'" --form
 #   {"locus": "ATXN7", "region": ["chr3:1-30", "chr3:30-42"]}
 # ]
 ```
+
+### One row: status logs and small records
+
+`append` adds one row from `-c COL=VALUE` values; columns not given stay empty. Numbers and `true`/`false` are typed, a quoted value (`'"007"'`) stays text and `note=` is empty. Without input it makes a one-row table, a quick way to write a small JSON record:
+
+```bash
+dftk append -c sample=S12 -c reads=48213 -c ok=true --format json
+# [
+#   {"sample": "S12", "reads": 48213, "ok": true}
+# ]
+```
+
+`--inplace` adds the row to a file, creating it if missing: a status log that parallel jobs (Snakemake rules, array jobs) can write to, since the file's directory is locked while each row is written. `--timestamp` adds the local time as ISO 8601 text (`2026-11-09T19:13:57`, no space, so `awk` and `cut` see one field; a real timestamp in `.parquet`), and `--strict` refuses columns the log doesn't have, so a typo can't start a new one:
+
+```bash
+dftk append runs.tsv --inplace -c step=align -c sample=S12 -c status=ok --timestamp
+dftk append runs.jsonl --inplace -c step=align -c reads=48213 --timestamp
+```
+
+A row whose columns are all in a TSV header, and any `.jsonl` row, is written as one more line; existing rows are never changed. A new column, or a `.parquet` log, rewrites the file (to a temp file that then replaces it). In a `.jsonl` log records need not share keys; read it back with `dftk query --sql "SELECT * FROM 'runs.jsonl'"`.
 
 ### Large tables: hexbin instead of points
 
