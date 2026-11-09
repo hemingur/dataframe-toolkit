@@ -101,6 +101,12 @@ class TestConstantColumns:
         result = _eval(num_df.copy(), _eval_args(constant=["label = control"]))
         assert result["label"].iloc[0] == "control"
 
+    @pytest.mark.parametrize("quote", ['"', "'"])
+    def test_quoted_constant_stays_text(self, num_df, quote):
+        expr = f"code = {quote}007{quote}"
+        result = _eval(num_df.copy(), _eval_args(constant=[expr]))
+        assert result["code"].iloc[0] == "007"
+
     def test_multiple_constants(self, num_df):
         result = _eval(num_df.copy(), _eval_args(constant=["a = 1", "b = 2"]))
         assert "a" in result.columns

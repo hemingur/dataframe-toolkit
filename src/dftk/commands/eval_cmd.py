@@ -173,7 +173,9 @@ Add a column with a fixed value:
   dftk dataset tips -o | dftk eval -c "batch = 3"
   dftk dataset tips -o | dftk eval -c "region = northeast"
 
-The value is coerced to numeric when possible.
+The value is coerced to numeric when possible; quote it to keep it text:
+
+  dftk dataset tips -o | dftk eval -c 'code = "007"'
 
 
 STRING / ROW FUNCTIONS (-s)
@@ -288,13 +290,17 @@ def _eval(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
     # -c: constant columns
     for expr in getattr(args, "constant", []):
         colname, constval_str = (x.strip() for x in expr.split("=", 1))
-        try:
-            constval: int | float | str = int(constval_str)
-        except ValueError:
+        quoted = len(constval_str) >= 2 and constval_str[0] == constval_str[-1]
+        if quoted and constval_str[0] in "\"'":
+            constval: int | float | str = constval_str[1:-1]  # "007" stays text
+        else:
             try:
-                constval = float(constval_str)
+                constval = int(constval_str)
             except ValueError:
-                constval = constval_str
+                try:
+                    constval = float(constval_str)
+                except ValueError:
+                    constval = constval_str
         df[colname] = constval
 
     # -f: special functions, or else pandas df.eval
