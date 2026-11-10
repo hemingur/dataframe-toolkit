@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.1] — 2026-11-10
+
+### Fixed
+- `--sortasc` or `--sortdesc` without column names did nothing (in every command, also in the legacy `df`). It now sorts by every column, left to right, like the shell's `sort`; on a one-column file that is the column itself.
+- A failed sort is an error: a misspelled column (`--sortasc colx`) printed a warning and the table unsorted, with exit code 0, so a script carried on. The error names the missing column and, when the name is a file (`dftk print --sortasc data.tsv` reads the file as a column), says to put the file first. Text and numbers in one sort column are an error too.
+- `--sort` takes only `COL:a` and `COL:d`; another direction (`COL:asc`, `COL:x`) was read as ascending. A column name may contain `:` (`chr:pos:a`).
+
 ## [0.17.0] — 2026-11-09
 
 ### Added

@@ -157,6 +157,51 @@ class TestCast:
         assert out.splitlines()[1] == "a\t2.5"
 
 
+class TestSort:
+    @pytest.fixture
+    def df(self):
+        return pd.DataFrame({"a": [2, 1, 1], "b": ["x", "z", "y"]})
+
+    def test_named_column(self, df, capsys):
+        out = _printdf(df, capsys, sortasc=["b"])
+        assert out.splitlines()[1:] == ["2\tx", "1\ty", "1\tz"]
+
+    def test_empty_sortasc_sorts_by_every_column(self, df, capsys):
+        out = _printdf(df, capsys, sortasc=[])
+        assert out.splitlines()[1:] == ["1\ty", "1\tz", "2\tx"]
+
+    def test_empty_sortdesc(self, df, capsys):
+        out = _printdf(df, capsys, sortdesc=[])
+        assert out.splitlines()[1:] == ["2\tx", "1\tz", "1\ty"]
+
+    def test_single_column_file(self, capsys):
+        out = _printdf(pd.DataFrame({"col1": ["c", "a", "b"]}), capsys, sortasc=[])
+        assert out == "col1\na\nb\nc\n"
+
+    def test_mixed_directions(self, df, capsys):
+        out = _printdf(df, capsys, sort=["a:a", "b:d"])
+        assert out.splitlines()[1:] == ["1\tz", "1\ty", "2\tx"]
+
+    def test_missing_column_is_an_error(self, df):
+        with pytest.raises(ValueError, match=r"not found: \['c'\]"):
+            io.printdf(df, make_args(sortasc=["c"]))
+
+    def test_file_name_read_as_column_gets_a_hint(self, df, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "data.tsv").write_text("a\n1\n")
+        with pytest.raises(ValueError, match="put the file before --sortasc"):
+            io.printdf(df, make_args(sortasc=["data.tsv"]))
+
+    @pytest.mark.parametrize("item", ["a", "a:x", "a:asc"])
+    def test_bad_sort_direction(self, df, item):
+        with pytest.raises(ValueError, match="COL:a or COL:d"):
+            io.printdf(df, make_args(sort=[item]))
+
+    def test_colon_in_column_name(self, capsys):
+        df = pd.DataFrame({"chr:pos": [2, 1]})
+        assert _printdf(df, capsys, sort=["chr:pos:a"]) == "chr:pos\n1\n2\n"
+
+
 class TestDigitsWarning:
     def test_warns_and_suggests_cast(self, capsys, caplog):
         df = pd.DataFrame({"pos": [248956422.0, None], "my start": [1000001.0, None]})
