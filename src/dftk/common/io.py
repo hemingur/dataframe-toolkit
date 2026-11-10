@@ -645,14 +645,16 @@ class io:
         sort_group = g.add_mutually_exclusive_group()
         sort_group.add_argument(
             "--sortasc",
-            help="Sort ascending by named columns.",
+            help="Sort ascending by the named columns; without names, by "
+            "every column, left to right.",
             nargs="*",
             default=None,
             metavar="COL",
         )
         sort_group.add_argument(
             "--sortdesc",
-            help="Sort descending by named columns.",
+            help="Sort descending by the named columns; without names, by "
+            "every column, left to right.",
             nargs="*",
             default=None,
             metavar="COL",
@@ -757,24 +759,39 @@ class io:
             except Exception:
                 logging.warning(f"--cast: failed for {item!r}")
 
-        # Sort
+        # Sort; --sortasc or --sortdesc without names sorts by every column,
+        # left to right
         sortcols: list[str] = []
         sortdirs: list[bool] = []
-        if getattr(args, "sortasc", None) is not None:
-            sortcols += args.sortasc
-            sortdirs += [True] * len(args.sortasc)
-        if getattr(args, "sortdesc", None) is not None:
-            sortcols += args.sortdesc
-            sortdirs += [False] * len(args.sortdesc)
+        for option, ascending in (("sortasc", True), ("sortdesc", False)):
+            names = getattr(args, option, None)
+            if names is not None:
+                names = names or list(df.columns)
+                sortcols += names
+                sortdirs += [ascending] * len(names)
         for item in getattr(args, "sort", None) or []:
-            col, direction = item.split(":")
+            col, sep, direction = item.rpartition(":")
+            if not sep or direction.lower() not in ("a", "d"):
+                raise ValueError(f"--sort expects COL:a or COL:d, got {item!r}")
             sortcols.append(col)
-            sortdirs.append(direction.lower() != "d")
+            sortdirs.append(direction.lower() == "a")
         if sortcols:
+            missing = [c for c in sortcols if c not in df.columns]
+            if missing:
+                hint = ""
+                if any(os.path.exists(c) for c in missing):
+                    hint = (
+                        "  A file name was read as a column: put the file "
+                        "before --sortasc/--sortdesc, or end the list with --"
+                    )
+                raise ValueError(
+                    f"--sort: column(s) not found: {missing}.  Available "
+                    f"columns: {list(df.columns)}.{hint}"
+                )
             try:
                 df = df.sort_values(by=sortcols, ascending=sortdirs)
-            except Exception as exc:
-                logging.warning(f"--sort failed: {exc}")
+            except TypeError as exc:  # e.g. numbers and text in one column
+                raise ValueError(f"--sort failed on {sortcols}: {exc}") from exc
 
         # Drop columns
         for pattern in getattr(args, "drop", None) or []:

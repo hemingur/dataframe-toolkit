@@ -82,7 +82,8 @@ Input: `--prequery EXPR` (filter rows right after reading), `--noheader`
 Output, applied after the command's own work: `--select COL… [+]` (choose
 and order columns; globs allowed; a trailing `+` keeps the remaining
 columns), `--drop COL…`, `--move OLD:NEW…` (rename), `--postquery EXPR`,
-`--sortasc COL…` / `--sortdesc COL…` / `--sort COL:a COL:d`,
+`--sortasc [COL…]` / `--sortdesc [COL…]` (no names: every column, left to
+right; give the file before them) / `--sort COL:a COL:d`,
 `--round COL:N`, `--digits N`, `--cast COL:TYPE`, `--deduplicate [COL…]`,
 `--dropna`, `--na_rep VAL`, `--removeheader`, and
 `--meta KEY=VALUE` (provenance, see below).
