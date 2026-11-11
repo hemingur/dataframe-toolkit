@@ -18,6 +18,12 @@ searches all three sources in that order and returns the first match, so
 `--source` is optional — pass it only to disambiguate a name that exists in
 more than one source, or to restrict the search.
 
+**Cheatsheet:** two landscape pages with the commands, options, SQL idioms,
+plots and pipeline recipes at a glance —
+[dftk-cheatsheet.pdf](https://github.com/hemingur/dataframe-toolkit/blob/main/docs/cheatsheet/dftk-cheatsheet.pdf).
+Every example on it is run against dftk when it is built
+(`python docs/cheatsheet/make_cheatsheet.py`).
+
 ## Installation
 
 ```bash

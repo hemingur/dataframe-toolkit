@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- A two-page cheatsheet, `docs/cheatsheet/dftk-cheatsheet.pdf`, linked from the README: basics, reading and writing, inspecting, new columns, SQL with DuckDB, reshaping, statistics, plots and pipeline recipes. `docs/cheatsheet/make_cheatsheet.py` rebuilds it with pdflatex after running every example against the installed dftk and drawing the plot thumbnails with dftk.
+
 ## [0.17.1] — 2026-11-10
 
 ### Fixed
