@@ -84,7 +84,7 @@ BASICS = (
         ("cmd", "dftk skill install", "teach Claude Code and Codex to use dftk", None),
         (
             "text",
-            "\\emph{Examples below leave out their input: run them as} \\texttt{dftk dataset tips -o | dftk \\ldots} \\emph{(or iris, penguins, diamonds, as the columns show).}",
+            "\\emph{Examples below leave out their input: run them as} \\texttt{dftk dataset tips -o | dftk \\ldots} \\emph{(or iris, penguins, diamonds, gwas, as the columns show).}",
         ),
     ],
 )
@@ -282,7 +282,7 @@ COLUMNS = (
         ),
         (
             "text",
-            "Also: \\texttt{fisher\\_test} \\texttt{binom\\_test} \\texttt{t2pval} \\texttt{pval2se} \\ldots\\ (\\texttt{dftk eval -h})",
+            "Also: \\texttt{chi2\\_to\\_neglogp} \\texttt{fisher\\_test} \\texttt{t2pval} \\ldots\\ (\\texttt{dftk eval -h})",
         ),
         ("sub", "Other column builders"),
         (
@@ -382,6 +382,10 @@ DATA = (
         (
             "text",
             "\\textbf{diamonds} (53\\,940) \\texttt{carat cut color clarity depth table price x y z}",
+        ),
+        (
+            "text",
+            "\\textbf{gwas} (43\\,604, synthetic) \\texttt{SNP Chr pos Pval Chisq r2}",
         ),
     ],
 )
@@ -558,14 +562,14 @@ PLOTS = (
         (
             "cmd",
             "dftk line -x day -y mean --yerr sem",
-            "lines with error bars; \\texttt{--yci cilo,cihi}",
+            "error bars; \\texttt{--yci lo,hi}",
             "sh:dftk dataset tips -o | dftk stat -c tip -g day -o | dftk line -x day -y mean --yerr sem",
         ),
         ("img", ["line.png", "hexbin.png"]),
         (
             "cmd",
             "dftk scat -x carat -y price --hexbin --hexlog -ly",
-            "hexagons instead of 54\\,000 points",
+            "hexagons",
             "diamonds",
         ),
         ("img", ["heatmap.png", "pairs.png"]),
@@ -578,19 +582,25 @@ PLOTS = (
         (
             "cmd",
             "dftk pairs -g species --upper corr",
-            "scatter-plot matrix, KDE diagonal; r overall and per group",
+            "scatter-plot matrix",
             "iris",
         ),
         (
             "cmd",
             "dftk chi -x carat -y price",
-            "chi-plot: lower vs upper tail dependence",
+            "lower vs upper tail dependence",
             "diamonds",
         ),
-        ("sub", "Figure options"),
+        ("img", ["manhattan.png"]),
+        (
+            "cmd",
+            "dftk manhattan --chi2col Chisq",
+            "-log10(p) along the genome",
+            "gwas",
+        ),
         (
             "text",
-            "\\texttt{-f fig.png} (or .pdf .svg; no \\texttt{-f}: a window) \\textbullet\\ \\texttt{--size double} or \\texttt{6x4} \\textbullet\\ \\texttt{-t TITLE} \\textbullet\\ \\texttt{-xl -yl} labels \\textbullet\\ \\texttt{-lx -ly} log axes \\textbullet\\ \\texttt{--subgraphcol COL} panels \\textbullet\\ \\texttt{--groupcolorder} \\textbullet\\ \\texttt{--fontsize presentation}",
+            "\\textbf{Figure options:} \\texttt{-f fig.png} (or .pdf .svg; no \\texttt{-f}: a window) \\textbullet\\ \\texttt{--size double} or \\texttt{6x4} \\textbullet\\ \\texttt{-t TITLE} \\textbullet\\ \\texttt{-xl -yl} labels \\textbullet\\ \\texttt{-lx -ly} log axes \\textbullet\\ \\texttt{--subgraphcol COL} panels \\textbullet\\ \\texttt{--fontsize presentation}",
         ),
     ],
 )
@@ -695,6 +705,7 @@ PLOT_FIGURES = {
     "scat.png": "dftk dataset tips -o | dftk scat -x total_bill -y tip -g time --fit --size 2.6x2.0 -t 'scat --fit'",
     "hist.png": "dftk dataset tips -o | dftk hist -x tip -g time -k --size 2.6x2.0 -t 'hist -k'",
     "heatmap.png": "dftk dataset iris -o | dftk corr --all -o | dftk heatmap -x col1 -y col2 -v correlation --annot --fmt .1f --vmin -1 --vmax 1 --xlabel '' --ylabel '' --size 3.4x2.9 -t 'heatmap (corr --all)'",
+    "manhattan.png": "dftk dataset gwas -o | dftk manhattan --ylim 0 40 --xlabel '' --size 5.4x1.15 -t 'manhattan --ylim 0 40'",
     "pairs.png": "dftk dataset iris -o | dftk pairs -c petal_length petal_width sepal_width -g species --size 3.8x3.1 -t 'pairs -g species'",
 }
 
