@@ -32,7 +32,7 @@ from dftk.common.io import io
 _DFTK_DATASETS = {
     "gwas": (
         "synthetic association scan: SNP, Chr, pos, Pval, Chisq, r2 "
-        "(~44k variants, six peaks)"
+        "(~121k variants, six peaks)"
     ),
 }
 

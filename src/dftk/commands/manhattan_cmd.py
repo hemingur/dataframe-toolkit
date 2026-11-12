@@ -103,19 +103,22 @@ def _threshold(value: str) -> float | None:
     return p
 
 
-def add_gwas_column_arguments(parser: argparse.ArgumentParser) -> None:
-    """Column options shared by manhattan and locus."""
+def add_gwas_column_arguments(
+    parser: argparse.ArgumentParser, position: bool = True
+) -> None:
+    """Column options shared by manhattan and qq (qq: position=False)."""
     g = parser.add_argument_group("columns")
-    g.add_argument(
-        "--chrcol",
-        metavar="COL",
-        help=f"Chromosome column (default: {gwas.DEFAULT_CHR}).",
-    )
-    g.add_argument(
-        "--poscol",
-        metavar="COL",
-        help=f"Position column (default: {gwas.DEFAULT_POS}).",
-    )
+    if position:
+        g.add_argument(
+            "--chrcol",
+            metavar="COL",
+            help=f"Chromosome column (default: {gwas.DEFAULT_CHR}).",
+        )
+        g.add_argument(
+            "--poscol",
+            metavar="COL",
+            help=f"Position column (default: {gwas.DEFAULT_POS}).",
+        )
     p = g.add_mutually_exclusive_group()
     p.add_argument(
         "--pcol",
@@ -178,19 +181,19 @@ def _ylimits(y: np.ndarray, lines: list[float], args) -> tuple[float, float]:
     top = max([float(np.max(y)) if y.size else 1.0, *lines, 1.0]) * 1.05
     lo, hi = 0.0, top
     if args.ylim is not None:
-        lo = _float_or(args.ylim[0], lo)
-        hi = _float_or(args.ylim[1], hi)
+        lo = float_or(args.ylim[0], lo)
+        hi = float_or(args.ylim[1], hi)
     return lo, hi
 
 
-def _float_or(s, fallback: float) -> float:
+def float_or(s, fallback: float) -> float:
     try:
         return float(s)
     except (TypeError, ValueError):
         return fallback
 
 
-def _scatter(ax, x, y, hi, args, colours=None, **kw):
+def scatter_capped(ax, x, y, hi, args, colours=None, **kw):
     """Points below *hi*, and triangles on the top edge for those above it.
 
     *colours*: one colour per point (alternating chromosomes), or None to
@@ -240,7 +243,7 @@ def _draw(ax, data: pd.DataFrame, layout, args, groupcols=None) -> None:
         ):
             label = make_grouplabel(name, groupcols, args.groupcolformat)
             colour = WONG_PALETTE[n % len(WONG_PALETTE)]
-            _scatter(
+            scatter_capped(
                 ax, gdf["_x"].to_numpy(), gdf["_y"].to_numpy(), hi, args,
                 color=colour, label=label, zorder=2,
             )  # fmt: skip
@@ -251,7 +254,7 @@ def _draw(ax, data: pd.DataFrame, layout, args, groupcols=None) -> None:
         )
     else:
         colours = np.array(args.colors)[data["_cidx"].to_numpy() % len(args.colors)]
-        _scatter(
+        scatter_capped(
             ax, x[keep], y[keep], hi, args, colours=colours[keep], zorder=2,
             label=args.legend,
         )  # fmt: skip

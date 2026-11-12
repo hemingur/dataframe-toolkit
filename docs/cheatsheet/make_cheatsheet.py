@@ -385,7 +385,7 @@ DATA = (
         ),
         (
             "text",
-            "\\textbf{gwas} (43\\,604, synthetic) \\texttt{SNP Chr pos Pval Chisq r2}",
+            "\\textbf{gwas} (120\\,899, synthetic) \\texttt{SNP Chr pos Pval Chisq r2}",
         ),
     ],
 )
@@ -594,8 +594,8 @@ PLOTS = (
         ("img", ["manhattan.png"]),
         (
             "cmd",
-            "dftk manhattan --chi2col Chisq",
-            "-log10(p) along the genome",
+            "dftk manhattan",
+            "-log10(p) along the genome; \\texttt{qq}: QQ plot, $\\lambda$",
             "gwas",
         ),
         (

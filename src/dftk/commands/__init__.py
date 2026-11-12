@@ -66,6 +66,7 @@ COMMAND_GROUPS: list[tuple[str, list[tuple[str, str]]]] = [
             ("heatmap", "heatmap_cmd:HeatmapCommand"),
             ("pairs", "pairs_cmd:PairsCommand"),
             ("manhattan", "manhattan_cmd:ManhattanCommand"),
+            ("qq", "qq_cmd:QqCommand"),
         ],
     ),
     (

@@ -260,3 +260,51 @@ class TestSimulateGwas:
             assert top["pos"] == lead
             assert top["r2"] == 1.0
             assert top["Chisq"] == pytest.approx(chi2)
+
+
+# ---------------------------------------------------------------------------
+# QQ plot helpers
+# ---------------------------------------------------------------------------
+
+
+class TestQq:
+    def test_expected(self):
+        assert gwas.qq_expected(3) == pytest.approx(-np.log10([0.25, 0.5, 0.75]))
+
+    def test_lambda_null_is_one(self):
+        p = np.random.default_rng(0).uniform(size=200_000)
+        assert gwas.inflation_lambda(-np.log10(p)) == pytest.approx(1.0, abs=0.02)
+
+    def test_lambda_scales_with_chi2(self):
+        chi2 = ss.chi2.rvs(1, size=200_000, random_state=1) * 1.2
+        lam = gwas.inflation_lambda(neglogp_from_chi2(chi2, 1))
+        assert lam == pytest.approx(1.2, abs=0.02)
+
+    def test_lambda_other_df(self):
+        chi2 = ss.chi2.rvs(3, size=200_000, random_state=2)
+        assert gwas.inflation_lambda(neglogp_from_chi2(chi2, 3), 3) == pytest.approx(
+            1.0, abs=0.02
+        )
+
+    def test_lambda_ignores_underflow_and_nan(self):
+        y = np.array([0.1, 0.3, MAX_NEGLOGP_FROM_P, np.nan, np.inf])
+        assert np.isfinite(gwas.inflation_lambda(y))
+        assert np.isnan(gwas.inflation_lambda(np.array([np.nan])))
+
+    def test_band_contains_the_expectation(self):
+        x, lo, hi = gwas.qq_band(10_000)
+        assert np.all(lo <= x) and np.all(x <= hi)
+        assert len(x) <= 500
+        x95, lo95, hi95 = gwas.qq_band(10_000, 0.95)
+        _, lo50, hi50 = gwas.qq_band(10_000, 0.5)
+        assert np.all(hi50 <= hi95) and np.all(lo50 >= lo95)
+
+    def test_band_small_n_uses_every_rank(self):
+        x, _, _ = gwas.qq_band(5)
+        assert x == pytest.approx(gwas.qq_expected(5))
+
+
+def test_example_data_lambda_near_one():
+    # most variants are null, as in a real scan
+    data = simulate_gwas()
+    assert gwas.inflation_lambda(neglogp_from_p(data["Pval"])) < 1.05

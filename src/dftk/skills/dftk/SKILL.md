@@ -151,7 +151,9 @@ correlogram is `corr --all -o | heatmap -x col1 -y col2 -v correlation
 --annot --vmin -1 --vmax 1`), `pairs` (scatter-plot matrix with KDEs on the diagonal; `-c COL…`,
 `-g COL`, `--upper corr`), `manhattan` (genome-wide -log10(p); columns
 `Chr`, `pos`, `Pval` by default, `--chi2col COL` when p underflows to 0,
-`--sig`/`--suggestive` lines, points with p > 0.01 thinned). `-g COL`
+`--sig`/`--suggestive` lines, points with p > 0.01 thinned), `qq` (QQ plot
+of p-values with a 95 % band and the genomic inflation lambda; same
+p-value options, `-g` one curve and lambda per group). `-g COL`
 overlays groups, `--subgraphcol COL` makes panels.
 
 Other: `dataset NAME` loads a bundled example table, `annotate FILE.parquet`
