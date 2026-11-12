@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.18.0] — 2026-11-12
 
 ### Added
 - `manhattan`: Manhattan plot, -log10(p) along the genome. Columns `Chr`, `pos` and `Pval` by default (common spellings such as `CHR`, `BP`, `P` found ignoring case), or `--mlogpcol` (-log10(p)) or `--chi2col` with `--chi2df` (exact where the p-value underflows to 0). Chromosomes in genome order with alternating colours (`--colors`), `--sig` (5e-8) and `--suggestive` (1e-5) lines, `none` to hide; `--ylim` caps the axis, with points above it as triangles on the top edge. Points with p > 0.01 are thinned to a fine grid (`--no-thin`) and rasterized: ten million variants take about 6 s and a PDF about 200 KB. `-g` colours several scans (with grey bands telling the chromosomes apart), `--subgraphcol` gives each a panel.
