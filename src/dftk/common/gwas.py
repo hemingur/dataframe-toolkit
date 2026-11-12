@@ -208,6 +208,57 @@ def _chi2_df(data: pd.DataFrame, chi2df: str | float) -> np.ndarray | float:
 
 
 # ---------------------------------------------------------------------------
+# QQ plot: expected -log10(p), confidence band, genomic inflation
+# ---------------------------------------------------------------------------
+
+
+def qq_expected(n: int) -> np.ndarray:
+    """Expected -log10(p) of the n sorted null p-values, largest first.
+
+    The i-th smallest of n uniform p-values has expectation i / (n + 1).
+    """
+    return -np.log10(np.arange(1, n + 1) / (n + 1))
+
+
+def qq_band(n: int, level: float = 0.95, points: int = 500):
+    """Pointwise band for the sorted -log10(p) of n null tests.
+
+    The i-th smallest of n uniform p-values is Beta(i, n - i + 1).  The band
+    is computed at about *points* ranks spread evenly on the log scale (all
+    ranks when n is small).  Returns (expected, lower, upper), -log10 scale.
+    """
+    from scipy.stats import beta
+
+    if n <= points:
+        i = np.arange(1, n + 1)
+    else:
+        i = np.unique(np.round(np.geomspace(1, n, points)).astype(np.int64))
+    tail = (1 - level) / 2
+    lower = -np.log10(beta.ppf(1 - tail, i, n - i + 1))
+    upper = -np.log10(beta.ppf(tail, i, n - i + 1))
+    return -np.log10(i / (n + 1)), lower, upper
+
+
+def inflation_lambda(neglogp: np.ndarray, df: float = 1) -> float:
+    """Genomic inflation: median chi-squared over its null median.
+
+    From -log10(p), so it works whichever column the p-values came from and
+    a p-value of 0 (underflow) doesn't matter.  *df* is the degrees of
+    freedom of the test (1 for most association scans).
+    """
+    from scipy.stats import chi2
+
+    from dftk.common.stats import neglogp_chi2_array
+
+    v = np.asarray(neglogp, dtype=float)
+    v = v[np.isfinite(v)]
+    if v.size == 0:
+        return float("nan")
+    median_chi2 = float(neglogp_chi2_array(np.median(v), df))
+    return median_chi2 / float(chi2.ppf(0.5, df))
+
+
+# ---------------------------------------------------------------------------
 # Chromosomes
 # ---------------------------------------------------------------------------
 
@@ -361,23 +412,27 @@ _PEAKS = [
 ]
 
 
-def simulate_gwas(n_background: int = 40_000, seed: int = 20261112) -> pd.DataFrame:
+def simulate_gwas(
+    n_background: int = 120_000, n_near: int = 150, seed: int = 20261112
+) -> pd.DataFrame:
     """A synthetic association scan for examples: no real people or variants.
 
     Columns: SNP, Chr, pos, Pval, Chisq (1 df), r2.  Background variants are
     null.  Six peaks each have a causal variant (r2 = 1, the top hit of its
-    peak, chi-squared as in _PEAKS) and neighbours whose z-scores follow it
-    through linkage disequilibrium, z = r * z_lead + sqrt(1 - r^2) * noise,
-    with r2 falling off over ~100 kb, capped so the causal variant stays the
-    top hit of its peak.  r2 is the r2 with the nearest peak's
-    causal variant, given within 1 Mb of it and empty elsewhere.
-    Deterministic for a given *seed*.  numpy only (no scipy).
+    peak, chi-squared as in _PEAKS) and *n_near* neighbours whose z-scores
+    follow it through linkage disequilibrium, z = r * z_lead + sqrt(1 - r^2)
+    * noise, with r2 falling off over ~100 kb, capped so the causal variant
+    stays the top hit.  The peaks are about 1 % of the rows, so the genomic
+    inflation lambda is close to 1 as in a real scan.  r2 is the r2 with the
+    nearest peak's causal variant, given within 1 Mb of it and empty
+    elsewhere.  Deterministic for a given *seed*.  numpy only (no scipy).
     """
     rng = np.random.default_rng(seed)
     names = list(_CHR_MB)
     weights = np.array([_CHR_MB[c] for c in names], dtype=float)
-    chrom = rng.choice(names, size=n_background, p=weights / weights.sum())
-    pos = np.array([rng.integers(1, _CHR_MB[c] * 1_000_000) for c in chrom])
+    which = rng.choice(len(names), size=n_background, p=weights / weights.sum())
+    chrom = np.array(names)[which]
+    pos = 1 + (rng.random(n_background) * weights[which] * 1_000_000).astype(np.int64)
     z = rng.standard_normal(n_background)
     r2 = np.full(n_background, np.nan)
 
@@ -390,7 +445,7 @@ def simulate_gwas(n_background: int = 40_000, seed: int = 20261112) -> pd.DataFr
         r2[bg] = rng.beta(0.7, 8, size=dist.size) * np.exp(-dist / 3e5)
         z[bg] = _ld_z(z_lead, r2[bg], z[bg])
         # dense variants around the lead, the causal one first
-        near = rng.normal(lead, 250_000, size=600).astype(np.int64)
+        near = rng.normal(lead, 250_000, size=n_near).astype(np.int64)
         near = near[(near > 0) & (near != lead)]
         dist = np.abs(near - lead)
         r2_near = np.exp(-dist / 100_000) * rng.beta(4, 1.5, size=near.size)
