@@ -13,8 +13,9 @@ statistical modelling and publication-quality figures.
 **No data file handy?** Every example below uses `dftk dataset` to pull in a
 small, real dataset, so you can copy-paste any of them and run them right
 now. Run `dftk dataset --list` to browse everything available (dozens of
-datasets from seaborn, statsmodels, and pydataset). `dftk dataset NAME`
-searches all three sources in that order and returns the first match, so
+datasets from seaborn, statsmodels, and pydataset, plus `gwas`, a synthetic
+association scan made by dftk). `dftk dataset NAME` searches dftk, seaborn,
+statsmodels and pydataset in that order and returns the first match, so
 `--source` is optional — pass it only to disambiguate a name that exists in
 more than one source, or to restrict the search.
 
@@ -141,7 +142,7 @@ publication-quality output.
 
 | Command    | Description                                                              |
 |------------|--------------------------------------------------------------------------|
-| `dataset`  | Load a curated example dataset from seaborn, statsmodels, or pydataset   |
+| `dataset`  | Load a curated example dataset from dftk, seaborn, statsmodels, or pydataset |
 | `sample`   | Random row sampling (with or without replacement, by count or fraction)   |
 | `split`    | Split a dataframe into one file per group                                 |
 | `annotate` | Read and write provenance metadata (genome, source, …) in parquet files  |

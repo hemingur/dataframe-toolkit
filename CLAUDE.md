@@ -47,6 +47,7 @@ src/dftk/
     seq.py                  # DNA/sequence utilities
     evalfuncs.py            # eval's special (-f) and string (-s) functions, formula parser
     copula.py               # Nonparametric tail-dependence diagnostics (used by corr --tail, chi)
+    gwas.py                 # manhattan/locus helpers: Chr/pos/Pval lookup, -log10(p), chromosome order, thinning; `dataset gwas` simulator
 tests/
   conftest.py               # make_args(**kwargs) helper used by all tests
   commands/test_eval.py     # unit tests for eval_cmd

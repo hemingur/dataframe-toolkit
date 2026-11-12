@@ -257,3 +257,28 @@ class TestDatasetIntegration:
         args = _make_args(NAME="longley", source=["seaborn", "statsmodels"])
         rows = _capture_execute(args)
         assert len(rows) == 16
+
+
+# ---------------------------------------------------------------------------
+# dftk's own datasets
+# ---------------------------------------------------------------------------
+
+
+class TestDftkSource:
+    def test_gwas_loads_without_seaborn(self):
+        with patch("seaborn.load_dataset") as mock_sns:
+            rows = _capture_execute(_make_args(NAME="gwas", source=None))
+        mock_sns.assert_not_called()
+        assert len(rows) > 40_000
+        assert list(rows[0]) == ["SNP", "Chr", "pos", "Pval", "Chisq", "r2"]
+
+    def test_listed(self):
+        raw = _capture_raw(_make_args(list_datasets=True, source=["dftk"]))
+        lines = raw.strip().splitlines()
+        assert lines[1].startswith("dftk\tgwas\t")
+
+    def test_other_names_fall_through(self):
+        with patch("seaborn.load_dataset", return_value=_IRIS_DF) as mock_sns:
+            rows = _capture_execute(_make_args(NAME="iris", source=None))
+        mock_sns.assert_called_once()
+        assert len(rows) == 3
