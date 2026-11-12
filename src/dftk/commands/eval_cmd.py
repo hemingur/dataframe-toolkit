@@ -152,7 +152,10 @@ Available special functions:
   Path functions (applied element-wise):
     basename  dirname  exists  getsize  realpath
 
-  Statistical functions (see common/stats.py):
+  Statistical functions (see common/stats.py).  An argument is a column or
+  a number (chi2_to_neglogp(Chisq, 1)); a column with that name wins.  The
+  conversions (pval2se to pval_to_chi2) run on whole columns, so millions
+  of rows take seconds; the exact tests run row by row.
     binom_test(k, n, p)
     fisher_test(a, b, c, d)      — p-value
     fisher_OR(a, b, c, d)        — odds ratio
@@ -160,10 +163,13 @@ Available special functions:
     boschloo_OR(a, b, c, d)      — odds ratio
     pval2se(effect, pval)
     t2pval(t, df)
-    chi2_to_neglogp(chi2, df)
+    chi2_to_neglogp(chi2, df)    — exact even where p underflows to 0
     neglogp_to_chi2(neglogp, df)
     pval_to_chi2(pval, df)
     generalized_poisson_nll(x, lam, theta)
+      Example:
+        dftk dataset gwas -o | dftk eval -f "mlogp = chi2_to_neglogp(Chisq, 1)" -o \\
+            | dftk query --query "mlogp > 30"
 
 
 CONSTANT COLUMNS (-c)

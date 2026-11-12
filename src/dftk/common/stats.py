@@ -1,16 +1,16 @@
 """
-dftk.common.stats — reusable row-wise statistical functions.
+dftk.common.stats — reusable statistical functions.
 
-All functions here take a row (array-like indexed by column name) and return
-a scalar.  They are intended to be used as pandas .apply(func, axis=1) targets
-via the dftk eval command, but are importable by any other command.
+The functions listed below take a row (array-like, values in argument order)
+and return a scalar, for eval -f.  The p-value / chi-squared conversions also
+have whole-column versions (``*_array``, collected in VECTORISED) that take
+arrays and broadcast; eval uses those when they exist.
 
 Available functions
 -------------------
 pval2se(row)            Convert p-value and effect estimate to standard error.
 t2pval(row)             Two-sided p-value from t-statistic and degrees of freedom.
 chi2_to_neglogp(row)    Chi-squared + df  →  -log10(p), numerically stable.
-chi2_neglogp_array(chi2, df)  Vectorised chi2_to_neglogp (whole columns).
 neglogp_to_chi2(row)    -log10(p) + df  →  chi-squared, numerically stable.
 pval_to_chi2(row)       p-value + df  →  chi-squared.
 binom_test(row)         Binomial test p-value.
@@ -30,6 +30,11 @@ __all__ = [
     "t2pval",
     "chi2_to_neglogp",
     "chi2_neglogp_array",
+    "neglogp_chi2_array",
+    "pval_chi2_array",
+    "pval2se_array",
+    "t2pval_array",
+    "VECTORISED",
     "neglogp_to_chi2",
     "pval_to_chi2",
     "binom_test",
@@ -45,13 +50,30 @@ __all__ = [
 # ---------------------------------------------------------------------------
 
 
+def _floats(*args) -> list[np.ndarray]:
+    """Broadcast scalars / arrays / Series to float arrays of one shape."""
+    return np.broadcast_arrays(*(np.asarray(a, dtype=float) for a in args))
+
+
+def pval2se_array(effect, pval) -> np.ndarray:
+    """Vectorised :func:`pval2se`: |effect / z| with z = Phi^-1(p / 2)."""
+    effect, pval = _floats(effect, pval)
+    return np.abs(effect / ss.norm.ppf(pval / 2))
+
+
 def pval2se(row) -> float:
     """Convert an effect estimate and its p-value to a standard error.
 
     row[0]: effect estimate (beta / log-OR / etc.)
     row[1]: two-sided p-value
     """
-    return float(np.abs(row[0] / ss.norm.ppf(row[1] / 2)))
+    return float(pval2se_array(row[0], row[1]))
+
+
+def t2pval_array(t, df) -> np.ndarray:
+    """Vectorised :func:`t2pval`."""
+    t, df = _floats(t, df)
+    return 2 * ss.t.sf(np.abs(t), df)
 
 
 def t2pval(row) -> float:
@@ -60,7 +82,7 @@ def t2pval(row) -> float:
     row[0]: t-statistic
     row[1]: degrees of freedom
     """
-    return float(2 * ss.t.sf(np.abs(row[0]), row[1]))
+    return float(t2pval_array(row[0], row[1]))
 
 
 def chi2_neglogp_array(chi2, df) -> np.ndarray:
@@ -74,13 +96,11 @@ def chi2_neglogp_array(chi2, df) -> np.ndarray:
 
     with s = df/2, z = chi2/2.  The series is cut at its smallest term (it is
     asymptotic, so terms eventually grow); for integer s it terminates and is
-    exact.  Checked against mpmath to ~1e-11 for df 1..50 (tests/common).
+    exact.  Checked against mpmath to ~1e-15 for df 1..1000 (tests/common).
 
     chi2, df: scalars or arrays (broadcast).  NaN in gives NaN out.
     """
-    chi2, df = np.broadcast_arrays(
-        np.asarray(chi2, dtype=float), np.asarray(df, dtype=float)
-    )
+    chi2, df = _floats(chi2, df)
     with np.errstate(divide="ignore"):
         out = np.array(-ss.chi2.logsf(chi2, df) / np.log(10) + 0.0, dtype=float)
     under = np.isposinf(out) & np.isfinite(chi2)
@@ -104,48 +124,63 @@ def chi2_neglogp_array(chi2, df) -> np.ndarray:
 def chi2_to_neglogp(row) -> float:
     """Convert a chi-squared statistic and df to -log10(p).
 
-    Row-wise wrapper around :func:`chi2_neglogp_array` (for ``eval -f``).
+    Row-wise wrapper around :func:`chi2_neglogp_array`.
 
     row[0]: chi-squared statistic
     row[1]: degrees of freedom
     """
-    return float(chi2_neglogp_array(float(row[0]), float(row[1])))
+    return float(chi2_neglogp_array(row[0], row[1]))
 
 
-def neglogp_to_chi2(
-    row, threshold: float = 300, max_iter: int = 50, tol: float = 1e-8
-) -> float:
+def neglogp_chi2_array(neglogp, df, threshold: float = 300) -> np.ndarray:
+    """Vectorised inverse of :func:`chi2_neglogp_array`: -log10(p), df → chi2.
+
+    Below *threshold*, scipy's chi2.isf(10^-neglogp).  Above it (p near or
+    past underflow), Newton's method on chi2_neglogp_array, started from the
+    one-term asymptotic inverse, so the two functions round-trip exactly.
+    df is truncated to an integer, as it always was.
+    """
+    neglogp, df = _floats(neglogp, df)
+    df = np.trunc(df)
+    out = np.full(neglogp.shape, np.nan)
+    low = neglogp < threshold
+    out[low] = ss.chi2.isf(10 ** (-neglogp[low]), df[low])
+    high = (neglogp >= threshold) & np.isfinite(neglogp) & (df > 0)
+    if high.any():
+        target, k = neglogp[high], df[high]
+        s = k / 2
+        nlp = target * np.log(10)
+        # start: one-term asymptotic inverse, by fixed-point iteration
+        x = 2 * (nlp - gammaln(s))
+        for _ in range(20):
+            x = 2 * (nlp - gammaln(s) + (s - 1) * np.log(x / 2))
+        for _ in range(50):
+            f = chi2_neglogp_array(x, k) - target
+            slope = (0.5 - (s - 1) / x) / np.log(10)  # d(-log10 p)/dx, asymptotic
+            step = f / slope
+            x = x - step
+            if np.all(np.abs(step) <= 1e-13 * x):
+                break
+        out[high] = x
+    out[np.isposinf(neglogp)] = np.inf
+    return out
+
+
+def neglogp_to_chi2(row) -> float:
     """Convert -log10(p) and df to a chi-squared statistic.
 
-    Uses scipy.stats.chi2.isf for moderate -log10(p) values; switches to a
-    Newton-Raphson inversion of the asymptotic tail formula above *threshold*.
-    Closed-form approximation is used for df=2.
+    Row-wise wrapper around :func:`neglogp_chi2_array`.
 
     row[0]: -log10(p)
     row[1]: degrees of freedom
     """
-    neglogp = float(row[0])
-    df = int(row[1])
+    return float(neglogp_chi2_array(row[0], row[1]))
 
-    if neglogp < threshold:
-        p = 10 ** (-neglogp)
-        return float(ss.chi2.isf(p, df))
 
-    constant = gammaln(df / 2)
-    nlp = neglogp * np.log(10)
-    a = df / 2 - 1
-    x = 2 * (nlp - constant)
-    if df == 2:
-        return float(x)
-    for _ in range(max_iter):
-        f = nlp - constant + a * np.log(x / 2) - x / 2
-        fprime = a / x - 0.5
-        step = f / fprime
-        x_new = x - step
-        if abs(step) < tol:
-            return float(x_new)
-        x = x_new
-    return float(x)
+def pval_chi2_array(pval, df) -> np.ndarray:
+    """Vectorised :func:`pval_to_chi2` (df truncated to an integer)."""
+    pval, df = _floats(pval, df)
+    return ss.chi2.isf(pval, np.trunc(df))
 
 
 def pval_to_chi2(row) -> float:
@@ -154,7 +189,18 @@ def pval_to_chi2(row) -> float:
     row[0]: p-value
     row[1]: degrees of freedom
     """
-    return float(ss.chi2.isf(float(row[0]), df=int(row[1])))
+    return float(pval_chi2_array(row[0], row[1]))
+
+
+# Whole-column versions of the row functions above, for eval -f: same
+# arguments in the same order, numpy arrays (or scalars) instead of a row.
+VECTORISED = {
+    "pval2se": pval2se_array,
+    "t2pval": t2pval_array,
+    "chi2_to_neglogp": chi2_neglogp_array,
+    "neglogp_to_chi2": neglogp_chi2_array,
+    "pval_to_chi2": pval_chi2_array,
+}
 
 
 # ---------------------------------------------------------------------------
