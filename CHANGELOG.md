@@ -5,9 +5,14 @@
 ### Added
 - A two-page cheatsheet, `docs/cheatsheet/dftk-cheatsheet.pdf`, linked from the README: basics, reading and writing, inspecting, new columns, SQL with DuckDB, reshaping, statistics, plots and pipeline recipes. `docs/cheatsheet/make_cheatsheet.py` rebuilds it with pdflatex after running every example against the installed dftk and drawing the plot thumbnails with dftk.
 - `dataset gwas`: a synthetic association scan (about 44k variants on chromosomes 1–22 and X, six peaks) with columns `SNP`, `Chr`, `pos`, `Pval`, `Chisq` (1 df) and `r2` (LD with the nearest peak's causal variant, within 1 Mb), for the coming genome-wide plots. dftk makes it itself, with no download, and `dataset` looks in dftk's own datasets first.
+- `eval -f` statistical functions take numbers as arguments: `chi2_to_neglogp(Chisq, 1)`, `binom_test(k, n, 0.5)`, no `-c 'k = 1'` column needed first. A column with that name still wins.
+
+### Changed
+- `eval -f` runs `chi2_to_neglogp`, `neglogp_to_chi2`, `pval_to_chi2`, `t2pval` and `pval2se` on whole columns instead of row by row: a million rows take about 1.5 s instead of about 2 minutes. The exact tests (`fisher_test`, `boschloo_test`, `binom_test`, ...) still run row by row. A wrong number of arguments is an error naming them (`chi2_to_neglogp() takes 2 arguments (chi2, df), not 1`).
 
 ### Fixed
 - `eval` `chi2_to_neglogp` is exact for very large chi-squared values (p below about 1e-300). It switched to an approximation at chi-squared 1380, before scipy needed it, and the approximation kept one term of its series: -log10(p) was off by 0.0003 at df 1 and 0.07 at df 200. scipy is now used for as long as it gives a value, and the series beyond that is cut at its smallest term; checked against 60-digit mpmath to about 1e-15 for df 1 to 1000 and chi-squared up to 1e7.
+- `eval` `neglogp_to_chi2` is the exact inverse of `chi2_to_neglogp` above -log10(p) = 300; its one-term approximation was off by up to 4e-5 (relative) there.
 
 ## [0.17.1] — 2026-11-10
 

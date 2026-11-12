@@ -131,6 +131,58 @@ class _FrameFunc:
         return getattr(df_subset, self.method)(axis=1)
 
 
+# A number written as a function argument: 1, 0.5, -2, 1e-8, .5
+_NUMBER = re.compile(r"[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?", re.IGNORECASE)
+
+
+class _StatsFunc:
+    """A dftk.common.stats function: arguments are columns or numbers.
+
+    An argument that is not a column but reads as a number (``1``, ``5e-8``)
+    is that constant for every row; a column with that name wins.  Functions
+    with a whole-column version in ``stats.VECTORISED`` run on whole columns
+    at once; the others (the exact tests) run row by row.
+    """
+
+    def __init__(self, name: str) -> None:
+        from dftk.common import stats as _stats
+
+        self.name = name
+        self.row_func = getattr(_stats, name)
+        self.vector_func = _stats.VECTORISED.get(name)
+
+    @staticmethod
+    def is_literal(arg: str, df_columns) -> bool:
+        return arg not in df_columns and _NUMBER.fullmatch(arg) is not None
+
+    def __call__(self, df: pd.DataFrame, cols: list[str]):
+        args = [df[c] if c in df.columns else float(c) for c in cols]
+        if self.vector_func is not None:
+            import inspect
+
+            sig = inspect.signature(self.vector_func)
+            required = [
+                p
+                for p in sig.parameters.values()
+                if p.default is inspect.Parameter.empty
+            ]
+            if len(args) != len(required):
+                names = ", ".join(p.name for p in required)
+                raise FormulaMistake(
+                    f"{self.name}() takes {len(required)} arguments "
+                    f"({names}), not {len(args)}."
+                )
+            arrays = [
+                a.to_numpy(dtype=float, na_value=np.nan)
+                if isinstance(a, pd.Series)
+                else a
+                for a in args
+            ]
+            return pd.Series(self.vector_func(*arrays), index=df.index)
+        table = pd.DataFrame(dict(enumerate(args)), index=df.index)
+        return table.apply(lambda row: self.row_func(row.to_numpy()), axis=1)
+
+
 def _resolve_where_val(val: str, df: pd.DataFrame):
     """Resolve a where() argument to a scalar, Series, or literal string.
 
@@ -266,9 +318,7 @@ def special_function(formula: str, df_columns: list[str]):
     elif func_name in _PATH_FUNCS:
         func = np.frompyfunc(getattr(os.path, func_name), 1, 1)
     elif func_name in _STATS_DISPATCH:
-        from dftk.common import stats as _stats
-
-        func = getattr(_stats, func_name)
+        func = _StatsFunc(func_name)
     elif func_name in _SCIPY_SINGLE:
         from scipy import special as _sp
 
@@ -414,10 +464,15 @@ def string_function(formula: str, joinsep: str):
 def apply_special_function(df: pd.DataFrame, formula: str) -> None:
     """Evaluate a special-function formula and store its column in *df*."""
     dest, func, cols = special_function(formula, list(df.columns))
-    missing = [c for c in cols if c not in df.columns]
+    missing = [
+        c
+        for c in cols
+        if c not in df.columns
+        and not (isinstance(func, _StatsFunc) and _StatsFunc.is_literal(c, df.columns))
+    ]
     if missing:
         hint = ""
-        if any(re.fullmatch(r"[-+]?[\d.]+(e[-+]?\d+)?", c) for c in missing):
+        if any(_NUMBER.fullmatch(c) for c in missing):
             hint = (
                 "  For a fixed value, add it as a column first: "
                 "-c 'p = 0.5' -f 'z = func(x, p)'."
@@ -427,6 +482,8 @@ def apply_special_function(df: pd.DataFrame, formula: str) -> None:
         df[dest] = True
     elif isinstance(func, _WhereFunc):
         df[dest] = func(df)
+    elif isinstance(func, _StatsFunc):
+        df[dest] = func(df, cols)
     elif isinstance(func, _FrameFunc):
         # Frame-level functions (idxmax/idxmin) need column labels
         df[dest] = func(df[cols])

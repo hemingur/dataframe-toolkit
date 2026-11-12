@@ -594,9 +594,10 @@ class TestFormulaMistakes:
             _eval(num_df, _eval_args(formula=["z = sum(x y)"]))
 
     def test_special_function_with_number_suggests_constant_column(self):
+        # numbers are arguments only to the statistical functions
         df = pd.DataFrame({"k": [3], "n": [10]})
         with pytest.raises(ValueError, match="-c 'p = 0.5'") as exc:
-            _eval(df, _eval_args(formula=["z = binom_test(k, n, 0.5)"]))
+            _eval(df, _eval_args(formula=["z = sum(k, 0.5)"]))
         assert "pandas df.eval" not in str(exc.value)
 
     def test_constant_column_works_with_special_function(self):
@@ -672,3 +673,56 @@ class TestFormulaDispatch:
         df = pd.DataFrame({"p": [str(f), str(tmp_path)]})
         result = _eval(df, _eval_args(strfunc=["s = isfile(p)"]))
         assert list(result["s"]) == [True, False]
+
+
+class TestStatsFunctionArguments:
+    def test_number_argument_row_wise(self):
+        df = pd.DataFrame({"k": [3], "n": [10]})
+        result = _eval(df, _eval_args(formula=["z = binom_test(k, n, 0.5)"]))
+        assert result["z"].iloc[0] == pytest.approx(0.34375)
+
+    def test_number_argument_whole_column(self):
+        df = pd.DataFrame({"Chisq": [3.841458820694124, 2000.0, np.nan]})
+        result = _eval(df, _eval_args(formula=["m = chi2_to_neglogp(Chisq, 1)"]))
+        assert result["m"].iloc[0] == pytest.approx(-np.log10(0.05))
+        assert result["m"].iloc[1] == pytest.approx(436.043273716073, rel=1e-12)
+        assert np.isnan(result["m"].iloc[2])
+
+    @pytest.mark.parametrize("number", ["2", "2.0", "+2", "2e0", ".2e1"])
+    def test_number_spellings(self, number):
+        df = pd.DataFrame({"t": [2.0]})
+        args = _eval_args(formula=[f"p = t2pval(t, {number})"])
+        expected = 2 * __import__("scipy.stats").stats.t.sf(2.0, 2)
+        assert _eval(df, args)["p"].iloc[0] == pytest.approx(expected)
+
+    def test_column_named_like_a_number_wins(self):
+        df = pd.DataFrame({"t": [2.0], "1": [30]})
+        result = _eval(df, _eval_args(formula=["p = t2pval(t, 1)"]))
+        expected = 2 * __import__("scipy.stats").stats.t.sf(2.0, 30)
+        assert result["p"].iloc[0] == pytest.approx(expected)
+
+    def test_column_and_constant_df_agree(self):
+        df = pd.DataFrame({"Chisq": [1.0, 10.0, 100.0], "k": [2, 2, 2]})
+        args = _eval_args(
+            formula=[
+                "a = chi2_to_neglogp(Chisq, k)",
+                "b = chi2_to_neglogp(Chisq, 2)",
+            ]
+        )
+        result = _eval(df, args)
+        assert list(result["a"]) == pytest.approx(list(result["b"]))
+
+    def test_wrong_number_of_arguments(self):
+        df = pd.DataFrame({"Chisq": [1.0]})
+        with pytest.raises(ValueError, match=r"takes 2 arguments \(chi2, df\), not 1"):
+            _eval(df, _eval_args(formula=["m = chi2_to_neglogp(Chisq)"]))
+
+    def test_misspelled_column_still_reported(self):
+        df = pd.DataFrame({"Chisq": [1.0]})
+        with pytest.raises(ValueError, match=r"not found: \['kk'\]"):
+            _eval(df, _eval_args(formula=["m = chi2_to_neglogp(Chisq, kk)"]))
+
+    def test_keeps_the_index(self):
+        df = pd.DataFrame({"t": [2.0, 3.0]}, index=[10, 20])
+        result = _eval(df, _eval_args(formula=["p = t2pval(t, 5)"]))
+        assert result["p"].notna().all()
