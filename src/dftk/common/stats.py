@@ -10,6 +10,7 @@ Available functions
 pval2se(row)            Convert p-value and effect estimate to standard error.
 t2pval(row)             Two-sided p-value from t-statistic and degrees of freedom.
 chi2_to_neglogp(row)    Chi-squared + df  →  -log10(p), numerically stable.
+chi2_neglogp_array(chi2, df)  Vectorised chi2_to_neglogp (whole columns).
 neglogp_to_chi2(row)    -log10(p) + df  →  chi-squared, numerically stable.
 pval_to_chi2(row)       p-value + df  →  chi-squared.
 binom_test(row)         Binomial test p-value.
@@ -28,6 +29,7 @@ __all__ = [
     "pval2se",
     "t2pval",
     "chi2_to_neglogp",
+    "chi2_neglogp_array",
     "neglogp_to_chi2",
     "pval_to_chi2",
     "binom_test",
@@ -61,25 +63,53 @@ def t2pval(row) -> float:
     return float(2 * ss.t.sf(np.abs(row[0]), row[1]))
 
 
-def chi2_to_neglogp(row, threshold: float = 1380) -> float:
+def chi2_neglogp_array(chi2, df) -> np.ndarray:
+    """Vectorised -log10(p) for chi-squared statistics, exact past underflow.
+
+    scipy's chi2.logsf is exact for as long as it is finite (p down to about
+    1e-308); beyond that it returns -inf, and this function uses the
+    asymptotic expansion of the upper incomplete gamma function instead:
+
+        Q(s, z) ~ z^(s-1) e^(-z) / Gamma(s) * sum_n (s-1)(s-2)...(s-n) / z^n
+
+    with s = df/2, z = chi2/2.  The series is cut at its smallest term (it is
+    asymptotic, so terms eventually grow); for integer s it terminates and is
+    exact.  Checked against mpmath to ~1e-11 for df 1..50 (tests/common).
+
+    chi2, df: scalars or arrays (broadcast).  NaN in gives NaN out.
+    """
+    chi2, df = np.broadcast_arrays(
+        np.asarray(chi2, dtype=float), np.asarray(df, dtype=float)
+    )
+    with np.errstate(divide="ignore"):
+        out = np.array(-ss.chi2.logsf(chi2, df) / np.log(10) + 0.0, dtype=float)
+    under = np.isposinf(out) & np.isfinite(chi2)
+    if under.any():
+        s, z = df[under] / 2, chi2[under] / 2
+        series = np.ones_like(z)
+        term = np.ones_like(z)
+        active = np.ones(z.shape, dtype=bool)
+        for n in range(1, 40):
+            nxt = term * (s - n) / z
+            active &= np.abs(nxt) < np.abs(term)
+            if not active.any():
+                break
+            term = np.where(active, nxt, term)
+            series = np.where(active, series + nxt, series)
+        neg_ln_p = z - (s - 1) * np.log(z) + gammaln(s) - np.log(series)
+        out[under] = neg_ln_p / np.log(10)
+    return out
+
+
+def chi2_to_neglogp(row) -> float:
     """Convert a chi-squared statistic and df to -log10(p).
 
-    Uses scipy.stats.chi2.logsf for moderate values; switches to an
-    asymptotic approximation above *threshold* to avoid underflow.
+    Row-wise wrapper around :func:`chi2_neglogp_array` (for ``eval -f``).
 
     row[0]: chi-squared statistic
     row[1]: degrees of freedom
     """
-    chi_val = float(row[0])
-    df = float(row[1])
-    if chi_val < threshold:
-        log_p = ss.chi2.logsf(chi_val, df)
-        return float(-log_p / np.log(10))
-    else:
-        lin_term = chi_val / 2.0
-        log_term = -(df / 2 - 1) * np.log(chi_val / 2)
-        constant = gammaln(df / 2)
-        return float((lin_term + log_term + constant) / np.log(10))
+    return float(chi2_neglogp_array(float(row[0]), float(row[1])))
 
 
 def neglogp_to_chi2(

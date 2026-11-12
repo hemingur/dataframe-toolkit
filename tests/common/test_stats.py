@@ -12,6 +12,7 @@ from dftk.common.stats import (
     binom_test,
     boschloo_OR,
     boschloo_test,
+    chi2_neglogp_array,
     chi2_to_neglogp,
     fisher_OR,
     fisher_test,
@@ -80,6 +81,47 @@ class TestChi2NeglogpRoundTrip:
         chi2, df = 10.0, 3
         expected = float(-ss.chi2.logsf(chi2, df) / np.log(10))
         assert chi2_to_neglogp([chi2, df]) == pytest.approx(expected, rel=1e-8)
+
+    # Exact -log10(p) from mpmath (60 digits); scipy's logsf is -inf for all
+    # of these, so they exercise the asymptotic series.
+    @pytest.mark.parametrize(
+        "chi2,df,expected",
+        [
+            (1500, 1, 327.4072560441665),
+            (1e5, 1, 21717.322159443942),
+            (1500, 3, 324.23058649574523),
+            (1e5, 3, 21712.322150758228),
+            (1500, 50, 280.49799185229256),
+            (1e5, 50, 21625.741312221464),
+        ],
+    )
+    def test_past_underflow_matches_exact(self, chi2, df, expected):
+        assert chi2_to_neglogp([chi2, df]) == pytest.approx(expected, rel=1e-12)
+
+    @pytest.mark.parametrize("df", [1, 10, 50])
+    def test_no_jump_where_scipy_underflows(self, df):
+        # The old fixed-threshold version jumped at chi2=1380 (by 0.015 at
+        # df=50); the series must continue scipy's values smoothly across
+        # the point where logsf becomes -inf.
+        x = np.arange(1300.0, 2000.0, 0.5)
+        switch = np.isinf(ss.chi2.logsf(x, df))
+        assert switch.any() and not switch.all()
+        y = chi2_neglogp_array(x, df)
+        assert np.all(np.isfinite(y))
+        assert np.abs(np.diff(y, 2)).max() < 1e-5
+
+    def test_array_matches_rowwise_and_broadcasts(self):
+        chi2 = np.array([0.0, 3.84, 200.0, 2000.0, np.nan, np.inf])
+        out = chi2_neglogp_array(chi2, 1)
+        assert out[0] == 0.0
+        assert out[1] == pytest.approx(-np.log10(0.05), rel=1e-3)
+        assert out[3] == pytest.approx(chi2_to_neglogp([2000.0, 1]))
+        assert np.isnan(out[4])
+        assert np.isposinf(out[5])
+        per_df = chi2_neglogp_array(2000.0, np.array([1, 2, 10]))
+        assert per_df == pytest.approx(
+            [chi2_to_neglogp([2000.0, k]) for k in (1, 2, 10)]
+        )
 
     def test_pval_to_chi2_inverse_of_chi2_to_neglogp(self):
         # pval_to_chi2 and chi2.isf are direct — just verify consistency
