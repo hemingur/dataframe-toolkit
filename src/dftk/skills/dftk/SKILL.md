@@ -140,6 +140,7 @@ Statistics (all accept `-g` for per-group results):
 | p-values for column pairs (t, Mann-Whitney, KS, …) | `test -c A:B -d p --test NAME` |
 | Correlations with CIs, bootstrap, tail dependence | `corr -c A:B` (globs: `-c '*:*'` every pair once) |
 | Correlation matrix, every pair both ways plus the diagonal | `corr --all [COL…]` |
+| -log10(p) from chi-squared (exact where p underflows to 0), p ↔ chi-squared, t → p, SE from effect and p; arguments are columns or numbers, whole columns at once | `eval -f "mlogp = chi2_to_neglogp(Chisq, 1)"` (`neglogp_to_chi2`, `pval_to_chi2`, `t2pval`, `pval2se`) |
 
 Plots (always with `-f FILE`): `scat` (scatter; `--fit` for an OLS line,
 `--fit lowess` for a smooth curve, per group with `-g`; `--hexbin` for
