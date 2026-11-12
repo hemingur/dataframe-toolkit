@@ -9,6 +9,7 @@ import pytest
 import scipy.stats as ss
 
 from dftk.common.stats import (
+    VECTORISED,
     binom_test,
     boschloo_OR,
     boschloo_test,
@@ -17,6 +18,7 @@ from dftk.common.stats import (
     fisher_OR,
     fisher_test,
     generalized_poisson_nll,
+    neglogp_chi2_array,
     neglogp_to_chi2,
     pval2se,
     pval_to_chi2,
@@ -123,6 +125,33 @@ class TestChi2NeglogpRoundTrip:
             [chi2_to_neglogp([2000.0, k]) for k in (1, 2, 10)]
         )
 
+    # Exact chi-squared for a given -log10(p), from mpmath (60 digits).  The
+    # old one-term inversion was off by up to 4e-5 (relative) here.
+    @pytest.mark.parametrize(
+        "neglogp,df,expected",
+        [
+            (500, 1, 2294.3944153304565),
+            (500, 50, 2536.0236833382087),
+            (5000, 3, 23035.444223414135),
+        ],
+    )
+    def test_inverse_past_underflow_matches_exact(self, neglogp, df, expected):
+        assert neglogp_to_chi2([neglogp, df]) == pytest.approx(expected, rel=1e-13)
+
+    @pytest.mark.parametrize("df", [1, 2, 7, 50, 200])
+    def test_round_trip_through_underflow(self, df):
+        chi2 = np.array([1.0, 50.0, 1300.0, 1400.0, 1500.0, 3000.0, 1e5])
+        # upper tail only: where p rounds to 1, -log10(p) can't be inverted
+        chi2 = chi2[ss.chi2.sf(chi2, df) < 0.5]
+        back = neglogp_chi2_array(chi2_neglogp_array(chi2, df), df)
+        assert back == pytest.approx(chi2, rel=1e-12)
+
+    def test_inverse_nan_and_inf(self):
+        out = neglogp_chi2_array([np.nan, np.inf, 0.0], 1)
+        assert np.isnan(out[0])
+        assert np.isposinf(out[1])
+        assert out[2] == 0.0
+
     def test_pval_to_chi2_inverse_of_chi2_to_neglogp(self):
         # pval_to_chi2 and chi2.isf are direct — just verify consistency
         pval, df = 0.05, 1
@@ -220,3 +249,32 @@ class TestGeneralizedPoissonNll:
         result = generalized_poisson_nll([0, 1.0, 0.0])
         assert math.isfinite(result)
         assert result > 0
+
+
+# ---------------------------------------------------------------------------
+# Whole-column versions agree with the row functions
+# ---------------------------------------------------------------------------
+
+
+class TestVectorised:
+    @pytest.mark.parametrize(
+        "name,columns",
+        [
+            ("pval2se", ([0.1, -0.5, 2.0], [0.05, 1e-10, 0.9])),
+            ("t2pval", ([2.0, -3.5, 0.0], [10, 3, 100])),
+            ("chi2_to_neglogp", ([0.5, 30.0, 2500.0], [1, 4, 2])),
+            ("neglogp_to_chi2", ([1.3, 50.0, 800.0], [1, 4, 2])),
+            ("pval_to_chi2", ([0.05, 1e-12, 0.5], [1, 3, 2])),
+        ],
+    )
+    def test_matches_row_function(self, name, columns):
+        import dftk.common.stats as stats
+
+        row_func = getattr(stats, name)
+        expected = [row_func(list(row)) for row in zip(*columns, strict=True)]
+        got = VECTORISED[name](*(np.array(c, dtype=float) for c in columns))
+        assert got == pytest.approx(expected, rel=1e-12)
+
+    def test_scalar_broadcasts(self):
+        got = VECTORISED["t2pval"](np.array([2.0, 3.0]), 10)
+        assert got == pytest.approx([t2pval([2.0, 10]), t2pval([3.0, 10])])
