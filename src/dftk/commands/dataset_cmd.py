@@ -1,9 +1,9 @@
 """
 dftk.commands.dataset_cmd — the ``dftk dataset`` subcommand.
 
-Provides access to curated example datasets from seaborn, statsmodels,
-and (optionally) pydataset.  Datasets are written to stdout as TSV or
-into the dftk parquet pipe with -o.
+Provides access to curated example datasets from dftk itself (synthetic
+data, e.g. ``gwas``), seaborn, statsmodels, and (optionally) pydataset.
+Datasets are written to stdout as TSV or into the dftk parquet pipe with -o.
 
 Examples
 --------
@@ -26,6 +26,27 @@ from dftk.common.io import io
 # ---------------------------------------------------------------------------
 # Per-source load/list helpers
 # ---------------------------------------------------------------------------
+
+
+# Datasets dftk makes itself (no download, no extra dependency).
+_DFTK_DATASETS = {
+    "gwas": (
+        "synthetic association scan: SNP, Chr, pos, Pval, Chisq, r2 "
+        "(~44k variants, six peaks)"
+    ),
+}
+
+
+def _load_dftk(name: str) -> pd.DataFrame:
+    if name == "gwas":
+        from dftk.common.gwas import simulate_gwas
+
+        return simulate_gwas()
+    raise ValueError(f"dftk dataset {name!r} not found")
+
+
+def _list_dftk() -> list[tuple[str, str, str]]:
+    return [("dftk", n, d) for n, d in _DFTK_DATASETS.items()]
 
 
 def _load_seaborn(name: str) -> pd.DataFrame:
@@ -91,6 +112,7 @@ def _list_pydataset() -> list[tuple[str, str, str]]:
 
 # Registry — built at import time so choices are accurate
 _SOURCES: dict[str, tuple] = {
+    "dftk": (_load_dftk, _list_dftk),
     "seaborn": (_load_seaborn, _list_seaborn),
     "statsmodels": (_load_statsmodels, _list_statsmodels),
 }
@@ -105,7 +127,7 @@ if _HAS_PYDATASET:
 
 class DatasetCommand(BaseCommand):
     name = "dataset"
-    help = "Load a curated example dataset (seaborn, statsmodels, pydataset)"
+    help = "Load a curated example dataset (dftk, seaborn, statsmodels, pydataset)"
 
     def add_arguments(self, parser: argparse.ArgumentParser) -> None:
         io.parser_output(parser)

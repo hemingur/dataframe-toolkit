@@ -4,6 +4,7 @@
 
 ### Added
 - A two-page cheatsheet, `docs/cheatsheet/dftk-cheatsheet.pdf`, linked from the README: basics, reading and writing, inspecting, new columns, SQL with DuckDB, reshaping, statistics, plots and pipeline recipes. `docs/cheatsheet/make_cheatsheet.py` rebuilds it with pdflatex after running every example against the installed dftk and drawing the plot thumbnails with dftk.
+- `dataset gwas`: a synthetic association scan (about 44k variants on chromosomes 1–22 and X, six peaks) with columns `SNP`, `Chr`, `pos`, `Pval`, `Chisq` (1 df) and `r2` (LD with the nearest peak's causal variant, within 1 Mb), for the coming genome-wide plots. dftk makes it itself, with no download, and `dataset` looks in dftk's own datasets first.
 
 ### Fixed
 - `eval` `chi2_to_neglogp` is exact for very large chi-squared values (p below about 1e-300). It switched to an approximation at chi-squared 1380, before scipy needed it, and the approximation kept one term of its series: -log10(p) was off by 0.0003 at df 1 and 0.07 at df 200. scipy is now used for as long as it gives a value, and the series beyond that is cut at its smallest term; checked against 60-digit mpmath to about 1e-15 for df 1 to 1000 and chi-squared up to 1e7.
