@@ -42,13 +42,14 @@ src/dftk/
     melt_cmd.py, scat_cmd.py, line_cmd.py, hist_cmd.py, print_cmd.py, clean_cmd.py, ...
     chi_cmd.py               # dftk chi    — corner-resolved chi-plot (tail-dependence diagnostic)
     manhattan_cmd.py        # dftk manhattan — genome-wide -log10(p) plot (helpers in common/gwas.py)
+    qq_cmd.py               # dftk qq — QQ plot of p-values, confidence band, genomic inflation lambda
   common/
     io.py                   # io.read(args), io.printdf(df, args) — TSV in/out
     stats.py                # Statistical helpers (binom_test, fisher_test, etc.)
     seq.py                  # DNA/sequence utilities
     evalfuncs.py            # eval's special (-f) and string (-s) functions, formula parser
     copula.py               # Nonparametric tail-dependence diagnostics (used by corr --tail, chi)
-    gwas.py                 # manhattan/locus helpers: Chr/pos/Pval lookup, -log10(p), chromosome order, thinning; `dataset gwas` simulator
+    gwas.py                 # manhattan/qq helpers: Chr/pos/Pval lookup, -log10(p), chromosome order, thinning, QQ band, lambda; `dataset gwas` simulator
 tests/
   conftest.py               # make_args(**kwargs) helper used by all tests
   commands/test_eval.py     # unit tests for eval_cmd
@@ -286,6 +287,7 @@ Original scripts live in `~/projects/python_projects/df/src/df/`.
 | dfcorr.py        | corr              | ported    |
 | —                | chi               | new       |
 | —                | manhattan         | new       |
+| —                | qq                | new       |
 | —                | cleannames        | new       |
 | dftest.py        | test              | ported    |
 | dfwstat.py       | wstat             | ported    |

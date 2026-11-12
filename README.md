@@ -137,6 +137,7 @@ publication-quality output.
 | `chi`   | Corner-resolved chi-plot: whether tail dependence sits in the lower or upper corner                                                                                                 |
 | `heatmap` | Coloured grid of values from a long (`-x -y -v`) or wide (`-y`) table; correlograms from `corr --all`, `--annot`, `--lower` |
 | `pairs` | Scatter-plot matrix with KDEs (or histograms) on the diagonal; `-g` colours groups, `--upper corr` puts r in the upper triangle |
+| `qq` | QQ plot of p-values: observed against expected -log10(p), confidence band, genomic inflation λ; `-g` one curve and λ per group |
 | `manhattan` | Genome-wide -log10(p) by position (`Chr`, `pos`, `Pval`, or `--mlogpcol`/`--chi2col`); significance lines, thinning for millions of variants, `-g`/`--subgraphcol` for several scans |
 
 ### Utilities
@@ -454,6 +455,13 @@ dftk dataset gwas -o | dftk manhattan --chi2col Chisq -f manhattan.png
 ```
 
 Points with p > 0.01 are thinned to one per cell of a grid finer than the figure (`--no-thin` draws all), and points are rasterized: ten million variants take a few seconds and a PDF stays small. `--ylim LO HI` caps the axis, with points above it drawn as triangles on the top edge. Several scans in one table: `--subgraphcol study` draws a panel each, `-g study` a colour each.
+
+`qq` plots the same p-values (same column options, no chromosome or position needed) against what null tests would give, with a 95 % band (`--ci`) and the genomic inflation factor λ, the median chi-squared over its null median. A curve lifted off the diagonal from the start, λ above about 1.05, points to stratification or other inflation; a few points leaving it at the top are associations. With `-g`, each group gets its own curve and λ:
+
+```bash
+dftk dataset gwas -o | dftk qq -f qq.png
+dftk dataset gwas -o | dftk eval -f "Chisq = Chisq * 1.15" -o | dftk qq --chi2col Chisq -f qq.png
+```
 
 ### Bootstrap confidence intervals
 
