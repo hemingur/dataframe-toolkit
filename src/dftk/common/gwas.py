@@ -244,6 +244,22 @@ def chrom_order(labels) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
+def chrom_index(chrom) -> tuple[np.ndarray, list[str]]:
+    """Each row's chromosome as a number: its place in genome order.
+
+    Returns (index per row, the labels in genome order); a missing
+    chromosome is -1.  Labels are worked out once per distinct value, so
+    ten million rows take about a second.
+    """
+    codes, uniques = pd.factorize(np.asarray(chrom, dtype=object))
+    # several raw values can share a label ("chr1", "1", 1.0)
+    unique_labels = [chrom_label(u) for u in uniques]
+    order = chrom_order(unique_labels)
+    rank = {c: i for i, c in enumerate(order)}
+    lab = np.array([rank[u] for u in unique_labels] + [-1], dtype=np.int64)
+    return lab[codes], order  # code -1 (missing) → the last entry, -1
+
+
 def genome_positions(
     chrom: pd.Series | np.ndarray,
     pos: pd.Series | np.ndarray,
@@ -255,13 +271,7 @@ def genome_positions(
     separated by *gap* times the total span.  Returns (x per row, tick
     centres, tick labels, (start, end) of each chromosome on the axis).
     """
-    codes, uniques = pd.factorize(np.asarray(chrom, dtype=object))
-    # several raw values can share a label ("chr1", "1", 1.0)
-    unique_labels = [chrom_label(u) for u in uniques]
-    order = chrom_order(unique_labels)
-    rank = {c: i for i, c in enumerate(order)}
-    lab = np.array([rank[u] for u in unique_labels] + [-1], dtype=np.int64)
-    label_idx = lab[codes]  # code -1 (missing chromosome) → last entry, -1
+    label_idx, order = chrom_index(chrom)
     pos = np.asarray(pos, dtype=float)
 
     ok = (label_idx >= 0) & np.isfinite(pos)

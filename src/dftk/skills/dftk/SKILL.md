@@ -148,8 +148,10 @@ tables too large for points), `line`, `hist`
 long table `-x COL -y COL -v VALUE`, or a wide one with `-y ROWS`; a
 correlogram is `corr --all -o | heatmap -x col1 -y col2 -v correlation
 --annot --vmin -1 --vmax 1`), `pairs` (scatter-plot matrix with KDEs on the diagonal; `-c COL…`,
-`-g COL`, `--upper corr`). `-g COL` overlays groups, `--subgraphcol COL`
-makes panels.
+`-g COL`, `--upper corr`), `manhattan` (genome-wide -log10(p); columns
+`Chr`, `pos`, `Pval` by default, `--chi2col COL` when p underflows to 0,
+`--sig`/`--suggestive` lines, points with p > 0.01 thinned). `-g COL`
+overlays groups, `--subgraphcol COL` makes panels.
 
 Other: `dataset NAME` loads a bundled example table, `annotate FILE.parquet`
 reads and writes provenance metadata, `clean` removes leftover temp pipe

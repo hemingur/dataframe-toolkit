@@ -137,6 +137,7 @@ publication-quality output.
 | `chi`   | Corner-resolved chi-plot: whether tail dependence sits in the lower or upper corner                                                                                                 |
 | `heatmap` | Coloured grid of values from a long (`-x -y -v`) or wide (`-y`) table; correlograms from `corr --all`, `--annot`, `--lower` |
 | `pairs` | Scatter-plot matrix with KDEs (or histograms) on the diagonal; `-g` colours groups, `--upper corr` puts r in the upper triangle |
+| `manhattan` | Genome-wide -log10(p) by position (`Chr`, `pos`, `Pval`, or `--mlogpcol`/`--chi2col`); significance lines, thinning for millions of variants, `-g`/`--subgraphcol` for several scans |
 
 ### Utilities
 
@@ -436,6 +437,23 @@ dftk dataset iris -o | dftk pairs -g species --upper corr --diag hist -f iris_pa
 dftk dataset penguins -o | dftk pivot -i species -g island -v body_mass_g -f count -o \
   | dftk heatmap -y species --annot --cmap Blues -f penguin_counts.png
 ```
+
+### Manhattan plots
+
+`manhattan` draws -log10(p) of every variant along the genome, chromosomes end to end in order (1–22, X, Y, MT; a `chr` prefix is ignored). The columns are `Chr`, `pos` and `Pval` unless named with `--chrcol`, `--poscol` and `--pcol`; a missing default is looked for under common spellings (`CHR`, `#CHROM`, `BP`, `P`, …). `dataset gwas` is a synthetic scan to try it on:
+
+```bash
+dftk dataset gwas -o | dftk manhattan -f manhattan.png
+dftk dataset gwas -o | dftk manhattan --ylim 0 40 --sig 1e-6 --suggestive none -f manhattan.png
+```
+
+A p-value below about 1e-308 is stored as 0, which plots as -log10(p) = 323 with a warning. A chi-squared column gives the true value however small p is (`--chi2df`, default 1, a number or a column), and `--mlogpcol` takes a column that already holds -log10(p), such as regenie's `LOG10P`:
+
+```bash
+dftk dataset gwas -o | dftk manhattan --chi2col Chisq -f manhattan.png
+```
+
+Points with p > 0.01 are thinned to one per cell of a grid finer than the figure (`--no-thin` draws all), and points are rasterized: ten million variants take a few seconds and a PDF stays small. `--ylim LO HI` caps the axis, with points above it drawn as triangles on the top edge. Several scans in one table: `--subgraphcol study` draws a panel each, `-g study` a colour each.
 
 ### Bootstrap confidence intervals
 
