@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.19.0] — 2026-11-12
 
 ### Added
 - `qq`: QQ plot of p-values, observed against expected -log10(p) with the y = x line, a pointwise confidence band (`--ci`, default 0.95, from the Beta distribution of each rank; `--no-ci`) and the genomic inflation factor λ (median chi-squared over its null median) on the plot and in the log (`--no-lambda`). The p-values come as in `manhattan`: `Pval`, `--pcol`, `--mlogpcol` or `--chi2col` with `--chi2df` (λ on that df). `-g` gives one curve and λ per group (studies, allele-frequency bins), `--subgraphcol` a panel each; `--ylim` caps the axis with triangles on the top edge; points with p > 0.01 are thinned (`--no-thin`). Ten million p-values take about 4 s.
