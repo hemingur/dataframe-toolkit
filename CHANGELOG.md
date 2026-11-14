@@ -7,6 +7,9 @@
 - `manhattan --logy [T]` and `qq --logy [T]`: the y axis is linear up to -log10(p) = T (default 10) and logarithmic above it, so a peak at 300 and one at 8 both show. Ticks at 1, 2 and 5 times each power of ten, or only the powers on a tall axis.
 - `manhattan --sigcolor COLOUR`: points past the `--sig` line in that colour.
 
+### Changed
+- `manhattan`, `qq`, `scat`, `line`, `hist` and `chi` load only the parquet columns they use, from a named file or a `-o` pipe. On a 10-million-row, 13-column regenie-style file, `manhattan` takes 12.5 s and 1.6 GB instead of 16.5 s and 3.5 GB, and `qq` 1.0 GB instead of 2.7 GB; the plots are byte-identical. `manhattan` and `qq` find their columns (`CHR`, `P`, `LOG10P`, …) from the file's schema first. With `--prequery`, which can use any column, every column is still read; TSV input is unchanged.
+
 ## [0.19.0] — 2026-11-12
 
 ### Added

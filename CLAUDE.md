@@ -120,6 +120,10 @@ def execute(self, args):
   out of `common/*.py` modules that light commands use (`io.py`, `seq.py`), and in a command that needs one only
   for some options, import it inside the function that uses it (see `evalfuncs.special_function`).
   `tests/test_cli.py::TestLazyImportsCLI` fails if a light command starts importing one of them.
+- **Plots read only the parquet columns they use**: a plot (or another command that only reads) calls
+  `io.read(args, columns=option_columns(args))`, which loads the columns its options name; `manhattan` / `qq`
+  add the ones they find by alias (`gwas_columns`). Commands that need columns no option names (`heatmap`
+  wide mode, `pairs` without `-c`) read everything. `tests/commands/test_plot_columns.py` checks each one.
 - **File naming**: all command modules are `<name>_cmd.py` (e.g. `stat_cmd.py`, not `stat.py`).
 - **TSV I/O**: `io.printdf` writes NaN as empty string (trailing tab). Test helpers must convert `""` → `float("nan")` when parsing TSV output.
 - **groupby keys**: `df.groupby(["col"])` with a list always returns tuple keys even for a single column. Use the same groupby call on both sides so keys match directly.
