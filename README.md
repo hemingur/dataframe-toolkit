@@ -454,7 +454,16 @@ A p-value below about 1e-308 is stored as 0, which plots as -log10(p) = 323 with
 dftk dataset gwas -o | dftk manhattan --chi2col Chisq -f manhattan.png
 ```
 
-Points with p > 0.01 are thinned to one per cell of a grid finer than the figure (`--no-thin` draws all), and points are rasterized: ten million variants take a few seconds and a PDF stays small. `--ylim LO HI` caps the axis, with points above it drawn as triangles on the top edge. Several scans in one table: `--subgraphcol study` draws a panel each, `-g study` a colour each.
+Points with p > 0.01 are thinned to one per cell of a grid finer than the figure (`--no-thin` draws all), and points are rasterized: ten million variants take a few seconds and a PDF stays small. `--ylim LO HI` caps the axis, with points above it drawn as triangles on the top edge. `--logy` instead keeps every peak: the axis is linear up to -log10(p) = 10 and logarithmic above it (`--logy 5` moves the switch), so a peak at 380 and one at 8 both show. `--sigcolor red` colours the points past the `--sig` line.
+
+Several scans in one table: `--subgraphcol study` draws a panel each, `-g study` a colour each, and `--miami study` draws two of them face to face (a Miami plot), the first above the axis and the second mirrored below it. The column must hold two values, or name the two to draw (`--miami study a b`, top first). Here the second scan is the example one with every chi-squared halved:
+
+```bash
+dftk dataset gwas -o \
+    | dftk eval -f "half = Chisq / 2" --select Chr pos Chisq half -o \
+    | dftk melt -i Chr pos -d study -v chi2 -o \
+    | dftk manhattan --chi2col chi2 --miami study --sigcolor red -f miami.png
+```
 
 `qq` plots the same p-values (same column options, no chromosome or position needed) against what null tests would give, with a 95 % band (`--ci`) and the genomic inflation factor λ, the median chi-squared over its null median. A curve lifted off the diagonal from the start, λ above about 1.05, points to stratification or other inflation; a few points leaving it at the top are associations. With `-g`, each group gets its own curve and λ:
 
@@ -462,6 +471,8 @@ Points with p > 0.01 are thinned to one per cell of a grid finer than the figure
 dftk dataset gwas -o | dftk qq -f qq.png
 dftk dataset gwas -o | dftk eval -f "Chisq = Chisq * 1.15" -o | dftk qq --chi2col Chisq -f qq.png
 ```
+
+`qq --logy` makes its y axis linear up to 10 and logarithmic above, as in `manhattan`.
 
 ### Bootstrap confidence intervals
 

@@ -18,7 +18,7 @@ import argparse
 import numpy as np
 
 from dftk.commands.base import BaseCommand
-from dftk.common.io import check_cols, io
+from dftk.common.io import check_cols, io, option_columns
 from dftk.common.plot import (
     add_figure_arguments,
     add_group_arguments,
@@ -281,7 +281,7 @@ class HistCommand(BaseCommand):
         )
 
     def execute(self, args: argparse.Namespace) -> None:
-        df = io.read(args)
+        df = io.read(args, columns=option_columns(args))
         check_cols(df, [args.xcol], "-x/--xcol")
         check_cols(df, args.groupcol, "-g/--groupcol")
         check_cols(df, args.subgraphcol, "--subgraphcol")

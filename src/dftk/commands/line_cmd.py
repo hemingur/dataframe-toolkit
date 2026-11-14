@@ -20,7 +20,7 @@ import matplotlib.lines as mlines
 import numpy as np
 
 from dftk.commands.base import BaseCommand
-from dftk.common.io import check_cols, io
+from dftk.common.io import check_cols, io, option_columns
 from dftk.common.plot import (
     add_figure_arguments,
     add_group_arguments,
@@ -288,7 +288,7 @@ class LineCommand(BaseCommand):
         if not args.xcol or not args.ycol:
             raise ValueError("--xcol (-x) and --ycol (-y) are required.")
 
-        df = io.read(args)
+        df = io.read(args, columns=option_columns(args))
         check_cols(df, [args.xcol, args.ycol], "-x/-y")
         check_cols(df, args.groupcol, "-g/--groupcol")
         check_cols(df, args.subgraphcol, "--subgraphcol")
