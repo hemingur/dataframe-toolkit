@@ -18,6 +18,7 @@ from dftk.commands.base import BaseCommand
 from dftk.commands.manhattan_cmd import (
     add_gwas_column_arguments,
     float_or,
+    log_yaxis,
     scatter_capped,
 )
 from dftk.common import gwas
@@ -74,6 +75,11 @@ From a chi-squared column, here inflated by 15 % (lambda 1.02 → 1.18):
 Cap the y axis; points above it are drawn as triangles on the top edge:
 
   dftk dataset gwas -o | dftk qq --ylim 0 20 -f qq.png
+
+Or log-scale it above -log10(p) = 10, so the strongest hits and the bulk
+both show:
+
+  dftk dataset gwas -o | dftk qq --chi2col Chisq --logy -f qq.png
 
 Several scans (a study column), or one scan split by allele-frequency bin:
 one curve and one lambda each with -g, or a panel each with --subgraphcol:
@@ -144,7 +150,9 @@ def _draw(ax, data: pd.DataFrame, args, groupcols=None) -> None:
         n = max(len(c[2]) for c in curves)
         bx, blo, bhi = gwas.qq_band(n, args.ci)
         ax.fill_between(bx, blo, bhi, color=_BAND_COLOUR, alpha=0.5, lw=0, zorder=0)
-    ax.plot([0, xmax], [0, xmax], color="black", lw=0.8, zorder=1)
+    # many vertices, so the diagonal bends correctly on a --logy axis
+    diag = np.linspace(0, xmax, 200)
+    ax.plot(diag, diag, color="black", lw=0.8, zorder=1)
 
     for n, (label, exp, obs, lam) in enumerate(curves):
         logger.info(
@@ -172,6 +180,8 @@ def _draw(ax, data: pd.DataFrame, args, groupcols=None) -> None:
 
     ax.set_xlim(0, xmax)
     ax.set_ylim(lo, hi)
+    if args.logy is not None:
+        log_yaxis(ax, args.logy, lo, hi)
     ax.spines[["top", "right"]].set_visible(False)
     ax.set_xlabel(
         args.xlabel if args.xlabel is not None else r"Expected $-\log_{10}(p)$"
@@ -208,6 +218,15 @@ class QqCommand(BaseCommand):
             dest="show_lambda",
             action="store_false",
             help="Don't write lambda on the plot (it is still logged).",
+        )
+        g.add_argument(
+            "--logy",
+            nargs="?",
+            type=float,
+            const=10.0,
+            metavar="T",
+            help="Log scale above observed -log10(p) = T, linear below it "
+            "(default T: 10).",
         )
         g.add_argument(
             "--no-thin",
@@ -248,6 +267,8 @@ class QqCommand(BaseCommand):
         add_legend_arguments(parser)
 
     def execute(self, args: argparse.Namespace) -> None:
+        if args.logy is not None and args.logy <= 0:
+            raise ValueError(f"--logy must be above 0, not {args.logy:g}.")
         if args.ci is not None and not 0 < args.ci < 1:
             raise ValueError(f"--ci must be between 0 and 1, not {args.ci}.")
         df = io.read(args)
