@@ -18,6 +18,7 @@ from dftk.commands.base import BaseCommand
 from dftk.commands.manhattan_cmd import (
     add_gwas_column_arguments,
     float_or,
+    gwas_columns,
     log_yaxis,
     scatter_capped,
 )
@@ -271,7 +272,7 @@ class QqCommand(BaseCommand):
             raise ValueError(f"--logy must be above 0, not {args.logy:g}.")
         if args.ci is not None and not 0 < args.ci < 1:
             raise ValueError(f"--ci must be between 0 and 1, not {args.ci}.")
-        df = io.read(args)
+        df = io.read(args, columns=gwas_columns(args, position=False))
         check_cols(df, args.groupcol, "-g/--groupcol")
         check_cols(df, args.subgraphcol, "--subgraphcol")
         data = qq_table(df, args)

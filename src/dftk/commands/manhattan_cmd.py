@@ -17,7 +17,7 @@ import pandas as pd
 
 from dftk.commands.base import BaseCommand
 from dftk.common import gwas
-from dftk.common.io import check_cols, io
+from dftk.common.io import check_cols, io, option_columns
 from dftk.common.plot import (
     WONG_PALETTE,
     add_figure_arguments,
@@ -158,6 +158,18 @@ def add_gwas_column_arguments(
         metavar="N|COL",
         help="Degrees of freedom of --chi2col: a number or a column (default: 1).",
     )
+
+
+def gwas_columns(args: argparse.Namespace, position: bool = True):
+    """columns= for io.read: the chromosome, position and p-value columns
+    (found as gwas_table will find them) and the ones options name."""
+    named = option_columns(args)
+
+    def pick(names: list[str]) -> list[str] | None:
+        found = gwas.needed_columns(names, args, position)
+        return None if found is None else found + named(names)
+
+    return pick
 
 
 def gwas_table(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
@@ -531,7 +543,7 @@ class ManhattanCommand(BaseCommand):
         add_legend_arguments(parser)
 
     def execute(self, args: argparse.Namespace) -> None:
-        df = io.read(args)
+        df = io.read(args, columns=gwas_columns(args, position=True))
         check_cols(df, args.groupcol, "-g/--groupcol")
         check_cols(df, args.subgraphcol, "--subgraphcol")
         if args.miami and args.groupcol:

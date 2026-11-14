@@ -104,9 +104,51 @@ def _warn_noheader_parquet(args: argparse.Namespace) -> None:
         )
 
 
-def _read_pipe_parquet(path: str) -> pd.DataFrame:
+def _parquet_columns(path: str, columns) -> list[str] | None:
+    """The columns to load from the parquet file *path*; None for all.
+
+    *columns* is a list of names, or a function that gets the file's column
+    names and returns the ones to load (or None for all).  Names the file
+    doesn't have are dropped, so the command's own "column not found"
+    error stays the same.
+    """
+    if columns is None:
+        return None
+    import pyarrow.parquet as pq
+
+    names = pq.read_schema(path).names
+    want = columns(names) if callable(columns) else columns
+    if want is None:
+        return None
+    present = set(names)
+    keep = [c for c in dict.fromkeys(want) if c in present]
+    logging.debug("Reading %d of %d parquet columns: %s", len(keep), len(names), keep)
+    return keep
+
+
+def option_columns(args: argparse.Namespace, *more: str | None):
+    """columns= for io.read: the columns some option of *args* names.
+
+    Every string among the option values (and in lists of them) that is a
+    column of the file, plus *more*.  A value that only happens to match a
+    column name (a title, say) just loads one column more.
+    """
+
+    def strings(value):
+        if isinstance(value, str):
+            yield value
+        elif isinstance(value, (list, tuple)):
+            for item in value:
+                yield from strings(item)
+
+    said = {s for v in vars(args).values() for s in strings(v)}
+    said.update(m for m in more if m is not None)
+    return lambda names: [n for n in names if n in said]
+
+
+def _read_pipe_parquet(path: str, columns=None) -> pd.DataFrame:
     """Read the parquet file *path* named on stdin; delete it if it's dftk's temp."""
-    df = pd.read_parquet(path)
+    df = pd.read_parquet(path, columns=_parquet_columns(path, columns))
     df.attrs["_parquet_meta"] = _read_parquet_meta(path)
     if _is_temp_pipe_path(path):
         try:
@@ -353,8 +395,14 @@ class io:
         return parser
 
     @staticmethod
-    def read(args: argparse.Namespace) -> pd.DataFrame:
-        """Read a dataframe from the source described in *args*."""
+    def read(args: argparse.Namespace, columns=None) -> pd.DataFrame:
+        """Read a dataframe from the source described in *args*.
+
+        *columns*, for parquet input only: the columns to load, as a list or
+        as a function of the file's column names (see option_columns).  The
+        rest are never read.  Ignored with --prequery, whose expressions
+        can use any column, and for text input, which is read whole anyway.
+        """
 
         filename: str | None = getattr(args, "DATAFILE", None)
         backend: str = getattr(args, "backend", "pandas")
@@ -363,6 +411,8 @@ class io:
         header: int | None = None if noheader else 0
         readasobject = getattr(args, "readasobject", None)
         prequery: list[str] = getattr(args, "prequery", [])
+        if prequery:
+            columns = None
 
         dtype = None
         if readasobject is not None:
@@ -436,7 +486,7 @@ class io:
                 rest = stream.read()
                 if not rest.strip():
                     _warn_noheader_parquet(args)
-                    return _read_pipe_parquet(path)
+                    return _read_pipe_parquet(path, columns)
                 stream = _io.BytesIO(rest)
             if backend == "duckdb" and duckdb is not None:
                 return _spooled_csv_with_duckdb(first, stream)
@@ -460,7 +510,7 @@ class io:
                     f"'...' expects a .parquet path on stdin, got {pipe_path!r}"
                 )
             _warn_noheader_parquet(args)
-            df = _read_pipe_parquet(pipe_path)
+            df = _read_pipe_parquet(pipe_path, columns)
 
         elif filename is not None and filename != "-":
             # Named file
@@ -473,7 +523,9 @@ class io:
                 )
             if filename.endswith(".parquet"):
                 _warn_noheader_parquet(args)
-                df = pd.read_parquet(filename)
+                df = pd.read_parquet(
+                    filename, columns=_parquet_columns(filename, columns)
+                )
                 df.attrs["_parquet_meta"] = _read_parquet_meta(filename)
             elif os.path.exists(filename) and not os.path.isfile(filename):
                 # A pipe, e.g. <(grep -v '^#' file) or <(dftk CMD -o): it can
