@@ -75,11 +75,28 @@ as triangles on the top edge:
 
   dftk dataset gwas -o | dftk manhattan --ylim 0 40 -f manhattan.png
 
+Or log-scale it above -log10(p) = 10 (linear below), so a peak at 380
+and one at 8 both show:
+
+  dftk dataset gwas -o | dftk manhattan --chi2col Chisq --logy -f manhattan.png
+
 Several scans in one table (a study column): one panel each, or one colour
 each with -g:
 
   dftk manhattan all_studies.tsv --subgraphcol study -f manhattan.png
   dftk manhattan all_studies.tsv -g study -f manhattan.png
+
+Two scans face to face (a Miami plot): the first value of the study column
+above the axis, the second mirrored below it; points past --sig in red.
+Here the second scan is the example scan with every chi-squared halved,
+and melt stacks the two columns into one, with a study column:
+
+  dftk dataset gwas -o \
+      | dftk eval -f "half = Chisq / 2" --select Chr pos Chisq half -o \
+      | dftk melt -i Chr pos -d study -v chi2 -o \
+      | dftk manhattan --chi2col chi2 --miami study --sigcolor red -f miami.png
+
+With more than two scans in the column, name the two: --miami study a b.
 
 Publication figure (Nature double column, PDF):
 
@@ -177,9 +194,18 @@ def gwas_table(df: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 
 
-def _ylimits(y: np.ndarray, lines: list[float], args) -> tuple[float, float]:
-    top = max([float(np.max(y)) if y.size else 1.0, *lines, 1.0]) * 1.05
-    lo, hi = 0.0, top
+def _ylimits(
+    y: np.ndarray, lines: list[float], args, top: np.ndarray | None = None
+) -> tuple[float, float]:
+    """Axis limits; with *top* (Miami), the lower half's limit is negative."""
+
+    def _peak(v):
+        return max([float(np.max(v)) if v.size else 1.0, *lines, 1.0]) * 1.05
+
+    if top is None:
+        lo, hi = 0.0, _peak(y)
+    else:
+        lo, hi = -_peak(-y[~top]), _peak(y[top])
     if args.ylim is not None:
         lo = float_or(args.ylim[0], lo)
         hi = float_or(args.ylim[1], hi)
@@ -193,25 +219,69 @@ def float_or(s, fallback: float) -> float:
         return fallback
 
 
-def scatter_capped(ax, x, y, hi, args, colours=None, **kw):
-    """Points below *hi*, and triangles on the top edge for those above it.
+def scatter_capped(ax, x, y, hi, args, colours=None, lo=None, **kw):
+    """Points within the axis, and triangles on its edge for those beyond it.
 
-    *colours*: one colour per point (alternating chromosomes), or None to
-    use kw["color"].
+    Points above *hi* go on the top edge (pointing up); with *lo* (a Miami
+    plot's lower half), points below it go on the bottom edge (pointing
+    down).  *colours*: one colour per point (alternating chromosomes), or
+    None to use kw["color"].
     """
     over = y > hi
+    under = y < lo if lo is not None else np.zeros(len(y), dtype=bool)
+    inside = ~over & ~under
     size = args.markersize
     common = dict(alpha=args.alpha, linewidths=0, **kw)
     ax.scatter(
-        x[~over], y[~over], s=size, rasterized=True,
-        c=None if colours is None else colours[~over], **common,
+        x[inside], y[inside], s=size, rasterized=True,
+        c=None if colours is None else colours[inside], **common,
     )  # fmt: skip
-    if over.any():
-        common.pop("label", None)
-        ax.scatter(
-            x[over], np.full(over.sum(), hi), s=size * 4, marker="^",
-            clip_on=False, c=None if colours is None else colours[over], **common,
-        )  # fmt: skip
+    common.pop("label", None)
+    for mask, edge, marker in ((over, hi, "^"), (under, lo, "v")):
+        if mask.any():
+            ax.scatter(
+                x[mask], np.full(mask.sum(), edge), s=size * 4, marker=marker,
+                clip_on=False, c=None if colours is None else colours[mask],
+                **common,
+            )  # fmt: skip
+
+
+def log_yaxis(ax, linthresh: float, lo: float, hi: float) -> None:
+    """Symmetric-log y axis: linear up to *linthresh*, log10 above it.
+
+    Ticks: a few on the linear part, then 1, 2, 5 times each power of ten
+    (only the powers when that would crowd the axis); the same below zero
+    for a Miami plot.  Labels as plain numbers without signs.
+    """
+    from matplotlib.ticker import MaxNLocator, NullLocator
+
+    ax.set_yscale("symlog", linthresh=linthresh, linscale=1.0)
+    top = max(hi, -lo)
+    lin = MaxNLocator(nbins=3, steps=[1, 2, 2.5, 5, 10]).tick_values(0, linthresh)
+    pos = {float(t) for t in lin if 0 <= t <= linthresh}
+    k0 = int(np.floor(np.log10(linthresh)))
+    k1 = int(np.ceil(np.log10(max(top, linthresh))))
+    for mults in ((1, 2, 5), (1,)):
+        log = {
+            m * 10.0**k
+            for k in range(k0, k1 + 1)
+            for m in mults
+            if linthresh < m * 10.0**k <= top
+        }
+        if len(log) <= 6:
+            break
+    pos |= log
+    ticks = sorted(pos | {-t for t in pos})
+    ax.set_yticks([t for t in ticks if lo <= t <= hi])
+    ax.yaxis.set_minor_locator(NullLocator())
+    _abs_ticks(ax)
+
+
+def _abs_ticks(ax) -> None:
+    """Y tick labels without the minus sign (a Miami plot's lower half)."""
+    from matplotlib.ticker import FuncFormatter
+
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{abs(v):g}"))
 
 
 def _draw(ax, data: pd.DataFrame, layout, args, groupcols=None) -> None:
@@ -219,18 +289,27 @@ def _draw(ax, data: pd.DataFrame, layout, args, groupcols=None) -> None:
     x = data["_x"].to_numpy()
     y = data["_y"].to_numpy()
     lines = [-np.log10(p) for p in (args.sig, args.suggestive) if p is not None]
-    lo, hi = _ylimits(y, lines, args)
+
+    # Miami: the second trait is drawn below the axis, at -(-log10 p)
+    top = None
+    if args.miami:
+        top = (data["_half"] == 0).to_numpy()
+        y = np.where(top, y, -y)
+    lo, hi = _ylimits(y, lines, args, top)
 
     groups = None
     if groupcols:
         groups = data[groupcols].astype(str).agg("\t".join, axis=1).to_numpy()
+    elif top is not None:
+        groups = top
     keep = (
-        gwas.thin_mask(x, y, groups=groups)
+        gwas.thin_mask(x, np.abs(y), groups=groups)
         if args.thin
         else np.ones(len(x), dtype=bool)
     )
     if args.thin and (~keep).any():
         logger.info("Thinned %d of %d points (p > 0.01)", int((~keep).sum()), len(x))
+    floor = lo if top is not None else None
 
     if groupcols:
         # with colours used for groups, grey bands tell the chromosomes apart
@@ -253,23 +332,38 @@ def _draw(ax, data: pd.DataFrame, layout, args, groupcols=None) -> None:
             markerscale=3,
         )
     else:
-        colours = np.array(args.colors)[data["_cidx"].to_numpy() % len(args.colors)]
+        colours = np.array(args.colors, dtype=object)[
+            data["_cidx"].to_numpy() % len(args.colors)
+        ]
+        if args.sigcolor and args.sig is not None:
+            colours[np.abs(y) >= -np.log10(args.sig)] = args.sigcolor
         scatter_capped(
-            ax, x[keep], y[keep], hi, args, colours=colours[keep], zorder=2,
-            label=args.legend,
+            ax, x[keep], y[keep], hi, args, colours=colours[keep], lo=floor,
+            zorder=2, label=args.legend,
         )  # fmt: skip
         if args.legend:
             ax.legend(loc=tuple(args.legendloc) if args.legendloc else "best")
 
-    if args.sig is not None:
-        ax.axhline(-np.log10(args.sig), color=_SIG_COLOUR, lw=0.8, ls="--", zorder=3)
-    if args.suggestive is not None:
-        ax.axhline(
-            -np.log10(args.suggestive), color=_SUGGESTIVE_COLOUR, lw=0.8, ls=":",
-            zorder=3,
-        )  # fmt: skip
+    signs = (1, -1) if top is not None else (1,)
+    for p, colour, style in (
+        (args.sig, _SIG_COLOUR, "--"),
+        (args.suggestive, _SUGGESTIVE_COLOUR, ":"),
+    ):
+        if p is not None:
+            for sign in signs:
+                ax.axhline(
+                    sign * -np.log10(p), color=colour, lw=0.8, ls=style, zorder=3
+                )
 
     ax.set_ylim(lo, hi)
+    if args.logy is not None:
+        log_yaxis(ax, args.logy, lo, hi)
+    if top is not None:
+        ax.axhline(0, color="black", lw=0.6, zorder=3)
+        _abs_ticks(ax)
+        upper, lower = args.miami_names
+        ax.text(0.01, 0.98, upper, transform=ax.transAxes, ha="left", va="top")
+        ax.text(0.01, 0.02, lower, transform=ax.transAxes, ha="left", va="bottom")
     pad = _gap(bounds)
     ax.set_xlim(bounds[0][0] - pad, bounds[-1][1] + pad)
     ax.set_xticks(centres)
@@ -278,6 +372,46 @@ def _draw(ax, data: pd.DataFrame, layout, args, groupcols=None) -> None:
     ax.spines[["top", "right"]].set_visible(False)
     ax.set_xlabel(args.xlabel if args.xlabel is not None else "Chromosome")
     ax.set_ylabel(args.ylabel if args.ylabel is not None else r"$-\log_{10}(p)$")
+
+
+def miami_halves(data: pd.DataFrame, spec: list[str]) -> tuple[pd.DataFrame, list]:
+    """Add _half (0 above the axis, 1 below) from --miami COL [UPPER LOWER].
+
+    With COL alone it must hold exactly two values, the first one in the
+    table drawn above; with UPPER and LOWER, rows with other values are
+    left out.
+    """
+    col, *names = spec
+    check_cols(data, [col], "--miami")
+    if len(names) not in (0, 2):
+        raise ValueError(
+            "--miami takes a column, or a column and the two values to draw "
+            f"(above, below), not {len(spec)} arguments."
+        )
+    values = data[col].astype(str)
+    if names:
+        found = set(values)
+        missing = [n for n in names if n not in found]
+        if missing:
+            raise ValueError(
+                f"--miami: {missing} not in column {col!r}; it holds "
+                f"{sorted(found)[:10]}"
+            )
+        if names[0] == names[1]:
+            raise ValueError("--miami: the two values must differ.")
+    else:
+        names = list(pd.unique(values))
+        if len(names) != 2:
+            raise ValueError(
+                f"--miami: column {col!r} holds {len(names)} values, not 2; "
+                f"name the two to draw: --miami {col} UPPER LOWER"
+            )
+    keep = values.isin(names).to_numpy()
+    if not keep.all():
+        logger.info("--miami: left out %d rows of other values", int((~keep).sum()))
+    out = data[keep].copy()
+    out["_half"] = (values[keep] == names[1]).astype(int).to_numpy()
+    return out, names
 
 
 def _gap(bounds) -> float:
@@ -327,10 +461,33 @@ class ManhattanCommand(BaseCommand):
             help="Suggestive line, as a p-value (default: 1e-5).",
         )
         g.add_argument(
+            "--miami",
+            nargs="+",
+            metavar="COL",
+            help="Two scans in one plot, the second mirrored below the axis "
+            "(a Miami plot): --miami COL [UPPER LOWER].  COL alone must hold two "
+            "values, the first drawn above; or name the two to draw.",
+        )
+        g.add_argument(
+            "--logy",
+            nargs="?",
+            type=float,
+            const=10.0,
+            metavar="T",
+            help="Log scale above -log10(p) = T, linear below it (default T: 10), "
+            "so a peak of 300 and one of 10 both show.",
+        )
+        g.add_argument(
             "--no-thin",
             dest="thin",
             action="store_false",
             help="Draw every point (default: thin points with p > 0.01).",
+        )
+        g.add_argument(
+            "--sigcolor",
+            metavar="COLOUR",
+            help="Colour for points past the --sig line (default: the "
+            "chromosome colours; not with -g).",
         )
         g.add_argument(
             "--colors",
@@ -364,11 +521,12 @@ class ManhattanCommand(BaseCommand):
             nargs=2,
             metavar=("LO", "HI"),
             help="Y-axis limits in -log10(p); points above HI are drawn as "
-            "triangles on the top edge.",
+            "triangles on the top edge.  With --miami the lower half is "
+            "negative: --ylim -30 30.",
         )
 
         add_figure_arguments(parser)
-        parser.set_defaults(size="12x4")
+        parser.set_defaults(size=None)
         add_group_arguments(parser)
         add_legend_arguments(parser)
 
@@ -376,7 +534,15 @@ class ManhattanCommand(BaseCommand):
         df = io.read(args)
         check_cols(df, args.groupcol, "-g/--groupcol")
         check_cols(df, args.subgraphcol, "--subgraphcol")
+        if args.miami and args.groupcol:
+            raise ValueError("--miami and -g/--groupcol can't be combined.")
+        if args.logy is not None and args.logy <= 0:
+            raise ValueError(f"--logy must be above 0, not {args.logy:g}.")
+        if args.size is None:
+            args.size = "12x6" if args.miami else "12x4"
         data = gwas_table(df, args)
+        if args.miami:
+            data, args.miami_names = miami_halves(data, args.miami)
 
         x, centres, labels, bounds = gwas.genome_positions(data["_chrom"], data["_pos"])
         data["_x"] = x

@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- `manhattan --miami COL [UPPER LOWER]`: two scans in one plot, the second mirrored below the axis (a Miami plot). COL holds two values, the first in the table drawn above, or name the two to draw (other rows are left out). The threshold lines are drawn on both sides, the tick labels have no minus sign, and the scan names are written in the corners. `--ylim -30 40` caps the lower half at 30 (triangles pointing down) and the upper at 40. Works with `--subgraphcol`, not with `-g`. The default size is 12x6 instead of 12x4.
+- `manhattan --logy [T]` and `qq --logy [T]`: the y axis is linear up to -log10(p) = T (default 10) and logarithmic above it, so a peak at 300 and one at 8 both show. Ticks at 1, 2 and 5 times each power of ten, or only the powers on a tall axis.
+- `manhattan --sigcolor COLOUR`: points past the `--sig` line in that colour.
+
 ## [0.19.0] — 2026-11-12
 
 ### Added
