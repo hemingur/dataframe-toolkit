@@ -163,3 +163,17 @@ class TestExecute:
 
         fig = _run(tmp_path, simulate_gwas(), "--chi2col", "Chisq")
         assert float(_texts(fig)[0].split("= ")[1]) < 1.05
+
+
+class TestLogy:
+    def test_symlog_axis(self, tmp_path, null):
+        df = pd.concat([null, pd.DataFrame({"Pval": [1e-60]})])
+        fig = _run(tmp_path, df, "--logy")
+        ax = fig.axes[0]
+        assert ax.get_yscale() == "symlog"
+        assert 50 in ax.get_yticks()
+        assert ax.yaxis.get_major_formatter()(50, 0) == "50"
+
+    def test_bad_threshold(self, tmp_path, null):
+        with pytest.raises(ValueError, match="--logy"):
+            _run(tmp_path, null, "--logy", "-1")
