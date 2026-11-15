@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.20.0] — 2026-11-15
 
 ### Added
 - `manhattan --miami COL [UPPER LOWER]`: two scans in one plot, the second upside down under the first (a Miami plot). COL holds two values, the first in the table drawn above, or name the two to draw (other rows are left out). The lower scan is drawn upside down under the upper one, on the same scale, with the chromosome numbers in a gap between them; each half has its threshold lines and its scan's name in the corner. `--ylim -30 40` caps the lower half at 30 (triangles pointing down) and the upper at 40. Works with `--subgraphcol`, not with `-g`. The default size is 12x6 instead of 12x4.
