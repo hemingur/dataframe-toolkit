@@ -549,3 +549,89 @@ class TestHeaderOptions:
     def test_noheader_with_tsv_does_not_warn(self, headerless, caplog):
         io.read(make_args(DATAFILE=str(headerless), noheader=True))
         assert "no effect" not in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# columns=: load only some parquet columns
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def parquet_reads(monkeypatch):
+    """Record the columns= of every pd.read_parquet call."""
+    calls = []
+    orig = pd.read_parquet
+
+    def _spy(path, *a, columns=None, **kw):
+        calls.append(columns)
+        return orig(path, *a, columns=columns, **kw)
+
+    monkeypatch.setattr(pd, "read_parquet", _spy)
+    return calls
+
+
+@pytest.fixture
+def wide(tmp_path):
+    path = tmp_path / "wide.parquet"
+    pd.DataFrame({"a": [1, 2], "b": [3.0, 4.0], "c": ["x", "y"]}).to_parquet(path)
+    return str(path)
+
+
+class TestReadColumns:
+    def test_named_file(self, wide, parquet_reads):
+        df = io.read(make_args(DATAFILE=wide), columns=["c", "a"])
+        assert list(df.columns) == ["c", "a"]
+        assert parquet_reads == [["c", "a"]]
+
+    def test_pipe_file(self, wide, monkeypatch, parquet_reads):
+        stdin = SimpleNamespace(buffer=_io.BytesIO(f"{wide}\n".encode()))
+        monkeypatch.setattr("sys.stdin", stdin)
+        df = io.read(make_args(), columns=["b"])
+        assert list(df.columns) == ["b"] and df["b"].tolist() == [3.0, 4.0]
+
+    def test_function_of_the_names(self, wide, parquet_reads):
+        seen = []
+        df = io.read(
+            make_args(DATAFILE=wide),
+            columns=lambda names: seen.append(names) or names[1:],
+        )
+        assert seen == [["a", "b", "c"]]
+        assert list(df.columns) == ["b", "c"]
+
+    def test_function_returning_none_reads_all(self, wide):
+        df = io.read(make_args(DATAFILE=wide), columns=lambda names: None)
+        assert list(df.columns) == ["a", "b", "c"]
+
+    def test_unknown_names_dropped(self, wide, parquet_reads):
+        df = io.read(make_args(DATAFILE=wide), columns=["nosuch", "a", "a"])
+        assert list(df.columns) == ["a"]
+
+    def test_prequery_reads_all(self, wide, parquet_reads):
+        df = io.read(make_args(DATAFILE=wide, prequery=["b > 3"]), columns=["a"])
+        assert list(df.columns) == ["a", "b", "c"] and len(df) == 1
+        assert parquet_reads == [None]
+
+    def test_metadata_kept(self, tmp_path):
+        from dftk.common.io import _write_parquet
+
+        path = str(tmp_path / "m.parquet")
+        _write_parquet(pd.DataFrame({"a": [1], "b": [2]}), path, {"k": "v"})
+        df = io.read(make_args(DATAFILE=path), columns=["b"])
+        assert df.attrs["_parquet_meta"] == {"k": "v"}
+
+    def test_tsv_ignores_columns(self, tmp_path):
+        path = tmp_path / "t.tsv"
+        path.write_text("a\tb\n1\t2\n")
+        df = io.read(make_args(DATAFILE=str(path)), columns=["a"])
+        assert list(df.columns) == ["a", "b"]
+
+
+class TestOptionColumns:
+    def test_strings_and_lists(self):
+        from argparse import Namespace
+
+        from dftk.common.io import option_columns
+
+        args = Namespace(xcol="x", groupcol=["g", "h"], title="T", n=3, ylim=None)
+        pick = option_columns(args, "extra", None)
+        assert pick(["x", "y", "g", "h", "extra", "T"]) == ["x", "g", "h", "extra", "T"]

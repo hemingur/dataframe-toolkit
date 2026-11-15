@@ -135,19 +135,18 @@ def neglogp_from_chi2(chi2: pd.Series | np.ndarray, df) -> np.ndarray:
     return chi2_neglogp_array(np.asarray(chi2, dtype=float), df)
 
 
-def resolve_neglogp(
+def p_source(
     data: pd.DataFrame,
     pcol: str | None = None,
     mlogpcol: str | None = None,
     chi2col: str | None = None,
-    chi2df: str | float = 1,
-) -> tuple[np.ndarray, str]:
-    """Return (-log10(p) values, source column) from whichever column is given.
+) -> tuple[str, str]:
+    """Return (kind, column) of the p-values: kind is "p", "mlogp" or "chi2".
 
     At most one of *pcol*, *mlogpcol* and *chi2col* may be given.  With none,
     look for ``Pval`` (or a p-value spelling), then a -log10(p) spelling
-    (regenie's ``LOG10P``), then a chi-squared one.  *chi2df* is a number or
-    the name of a column holding each row's degrees of freedom.
+    (regenie's ``LOG10P``), then a chi-squared one.  Only the column names
+    of *data* are used, so an empty frame with the file's columns will do.
     """
     given = [o for o in (pcol, mlogpcol, chi2col) if o is not None]
     if len(given) > 1:
@@ -186,14 +185,59 @@ def resolve_neglogp(
                 )
 
     if pcol is not None:
-        return neglogp_from_p(data[pcol]), pcol
+        return "p", pcol
     if mlogpcol is not None:
         find_column(data, mlogpcol, mlogpcol, (), "--mlogpcol")
-        return check_neglogp(data[mlogpcol], mlogpcol), mlogpcol
-
+        return "mlogp", mlogpcol
     find_column(data, chi2col, chi2col, (), "--chi2col")
-    dfs = _chi2_df(data, chi2df)
-    return neglogp_from_chi2(data[chi2col], dfs), chi2col
+    return "chi2", chi2col
+
+
+def resolve_neglogp(
+    data: pd.DataFrame,
+    pcol: str | None = None,
+    mlogpcol: str | None = None,
+    chi2col: str | None = None,
+    chi2df: str | float = 1,
+) -> tuple[np.ndarray, str]:
+    """Return (-log10(p) values, source column) from whichever column is given.
+
+    The column is chosen by p_source.  *chi2df* is a number or the name of a
+    column holding each row's degrees of freedom.
+    """
+    kind, col = p_source(data, pcol, mlogpcol, chi2col)
+    if kind == "p":
+        return neglogp_from_p(data[col]), col
+    if kind == "mlogp":
+        return check_neglogp(data[col], col), col
+    return neglogp_from_chi2(data[col], _chi2_df(data, chi2df)), col
+
+
+def needed_columns(names: list[str], args, position: bool = True) -> list[str] | None:
+    """The columns manhattan / qq need, found from a file's column names.
+
+    Chromosome, position (unless *position* is False) and p-value columns,
+    under the same names the command will pick; the other columns options
+    name (-g, --subgraphcol, --chi2df, --miami) come from io.option_columns.
+    None (read every column) when they can't be found here: the command
+    then reports the problem with the whole table in hand.
+    """
+    frame = pd.DataFrame(columns=names)
+    quiet, logger.disabled = logger.disabled, True  # logged again on the real read
+    try:
+        cols = [p_source(frame, args.pcol, args.mlogpcol, args.chi2col)[1]]
+        if position:
+            cols.append(
+                find_column(frame, args.chrcol, DEFAULT_CHR, CHR_ALIASES, "--chrcol")
+            )
+            cols.append(
+                find_column(frame, args.poscol, DEFAULT_POS, POS_ALIASES, "--poscol")
+            )
+    except ValueError:
+        return None
+    finally:
+        logger.disabled = quiet
+    return cols
 
 
 def _chi2_df(data: pd.DataFrame, chi2df: str | float) -> np.ndarray | float:
