@@ -9,7 +9,7 @@ import tempfile
 import pandas as pd
 import pytest
 
-from dftk.commands.func_cmd import FuncCommand
+from dftk.commands.func_cmd import FuncCommand, _apply_transform
 
 
 @pytest.fixture
@@ -31,6 +31,7 @@ def _run(df, **kwargs):
         DATAFILE=fname,
         groupcol=None,
         destcol=None,
+        xcol=None,
         select=None,
         drop=None,
         move=None,
@@ -330,3 +331,155 @@ class TestValidation:
     def test_default_destcol_qcut(self, df):
         rows = _run(df, col="value", transform="qcut:4")
         assert "value_qcut_4" in rows[0]
+
+
+# ---------------------------------------------------------------------------
+# interpolate / ffill / bfill (issue #15)
+# ---------------------------------------------------------------------------
+
+nan = float("nan")
+
+
+@pytest.fixture
+def sites():
+    """Two sites, unevenly spaced days, rows out of order, gaps at both ends."""
+    return pd.DataFrame(
+        {
+            "site": ["B", "A", "A", "B", "A", "B", "A", "B", "A", "B", "A"],
+            "day": [4, 6, 1, 10, 8, 0, 2, 5, 12, 3, 7],
+            "temp": [nan, 20, 10, 15, 24, nan, nan, nan, nan, 5, nan],
+        }
+    )
+
+
+def _fill(df, transform="interpolate", groupcols=("site",), xcol="day"):
+    out = _apply_transform(
+        df.copy(), "temp", transform, list(groupcols) if groupcols else None,
+        "out", xcol,
+    )  # fmt: skip
+    return out["out"].tolist()
+
+
+def _same(a, b):
+    assert len(a) == len(b)
+    for x, y in zip(a, b, strict=True):
+        if pd.isna(y):
+            assert pd.isna(x)
+        else:
+            assert x == pytest.approx(y)
+
+
+class TestInterpolate:
+    def test_by_x_within_groups_in_file_order(self, sites):
+        # A: day 2 between 1 (10) and 6 (20) -> 12; day 7 -> 22
+        # B: days 4, 5 between 3 (5) and 10 (15) -> 5 + 10/7, 5 + 20/7
+        _same(
+            _fill(sites),
+            [5 + 10 / 7, 20, 10, 15, 24, nan, 12, 5 + 20 / 7, nan, 5, 22],
+        )
+
+    def test_known_values_unchanged(self, sites):
+        out = _fill(sites)
+        known = sites["temp"].notna()
+        assert [o for o, k in zip(out, known, strict=True) if k] == list(
+            sites["temp"][known]
+        )
+
+    def test_no_extrapolation(self, sites):
+        out = _fill(sites)
+        assert pd.isna(out[5])  # B day 0, before B's first value
+        assert pd.isna(out[8])  # A day 12, after A's last value
+
+    def test_groups_do_not_mix(self):
+        df = pd.DataFrame(
+            {"site": ["A", "A", "B", "B"], "day": [1, 2, 3, 4],
+             "temp": [1.0, nan, nan, 100.0]}
+        )  # fmt: skip
+        _same(_fill(df), [1, nan, nan, 100])
+
+    def test_without_xcol_one_step_per_row(self, sites):
+        ordered = sites.sort_values(["site", "day"]).reset_index(drop=True)
+        # A rows: 10, nan, 20, nan, 24, nan -> row steps: 15, 22, end empty
+        out = _fill(ordered, xcol=None)
+        _same(out[:6], [10, 15, 20, 22, 24, nan])
+
+    def test_without_groups(self):
+        df = pd.DataFrame({"day": [0, 1, 4], "temp": [0.0, nan, 8.0]})
+        _same(_fill(df, groupcols=None), [0, 2, 8])
+
+    def test_repeated_x_is_an_error_naming_the_group(self, sites):
+        df = pd.concat([sites, pd.DataFrame({"site": ["B"], "day": [3], "temp": [6]})])
+        with pytest.raises(ValueError, match="site=B"):
+            _fill(df)
+
+    def test_rows_without_x_left_alone(self):
+        df = pd.DataFrame({"day": [0, nan, 2], "temp": [0.0, nan, 2.0]})
+        _same(_fill(df, groupcols=None), [0, nan, 2])
+
+    def test_one_known_value_nothing_to_draw(self):
+        df = pd.DataFrame({"day": [0, 1, 2], "temp": [nan, 5.0, nan]})
+        _same(_fill(df, groupcols=None), [nan, 5, nan])
+
+    def test_text_column_is_an_error(self):
+        df = pd.DataFrame({"day": [0, 1], "temp": ["a", None]})
+        with pytest.raises(ValueError, match="numeric"):
+            _fill(df, groupcols=None)
+
+    def test_text_xcol_is_an_error(self):
+        df = pd.DataFrame({"day": ["a", "b"], "temp": [1.0, nan]})
+        with pytest.raises(ValueError, match="--xcol"):
+            _fill(df, groupcols=None)
+
+    def test_group_with_missing_key(self):
+        df = pd.DataFrame(
+            {"site": [None, None, None], "day": [0, 1, 2], "temp": [0.0, nan, 2.0]}
+        )
+        _same(_fill(df), [0, 1, 2])
+
+
+class TestFfillBfill:
+    def test_ffill_in_x_order(self, sites):
+        # A in day order: 1:10, 2:nan, 6:20, 7:nan, 8:24, 12:nan
+        # B in day order: 0:nan, 3:5, 4:nan, 5:nan, 10:15
+        _same(
+            _fill(sites, "ffill"),
+            [5, 20, 10, 15, 24, nan, 10, 5, 24, 5, 20],
+        )
+
+    def test_bfill_in_x_order(self, sites):
+        _same(
+            _fill(sites, "bfill"),
+            [15, 20, 10, 15, 24, 5, 20, 15, nan, 5, 24],
+        )
+
+    def test_ffill_text(self):
+        df = pd.DataFrame(
+            {"site": ["A", "A", "A"], "day": [3, 1, 2], "temp": [None, "x", None]}
+        )
+        assert _fill(df, "ffill") == ["x", "x", "x"]
+
+    def test_ffill_file_order_without_xcol(self, sites):
+        out = _fill(sites, "ffill", xcol=None)
+        # A rows in file order: 20, 10, 24, nan(day2) <- 24, nan(day12), nan(day7)
+        assert out[6] == 24 and out[8] == 24 and out[10] == 24
+
+
+class TestFillCommand:
+    def test_end_to_end(self, sites):
+        rows = _run(
+            sites, col="temp", transform="interpolate", groupcol=["site"],
+            xcol="day",
+        )  # fmt: skip
+        assert [r["site"] + r["day"] for r in rows] == [
+            f"{s}{d}" for s, d in zip(sites["site"], sites["day"], strict=True)
+        ]
+        assert float(rows[6]["temp_interpolate"]) == pytest.approx(12.0)
+        assert rows[8]["temp_interpolate"] == ""
+
+    def test_xcol_with_other_transform_is_an_error(self, sites):
+        with pytest.raises(ValueError, match="--xcol"):
+            _run(sites, col="temp", transform="cumsum", xcol="day")
+
+    def test_missing_xcol(self, sites):
+        with pytest.raises(ValueError, match="-x/--xcol"):
+            _run(sites, col="temp", transform="interpolate", xcol="nosuch")
