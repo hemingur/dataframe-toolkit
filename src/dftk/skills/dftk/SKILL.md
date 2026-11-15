@@ -152,8 +152,8 @@ correlogram is `corr --all -o | heatmap -x col1 -y col2 -v correlation
 `-g COL`, `--upper corr`), `manhattan` (genome-wide -log10(p); columns
 `Chr`, `pos`, `Pval` by default, `--chi2col COL` when p underflows to 0,
 `--sig`/`--suggestive` lines, points with p > 0.01 thinned, `--logy` log
-scale above 10, `--miami COL [UPPER LOWER]` two scans mirrored about the
-axis), `qq` (QQ plot of p-values with a 95 % band and the genomic inflation
+scale above 10, `--miami COL [UPPER LOWER]` two scans, the second upside
+down below it), `qq` (QQ plot of p-values with a 95 % band and the genomic inflation
 lambda; same p-value options, `-g` one curve and lambda per group, `--logy`). `-g COL`
 overlays groups, `--subgraphcol COL` makes panels.
 

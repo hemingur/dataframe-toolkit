@@ -456,7 +456,7 @@ dftk dataset gwas -o | dftk manhattan --chi2col Chisq -f manhattan.png
 
 Points with p > 0.01 are thinned to one per cell of a grid finer than the figure (`--no-thin` draws all), and points are rasterized: ten million variants take a few seconds and a PDF stays small. `--ylim LO HI` caps the axis, with points above it drawn as triangles on the top edge. `--logy` instead keeps every peak: the axis is linear up to -log10(p) = 10 and logarithmic above it (`--logy 5` moves the switch), so a peak at 380 and one at 8 both show. `--sigcolor red` colours the points past the `--sig` line.
 
-Several scans in one table: `--subgraphcol study` draws a panel each, `-g study` a colour each, and `--miami study` draws two of them face to face (a Miami plot), the first above the axis and the second mirrored below it. The column must hold two values, or name the two to draw (`--miami study a b`, top first). Here the second scan is the example one with every chi-squared halved:
+Several scans in one table: `--subgraphcol study` draws a panel each, `-g study` a colour each, and `--miami study` draws two of them face to face (a Miami plot): the first on top, the second upside down below it, with the chromosome numbers between them. The column must hold two values, or name the two to draw (`--miami study a b`, top first). Here the second scan is the example one with every chi-squared halved:
 
 ```bash
 dftk dataset gwas -o \

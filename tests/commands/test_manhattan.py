@@ -200,42 +200,65 @@ def two_scans():
 
 
 class TestMiami:
-    def test_second_scan_mirrored(self, tmp_path, two_scans, scatters):
+    def test_two_halves_lower_upside_down(self, tmp_path, two_scans, scatters):
         df = two_scans[two_scans["study"] != "c"]
         fig = _run(tmp_path, df, "--miami", "study", "--no-thin")
-        _, y, _ = scatters[0]
-        assert y.tolist() == pytest.approx([10, -np.log10(0.5), 3, -4, -1, -30])
-        ax = fig.axes[0]
-        lo, hi = ax.get_ylim()
-        assert lo < -30 and 10 < hi < 30
-        assert [t.get_text() for t in ax.texts] == ["a", "b"]
-        # each threshold line on both sides, and the axis line at 0
-        heights = sorted(ln.get_ydata()[0] for ln in ax.get_lines())
-        assert heights == pytest.approx([np.log10(5e-8), -5, 0, 5, -np.log10(5e-8)])
+        (_, ya, _), (_, yb, _) = scatters
+        assert ya.tolist() == pytest.approx([10, -np.log10(0.5), 3])
+        assert yb.tolist() == pytest.approx([4, 1, 30])
+        upper, lower = fig.axes
+        assert upper.get_ylim()[0] == 0 and 10 < upper.get_ylim()[1] < 30
+        lo, hi = lower.get_ylim()
+        assert hi == 0 and lo > 30  # inverted: 0 at the top
+        assert [t.get_text() for t in upper.texts] == ["a"]
+        assert [t.get_text() for t in lower.texts] == ["b"]
+        # threshold lines in both halves
+        for ax in fig.axes:
+            heights = sorted(ln.get_ydata()[0] for ln in ax.get_lines())
+            assert heights == pytest.approx([5, -np.log10(5e-8)])
+
+    def test_gap_holds_the_chromosome_numbers(self, tmp_path, two_scans):
+        fig = _run(tmp_path, two_scans, "--miami", "study", "a", "b")
+        upper, lower = fig.axes
+        assert upper.get_position().y0 > lower.get_position().y1  # a gap
+        assert [t.get_text() for t in upper.get_xticklabels()] == ["1", "2"]
+        assert not any(t.get_visible() for t in lower.get_xticklabels())
+        assert upper.get_xlim() == lower.get_xlim()
+
+    def test_halves_on_one_scale(self, tmp_path, two_scans):
+        df = two_scans[two_scans["study"] != "c"]
+        fig = _run(tmp_path, df, "--miami", "study")
+        upper, lower = fig.axes
+        per_unit = [
+            ax.get_position().height / abs(np.diff(ax.get_ylim())[0])
+            for ax in (upper, lower)
+        ]
+        assert per_unit[0] == pytest.approx(per_unit[1], rel=0.01)
 
     def test_named_values_pick_and_order(self, tmp_path, two_scans, scatters):
         fig = _run(tmp_path, two_scans, "--miami", "study", "b", "a", "--no-thin")
-        _, y, _ = scatters[0]
-        # rows of c left out; a now below the axis
-        assert sorted(y.tolist()) == pytest.approx(
-            sorted([-10, np.log10(0.5), -3, 4, 1, 30])
-        )
-        assert [t.get_text() for t in fig.axes[0].texts] == ["b", "a"]
+        (_, yb, _), (_, ya, _) = scatters
+        assert yb.tolist() == pytest.approx([4, 1, 30])  # c left out
+        assert [t.get_text() for t in fig.axes[0].texts] == ["b"]
 
-    def test_tick_labels_unsigned(self, tmp_path, two_scans):
-        fig = _run(tmp_path, two_scans, "--miami", "study", "a", "b")
-        ax = fig.axes[0]
-        fmt = ax.yaxis.get_major_formatter()
-        assert fmt(-20, 0) == "20" and fmt(10, 0) == "10"
-
-    def test_ylim_caps_both_halves(self, tmp_path, two_scans, scatters):
+    def test_ylim_caps_each_half(self, tmp_path, two_scans, scatters):
         df = two_scans[two_scans["study"] != "c"]
         fig = _run(tmp_path, df, "--miami", "study", "--ylim", "-20", "8")
-        assert fig.axes[0].get_ylim() == (-20.0, 8.0)
-        inside, up, down = scatters
-        assert up[1].tolist() == [8.0] and up[2]["marker"] == "^"  # a: 1e-10
-        assert down[1].tolist() == [-20.0] and down[2]["marker"] == "v"  # b: 1e-30
-        assert inside[1].min() >= -20 and inside[1].max() <= 8
+        upper, lower = fig.axes
+        assert upper.get_ylim() == (0.0, 8.0) and lower.get_ylim() == (20.0, 0.0)
+        _, a_capped, b_inside, b_capped = scatters
+        assert a_capped[1].tolist() == [8.0] and a_capped[2]["marker"] == "^"
+        assert b_capped[1].tolist() == [20.0] and b_capped[2]["marker"] == "v"
+
+    def test_title_on_the_upper_half(self, tmp_path, two_scans):
+        fig = _run(tmp_path, two_scans, "--miami", "study", "a", "b", "-t", "T")
+        assert fig.axes[0].get_title() == "T"
+
+    def test_panels(self, tmp_path, two_scans):
+        df = pd.concat([two_scans.assign(set=1), two_scans.assign(set=2)])
+        fig = _run(tmp_path, df, "--miami", "study", "a", "b", "--subgraphcol", "set")
+        assert len(fig.axes) == 4
+        assert [ax.get_title() for ax in fig.axes[::2]] == ["1", "2"]
 
     def test_more_than_two_values_needs_names(self, tmp_path, two_scans):
         with pytest.raises(ValueError, match="holds 3 values"):
@@ -280,8 +303,10 @@ class TestLogy:
 
     def test_with_miami(self, tmp_path, two_scans):
         fig = _run(tmp_path, two_scans, "--miami", "study", "a", "b", "--logy")
-        ticks = fig.axes[0].get_yticks().tolist()
-        assert ticks == [-20, -10, -5, 0, 5, 10]
+        upper, lower = fig.axes
+        assert upper.get_yticks().tolist() == [0, 5, 10]
+        assert lower.get_yticks().tolist() == [0, 5, 10, 20]
+        assert lower.get_ylim()[1] == 0
 
     def test_bad_threshold(self, tmp_path, scan):
         with pytest.raises(ValueError, match="--logy"):
