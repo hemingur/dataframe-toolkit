@@ -155,7 +155,9 @@ correlogram is `corr --all -o | heatmap -x col1 -y col2 -v correlation
 `--sig`/`--suggestive` lines, points with p > 0.01 thinned, `--logy` log
 scale above 10, `--miami COL [UPPER LOWER]` two scans, the second upside
 down below it), `qq` (QQ plot of p-values with a 95 % band and the genomic inflation
-lambda; same p-value options, `-g` one curve and lambda per group, `--logy`). `-g COL`
+lambda; same p-value options, `-g` one curve and lambda per group, `--logy`),
+`locus` (one region, cut out with `query` first: -log10(p) by position, `--ldcol r2`
+colours by LD with the lead, `--lead`/`--label` take an ID or `chr6:32600000`). `-g COL`
 overlays groups, `--subgraphcol COL` makes panels.
 
 Other: `dataset NAME` loads a bundled example table, `annotate FILE.parquet`

@@ -67,6 +67,7 @@ COMMAND_GROUPS: list[tuple[str, list[tuple[str, str]]]] = [
             ("pairs", "pairs_cmd:PairsCommand"),
             ("manhattan", "manhattan_cmd:ManhattanCommand"),
             ("qq", "qq_cmd:QqCommand"),
+            ("locus", "locus_cmd:LocusCommand"),
         ],
     ),
     (

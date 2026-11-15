@@ -17,6 +17,7 @@ import pytest  # noqa: E402
 from dftk.commands.chi_cmd import ChiCommand  # noqa: E402
 from dftk.commands.hist_cmd import HistCommand  # noqa: E402
 from dftk.commands.line_cmd import LineCommand  # noqa: E402
+from dftk.commands.locus_cmd import LocusCommand  # noqa: E402
 from dftk.commands.manhattan_cmd import ManhattanCommand  # noqa: E402
 from dftk.commands.qq_cmd import QqCommand  # noqa: E402
 from dftk.commands.scat_cmd import ScatCommand  # noqa: E402
@@ -112,3 +113,19 @@ def test_unresolved_gwas_columns_read_everything(table, tmp_path, parquet_reads)
 def test_missing_named_column_error_unchanged(table, tmp_path):
     with pytest.raises(ValueError, match="nosuch"):
         _run(ScatCommand(), table, tmp_path, "-x", "a", "-y", "nosuch")
+
+
+@pytest.mark.parametrize(
+    "argv, expected",
+    [
+        ([], {"CHR", "BP", "P", "rsid"}),  # ID column found by alias
+        (["--ldcol", "c", "--idcol", "study"], {"CHR", "BP", "P", "c", "study"}),
+    ],
+)
+def test_locus_reads_only_used_columns(argv, expected, table, tmp_path, parquet_reads):
+    df = pd.read_parquet(table).query("CHR == '1'").assign(rsid="rs")
+    df.to_parquet(table)
+    parquet_reads.clear()
+    _run(LocusCommand(), table, tmp_path, *argv)
+    (cols,) = parquet_reads
+    assert set(cols) == expected
