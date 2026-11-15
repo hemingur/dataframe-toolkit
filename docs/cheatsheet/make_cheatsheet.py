@@ -595,7 +595,7 @@ PLOTS = (
         (
             "cmd",
             "dftk manhattan",
-            "-log10(p) along the genome; \\texttt{qq}: QQ plot, $\\lambda$",
+            "-log10(p) along the genome; also Miami plots and a log scale (see \\texttt{--help}); \\texttt{qq}: QQ plot, $\\lambda$",
             "gwas",
         ),
         (
