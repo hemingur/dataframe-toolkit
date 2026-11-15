@@ -122,6 +122,7 @@ Transform:
 | Swap rows and columns | `transpose` |
 | Rename columns to lowercase identifiers (`Sample ID` → `sample_id`, `GC %` → `gc_pct`) so SQL, `eval` and formulas need no quoting | `cleannames [--mapping FILE]` |
 | Per-group values broadcast to every row (group mean, rank, cumsum, quantile bin) | `func -c COL -t TRANSFORM -g GROUP` |
+| Fill gaps on a straight line (or with the value before/after) within groups, by an x column for uneven spacing | `func -c COL -t interpolate -g GROUP --xcol X` (`-t ffill`, `-t bfill`) |
 | Bin a numeric column | `binx -c COL -b 0:100:10` |
 | Normalise, rank-transform or detrend columns | `scale` |
 | Look up y at x from a reference curve | `interp DATAFILE --ref CURVE -x X -v Y` |

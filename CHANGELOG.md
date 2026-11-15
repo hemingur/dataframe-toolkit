@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- `func -t interpolate`, `-t ffill` and `-t bfill` fill empty cells within groups (`-g`). They require `-x/--xcol X`: each group's rows are taken in X order whatever order the file is in (no sort step), the output keeps the file's row order, and `interpolate` draws the line against X: unevenly spaced rows get the right value (10 at x=2 and 14 at x=6 give 13 at x=5; `eval`'s `interpolate()` counts rows and gives 12). Gaps before a group's first value or after its last stay empty. X can be numbers or dates for `interpolate` (which needs a numeric column, and returns decimals), and anything sortable for `ffill`/`bfill` (numbers, dates, text; rows with the same X keep their file order). Repeated X values within a group are an error for `interpolate`, naming the group; rows without an X value are left alone. Chaining `interpolate`, `ffill` and `bfill` on the same column leaves no gaps. A million rows in 10,000 groups take about half a second. Fixes #15.
+
+### Changed
+- `eval -h` and the README point to `func -t interpolate` for interpolating within groups; the README's masked `eval` recipe for it is gone.
+
 ## [0.20.0] — 2026-11-15
 
 ### Added
