@@ -237,6 +237,22 @@ def scatter_capped(ax, x, y, hi, args, colours=None, capmarker="^", **kw):
         )  # fmt: skip
 
 
+def thin_points(x, y, args, groups=None) -> np.ndarray:
+    """gwas.thin_mask on the y axis as drawn: with --logy, the grid is
+    even on the symmetric-log scale, so a stretched linear part (a small T)
+    is not left sparse.  Every point with p <= 0.01 is still kept."""
+    if not args.thin:
+        return np.ones(len(x), dtype=bool)
+    keep_above = 2.0
+    if args.logy is not None:
+        from matplotlib.scale import SymmetricalLogTransform
+
+        tf = SymmetricalLogTransform(10, args.logy, 1.0)
+        y = tf.transform(np.asarray(y, dtype=float))
+        keep_above = float(tf.transform(np.array([keep_above]))[0])
+    return gwas.thin_mask(x, y, keep_above=keep_above, groups=groups)
+
+
 def log_yaxis(ax, linthresh: float, lo: float, hi: float) -> None:
     """Symmetric-log y axis: linear up to *linthresh*, log10 above it.
 
@@ -286,11 +302,7 @@ def _draw(
     groups = None
     if groupcols:
         groups = data[groupcols].astype(str).agg("\t".join, axis=1).to_numpy()
-    keep = (
-        gwas.thin_mask(x, y, groups=groups)
-        if args.thin
-        else np.ones(len(x), dtype=bool)
-    )
+    keep = thin_points(x, y, args, groups)
     if args.thin and (~keep).any():
         logger.info("Thinned %d of %d points (p > 0.01)", int((~keep).sum()), len(x))
 

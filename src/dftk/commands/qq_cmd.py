@@ -20,6 +20,7 @@ from dftk.commands.manhattan_cmd import (
     float_or,
     log_yaxis,
     scatter_capped,
+    thin_points,
 )
 from dftk.common import gwas
 from dftk.common.io import check_cols, io
@@ -158,7 +159,7 @@ def _draw(ax, data: pd.DataFrame, args, groupcols=None) -> None:
         logger.info(
             "lambda %s= %.4f (%d tests)", f"({label}) " if label else "", lam, len(obs)
         )
-        keep = gwas.thin_mask(exp, obs) if args.thin else np.ones(len(obs), bool)
+        keep = thin_points(exp, obs, args)
         colour = WONG_PALETTE[n % len(WONG_PALETTE)] if groupcols else _POINT_COLOUR
         if groupcols and args.show_lambda:
             label = f"{label} (λ = {lam:.3f})"

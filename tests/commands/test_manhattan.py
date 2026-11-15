@@ -327,3 +327,34 @@ class TestSigcolor:
         _, y, kw = scatters[0]
         red = np.array([c == "red" for c in kw["c"]])
         assert red.tolist() == (y >= -np.log10(5e-8)).tolist()
+
+
+class TestThinOnDrawnScale:
+    """With --logy the thinning grid is even on the drawn axis."""
+
+    @pytest.fixture
+    def column(self):
+        rng = np.random.default_rng(5)
+        y = np.append(-np.log10(rng.uniform(size=200_000)), 84.0)
+        return np.zeros(len(y)), y
+
+    def _kept_below_1(self, column, *argv):
+        from dftk.commands.manhattan_cmd import thin_points
+
+        x, y = column
+        keep = thin_points(x, y, _args(*argv))
+        assert keep[y >= 2].all()  # p <= 0.01 always drawn
+        return int((keep & (y < 1)).sum())
+
+    def test_linear_axis_grid_in_minus_log10_p(self, column):
+        # 1000 rows over 0..84: about 12 in 0..1
+        assert self._kept_below_1(column) <= 13
+
+    def test_logy_grid_on_the_drawn_axis(self, column):
+        # symlog, T = 1: 0..1 is 1.11 of the 3.04 drawn units, ~366 rows
+        assert 340 <= self._kept_below_1(column, "--logy", "1") <= 370
+
+    def test_no_thin(self, column):
+        assert self._kept_below_1(column, "--logy", "1", "--no-thin") == int(
+            (column[1] < 1).sum()
+        )
