@@ -138,6 +138,7 @@ publication-quality output.
 | `heatmap` | Coloured grid of values from a long (`-x -y -v`) or wide (`-y`) table; correlograms from `corr --all`, `--annot`, `--lower` |
 | `pairs` | Scatter-plot matrix with KDEs (or histograms) on the diagonal; `-g` colours groups, `--upper corr` puts r in the upper triangle |
 | `qq` | QQ plot of p-values: observed against expected -log10(p), confidence band, genomic inflation λ; `-g` one curve and λ per group |
+| `locus` | Regional association plot: -log10(p) in one region coloured by r² with the lead variant (`--ldcol`), lead as a diamond, `--lead`/`--label` by ID or `chr:pos` |
 | `manhattan` | Genome-wide -log10(p) by position (`Chr`, `pos`, `Pval`, or `--mlogpcol`/`--chi2col`); significance lines, thinning for millions of variants, `-g`/`--subgraphcol` for several scans |
 
 ### Utilities
@@ -478,6 +479,13 @@ dftk dataset gwas -o | dftk eval -f "Chisq = Chisq * 1.15" -o | dftk qq --chi2co
 ```
 
 `qq --logy` makes its y axis linear up to 10 and logarithmic above, as in `manhattan`.
+
+`locus` zooms in on one region: -log10(p) against position in Mb, the points coloured by r² with the lead variant (`--ldcol`, five bins, grey where missing) and the lead drawn as a diamond. It plots the rows it gets, so cut the region out with `query` first (input on several chromosomes is an error that suggests a query around the top hit). The lead is the smallest p-value unless `--lead` names one, and `--label` names more variants to write on the plot; both take an ID (`SNP` column, or `--idcol`) or a position like `chr6:32600000`. dftk doesn't compute LD: merge in r² with the lead, e.g. from `plink --r2 --ld-snp`. `dataset gwas` has an `r2` column around each peak:
+
+```bash
+dftk dataset gwas -o | dftk query -q "Chr == '6' and pos > 31.6e6 and pos < 33.6e6" -o \
+    | dftk locus --ldcol r2 -f locus.png
+```
 
 ### Bootstrap confidence intervals
 

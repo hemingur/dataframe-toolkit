@@ -43,6 +43,7 @@ src/dftk/
     chi_cmd.py               # dftk chi    — corner-resolved chi-plot (tail-dependence diagnostic)
     manhattan_cmd.py        # dftk manhattan — genome-wide -log10(p) plot (helpers in common/gwas.py)
     qq_cmd.py               # dftk qq — QQ plot of p-values, confidence band, genomic inflation lambda
+    locus_cmd.py            # dftk locus — regional plot of one region, coloured by r² with a lead variant
   common/
     io.py                   # io.read(args), io.printdf(df, args) — TSV in/out
     stats.py                # Statistical helpers (binom_test, fisher_test, etc.)
@@ -293,6 +294,7 @@ Original scripts live in `~/projects/python_projects/df/src/df/`.
 | —                | chi               | new       |
 | —                | manhattan         | new       |
 | —                | qq                | new       |
+| —                | locus             | new       |
 | —                | cleannames        | new       |
 | dftest.py        | test              | ported    |
 | dfwstat.py       | wstat             | ported    |
