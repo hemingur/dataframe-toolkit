@@ -19,24 +19,27 @@ TRANSFORMS (-t / --transform)
   pct_rank  Percentile rank within group (0–1).
   qcut:N    Assign each value to one of N equal-frequency quantile bins.
             The bin label is an integer 1..N.
-  interpolate  Fill empty cells on a straight line between the known
-            values before and after them (within each group with -g).
-            With --xcol X the line is drawn against X, so unevenly spaced
-            rows get the right values; without it, one step per row.
+  interpolate  Fill empty cells on a straight line, against --xcol X,
+            between the known values before and after them (within each
+            group with -g), so unevenly spaced rows get the right values.
             Gaps before a group's first value or after its last stay
             empty: nothing is extrapolated.
-  ffill     Fill empty cells with the value before them (bfill: after),
-            within each group; in --xcol order when given.
+  ffill     Fill empty cells with the value before them in --xcol order
+            (bfill: after), within each group.
 
 FILLING GAPS (interpolate, ffill, bfill)
 ----------------------------------------
-With --xcol the rows are taken in X order within each group, whatever
-order the file is in, and written back in the file's order: no sort step
-is needed.  Without --xcol the rows are taken in file order.  Repeated X
+These need -x/--xcol X (time, position, year, ...): the rows are taken in
+X order within each group, whatever order the file is in, and written back
+in the file's order, so no sort step is needed.  Repeated X
 values within a group are an error for interpolate (which value would the
 line go through?); rows without an X value are left as they are.  The
 column must be numeric for interpolate.  Only empty cells are filled: a
 missing row (a year with no row at all) is not added.
+
+For no gaps at all, fill the ends after interpolating: the value after the
+first known one (bfill) before it, and the last known value (ffill) after
+it, chained on the same column with -d.
 
 EXAMPLES
 --------
@@ -66,6 +69,14 @@ The value before instead (last observation carried forward):
       | dftk eval -f "le = Life_Expectancy.where(Year % 10 != 5)" -o \\
       | dftk func -c le -t ffill -g Country --xcol Year -d le_filled
 
+No gaps left: interpolate, then carry the end values out to the ends:
+
+  dftk dataset healthexp -o \\
+      | dftk eval -f "le = Life_Expectancy.where(Year % 10 != 0)" -o \\
+      | dftk func -c le -t interpolate -g Country --xcol Year -d le_filled -o \\
+      | dftk func -c le_filled -t ffill -g Country --xcol Year -d le_filled -o \\
+      | dftk func -c le_filled -t bfill -g Country --xcol Year -d le_filled
+
 Multiple transforms in one call:
 
   dftk dataset tips -o | dftk func -c total_bill -t cumsum -d bill_cumsum -o \\
@@ -87,7 +98,7 @@ _GROUPBY_TRANSFORMS = {"sum", "mean", "min", "max", "count", "median", "std"}
 # Transforms that use cumsum / rank within an optional group
 _CUMULATIVE_TRANSFORMS = {"cumsum", "rank", "pct_rank"}
 
-# Transforms that fill empty cells, in --xcol order when given
+# Transforms that fill empty cells, in --xcol order (required)
 _FILL_TRANSFORMS = {"interpolate", "ffill", "bfill"}
 
 _VALID = (
@@ -119,10 +130,9 @@ def _fill_gaps(
 ) -> pd.Series:
     """interpolate / ffill / bfill *col* within groups, in *xcol* order."""
     values = df[col]
-    if xcol is not None:
-        if not pd.api.types.is_numeric_dtype(df[xcol]):
-            raise ValueError(f"--xcol {xcol!r} must be numeric.")
-        xall = df[xcol].to_numpy(dtype=float)
+    if not pd.api.types.is_numeric_dtype(df[xcol]):
+        raise ValueError(f"--xcol {xcol!r} must be numeric.")
+    xall = df[xcol].to_numpy(dtype=float)
 
     if transform == "interpolate":
         if not pd.api.types.is_numeric_dtype(values):
@@ -130,10 +140,10 @@ def _fill_gaps(
         v = values.to_numpy(dtype=float)
         out = v.copy()
         for name, idx in _group_indices(df, groupcols):
-            x = xall[idx] if xcol is not None else np.arange(len(idx), dtype=float)
+            x = xall[idx]
             has_x = ~np.isnan(x)
             xs = x[has_x]
-            if xcol is not None and len(np.unique(xs)) < len(xs):
+            if len(np.unique(xs)) < len(xs):
                 where = (
                     f" in group {_group_label(name, groupcols)}" if groupcols else ""
                 )
@@ -159,11 +169,8 @@ def _fill_gaps(
         else np.zeros(len(df), dtype=np.int64)
     )
     rows = np.arange(len(df))
-    if xcol is not None:
-        rows = rows[~np.isnan(xall)]
-        order = rows[np.lexsort((xall[rows], codes[rows]))]
-    else:
-        order = rows[np.argsort(codes, kind="stable")]
+    rows = rows[~np.isnan(xall)]
+    order = rows[np.lexsort((xall[rows], codes[rows]))]
     part = values.iloc[order].reset_index(drop=True)
     grouped = part.groupby(codes[order])
     filled = grouped.ffill() if transform == "ffill" else grouped.bfill()
@@ -183,6 +190,11 @@ def _apply_transform(
     """Apply *transform* on *col* within optional *groupcols*, storing result in *destcol*."""  # noqa: E501
 
     if transform in _FILL_TRANSFORMS:
+        if xcol is None:
+            raise ValueError(
+                f"{transform} needs -x/--xcol: the column that orders each "
+                "group's rows (time, position, year, ...)."
+            )
         df[destcol] = _fill_gaps(df, col, transform, groupcols, xcol)
         return df
     if xcol is not None:
@@ -298,8 +310,8 @@ class FuncCommand(BaseCommand):
             "--xcol",
             default=None,
             metavar="COL",
-            help="For interpolate, ffill, bfill: take each group's rows in the "
-            "order of this column, and interpolate against its values.",
+            help="Required for interpolate, ffill, bfill: take each group's rows "
+            "in the order of this column, and interpolate against its values.",
         )
 
     def execute(self, args: argparse.Namespace) -> None:

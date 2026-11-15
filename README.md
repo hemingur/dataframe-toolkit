@@ -334,16 +334,19 @@ dftk dataset healthexp -o \
 ```
 
 For interpolation within groups, `func -t interpolate` does it in one
-step. With `--xcol` it draws the line against that column, so unevenly
-spaced rows (missing years, genome positions) get the right values; it
-takes each group's rows in X order itself, so no sort step is needed, and
-it leaves gaps before a group's first value or after its last empty.
-`-t ffill` and `-t bfill` work the same way:
+step. It draws the line against an x column (`--xcol`, required), so
+unevenly spaced rows (missing years, genome positions) get the right
+values; it takes each group's rows in X order itself, so no sort step is
+needed, and it leaves gaps before a group's first value or after its last
+empty. `-t ffill` and `-t bfill` work the same way; chained after
+`interpolate` on the same column (`-d`), they fill those ends too:
 
 ```bash
 dftk dataset healthexp -o \
   | dftk eval -f "le = Life_Expectancy.where(Year % 10 != 5)" -o \
-  | dftk func -c le -t interpolate -g Country --xcol Year -d le_filled
+  | dftk func -c le -t interpolate -g Country --xcol Year -d le_filled -o \
+  | dftk func -c le_filled -t ffill -g Country --xcol Year -d le_filled -o \
+  | dftk func -c le_filled -t bfill -g Country --xcol Year -d le_filled
 ```
 
 `eval`'s `interpolate()` counts one step per row: with 10 at x=2 and 14 at

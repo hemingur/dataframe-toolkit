@@ -397,11 +397,10 @@ class TestInterpolate:
         )  # fmt: skip
         _same(_fill(df), [1, nan, nan, 100])
 
-    def test_without_xcol_one_step_per_row(self, sites):
-        ordered = sites.sort_values(["site", "day"]).reset_index(drop=True)
-        # A rows: 10, nan, 20, nan, 24, nan -> row steps: 15, 22, end empty
-        out = _fill(ordered, xcol=None)
-        _same(out[:6], [10, 15, 20, 22, 24, nan])
+    @pytest.mark.parametrize("transform", ["interpolate", "ffill", "bfill"])
+    def test_xcol_required(self, sites, transform):
+        with pytest.raises(ValueError, match="needs -x/--xcol"):
+            _fill(sites, transform, xcol=None)
 
     def test_without_groups(self):
         df = pd.DataFrame({"day": [0, 1, 4], "temp": [0.0, nan, 8.0]})
@@ -458,10 +457,19 @@ class TestFfillBfill:
         )
         assert _fill(df, "ffill") == ["x", "x", "x"]
 
-    def test_ffill_file_order_without_xcol(self, sites):
-        out = _fill(sites, "ffill", xcol=None)
-        # A rows in file order: 20, 10, 24, nan(day2) <- 24, nan(day12), nan(day7)
-        assert out[6] == 24 and out[8] == 24 and out[10] == 24
+    def test_ties_in_file_order(self):
+        df = pd.DataFrame({"day": [1, 1, 2], "temp": ["a", "b", None]})
+        assert _fill(df, "ffill", groupcols=None) == ["a", "b", "b"]
+
+    def test_chain_leaves_no_gaps(self, sites):
+        df = sites.copy()
+        for t in ("interpolate", "ffill", "bfill"):
+            df["temp"] = _fill(df, t)
+        # ends take the nearest known value: B day 0 <- 5, A day 12 <- 24
+        _same(
+            df["temp"].tolist(),
+            [5 + 10 / 7, 20, 10, 15, 24, 5, 12, 5 + 20 / 7, 24, 5, 22],
+        )
 
 
 class TestFillCommand:

@@ -159,7 +159,7 @@ def execute(self, args):
 ## func_cmd key points
 
 - `-t/--transform`: `cumsum`, `sum/mean/min/max/count/median/std` (group broadcast), `rank`, `pct_rank`, `qcut:N`, `interpolate`/`ffill`/`bfill` (gap filling)
-- `-x/--xcol`: gap filling in X order within each group (output keeps file order); `interpolate` draws the line against X, inside each group's known range only
+- `-x/--xcol` (required for gap filling): gap filling in X order within each group (output keeps file order); `interpolate` draws the line against X, inside each group's known range only
 - `-g/--groupcol` enables groupby; group aggregates are broadcast back to original index
 - Default destcol: `{col}_{transform}` with special chars replaced by `_`
 
