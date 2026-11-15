@@ -210,7 +210,7 @@ class TestMiami:
         assert upper.get_ylim()[0] == 0 and 10 < upper.get_ylim()[1] < 30
         lo, hi = lower.get_ylim()
         assert hi == 0 and lo > 30  # inverted: 0 at the top
-        assert [t.get_text() for t in upper.texts] == ["a"]
+        assert upper.texts[-1].get_text() == "a"
         assert [t.get_text() for t in lower.texts] == ["b"]
         # threshold lines in both halves
         for ax in fig.axes:
@@ -220,9 +220,17 @@ class TestMiami:
     def test_gap_holds_the_chromosome_numbers(self, tmp_path, two_scans):
         fig = _run(tmp_path, two_scans, "--miami", "study", "a", "b")
         upper, lower = fig.axes
-        assert upper.get_position().y0 > lower.get_position().y1  # a gap
-        assert [t.get_text() for t in upper.get_xticklabels()] == ["1", "2"]
-        assert not any(t.get_visible() for t in lower.get_xticklabels())
+        fig.canvas.draw()
+        top, bottom = upper.get_position().y0, lower.get_position().y1
+        assert top > bottom  # a gap
+        numbers = upper.texts[:-1]
+        assert [t.get_text() for t in numbers] == ["1", "2"]
+        # centred in the gap (figure coordinates)
+        renderer = fig.canvas.get_renderer()
+        for t in numbers:
+            box = t.get_window_extent(renderer).transformed(fig.transFigure.inverted())
+            assert (box.y0 + box.y1) / 2 == pytest.approx((top + bottom) / 2, abs=0.01)
+            assert box.y0 > bottom and box.y1 < top
         assert upper.get_xlim() == lower.get_xlim()
 
     def test_halves_on_one_scale(self, tmp_path, two_scans):
@@ -239,7 +247,7 @@ class TestMiami:
         fig = _run(tmp_path, two_scans, "--miami", "study", "b", "a", "--no-thin")
         (_, yb, _), (_, ya, _) = scatters
         assert yb.tolist() == pytest.approx([4, 1, 30])  # c left out
-        assert [t.get_text() for t in fig.axes[0].texts] == ["b"]
+        assert fig.axes[0].texts[-1].get_text() == "b"
 
     def test_ylim_caps_each_half(self, tmp_path, two_scans, scatters):
         df = two_scans[two_scans["study"] != "c"]
