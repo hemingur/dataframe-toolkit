@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.22.0] — 2026-11-15
 
 ### Added
 - `locus`: regional association plot, the zoomed-in companion to `manhattan`. -log10(p) against position in Mb for the rows it is given (cut the region out with `query`; input on several chromosomes is an error that suggests a query 500 kb either side of the top hit). Columns and p-value options as in `manhattan`. `--ldcol r2` colours the points by r² with the lead variant in five bins (0–0.2 … 0.8–1), grey where missing, most LD drawn on top, with a legend. The lead variant is a diamond, the smallest p-value unless `--lead` names one; `--label` writes more names on the plot, with a ring round each labelled point. Variants are named by ID (`SNP` column, found by alias such as `rsid`, or `--idcol`) or by position (`chr6:32600000`, `6:32600000`); several rows at one position take the smallest p. `--sig` (default 5e-8), `--suggestive` (default none), `--ylim`, `--logy` and thinning as in `manhattan`. dftk doesn't compute LD; r² is merged in. No gene or recombination track yet. Fixes #37.
