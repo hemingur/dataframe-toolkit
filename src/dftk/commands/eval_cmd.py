@@ -69,8 +69,10 @@ when the table holds several series, or values come from the next group:
           --sortasc Country Year -o \\
       | dftk eval -f "le_filled = le.groupby(Country).ffill()"
 
-interpolate() has no grouped form. The README ("Filling missing values")
-covers defaults from a merge, interpolating within groups, and more.
+To interpolate within groups, or by an x column when rows are unevenly
+spaced, use func: dftk func -c le -t interpolate -g Country --xcol Year
+(it also has ffill and bfill in x order, with no sort step).  The README
+("Filling missing values") covers defaults from a merge and more.
 
 
 DIFFERENCES BETWEEN ROWS (-f)

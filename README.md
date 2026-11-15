@@ -101,7 +101,7 @@ dftk dataset tips -o \
 | `explode`    | Split separated values in a cell (`a,b`) into one row per value                      |
 | `implode`    | Join a column's values within groups into one cell, the inverse of `explode`         |
 | `pivot`      | Reshape long-to-wide with per-cell aggregation                                       |
-| `func`       | Column transforms: cumsum, group mean/sum/min/max/count/median/std, rank, qcut:N     |
+| `func`       | Column transforms: cumsum, group mean/sum/min/max/count/median/std, rank, qcut:N; interpolate/ffill/bfill within groups by an x column |
 | `scale`      | Normalise: z-score, min-shift, sum/max/mean scaling, Blom rank, regression residuals |
 | `interp`     | Interpolate values from a reference curve into a table (1-D lookup)                  |
 | `binx`       | Assign bin indices to a column based on explicit or generated edges                  |
@@ -315,8 +315,9 @@ dftk dataset co2 -o | dftk eval -f "ffill = co2.ffill()" \
 
 `ffill` leaves the first rows empty and `bfill` the last ones;
 `x.ffill().fillna(x.bfill())` fills both. `interpolate()` counts one step
-per row, so the rows must be evenly spaced; for an x-based lookup from a
-reference curve, see `dftk interp`.
+per row, so the rows must be evenly spaced; for unevenly spaced rows use
+`func -t interpolate --xcol X` (below), and for a lookup from a reference
+curve, `dftk interp`.
 
 **Row order and groups.** These methods use the rows in the order they are
 in. Sort first, in a step of its own: `--sortasc` applies to a command's
@@ -332,20 +333,21 @@ dftk dataset healthexp -o \
   | dftk eval -f "le_filled = le.groupby(Country).ffill()"
 ```
 
-`interpolate()` has no grouped form. Once each group's rows are together,
-gaps inside a group are right, but a gap at a group's start or end is
-filled from the neighbouring group. To leave those empty, keep only values
-with something before and after them in the same group:
+For interpolation within groups, `func -t interpolate` does it in one
+step. With `--xcol` it draws the line against that column, so unevenly
+spaced rows (missing years, genome positions) get the right values; it
+takes each group's rows in X order itself, so no sort step is needed, and
+it leaves gaps before a group's first value or after its last empty.
+`-t ffill` and `-t bfill` work the same way:
 
 ```bash
 dftk dataset healthexp -o \
-  | dftk eval -f "le = Life_Expectancy.where(Year % 10 != 5)" \
-      --sortasc Country Year -o \
-  | dftk eval -f "before = le.groupby(Country).ffill().notna()" \
-      -f "after = le.groupby(Country).bfill().notna()" \
-      -f "le_linear = le.interpolate().where(before & after)" \
-      --drop before after
+  | dftk eval -f "le = Life_Expectancy.where(Year % 10 != 5)" -o \
+  | dftk func -c le -t interpolate -g Country --xcol Year -d le_filled
 ```
+
+`eval`'s `interpolate()` counts one step per row: with 10 at x=2 and 14 at
+x=6, it gives the gap at x=5 12.0, where `func --xcol` gives 13.0.
 
 ### Differences between rows
 
