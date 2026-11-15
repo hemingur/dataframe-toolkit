@@ -410,8 +410,19 @@ def _draw_miami(ax, data: pd.DataFrame, layout, args):
     lower.spines[["bottom", "right"]].set_visible(False)
     lower.spines["top"].set_visible(True)
     lower.tick_params(axis="x", labelbottom=False)
-    # chromosome numbers under the upper half, centred in the gap
-    upper.tick_params(axis="x", labelbottom=True, pad=(_MIAMI_GAP_EM - 1) / 2 * font_pt)
+    # chromosome numbers in the middle of the gap.  The gap is hspace mean
+    # axes heights, and the upper half 2 r0 / (r0 + r1) of one, whatever
+    # size the layout gives them, so its middle is a fixed upper-axes y
+    from matplotlib.transforms import blended_transform_factory
+
+    middle = -hspace * sum(ratios) / (4 * ratios[0])
+    upper.tick_params(axis="x", labelbottom=False)
+    to_gap = blended_transform_factory(upper.transData, upper.transAxes)
+    for x, label in zip(layout[0], _tick_labels(layout[1], upper), strict=True):
+        upper.text(
+            x, middle, label, transform=to_gap, ha="center", va="center_baseline",
+            fontsize=font_pt, clip_on=False,
+        )  # fmt: skip
     upper.set_xlabel("")
     lower.set_xlabel(args.xlabel or "")
     for half, name, (y, va) in (
