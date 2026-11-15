@@ -288,7 +288,7 @@ COLUMNS = (
         (
             "cmd",
             "dftk func -c tip -g day -t mean",
-            "group mean on every row; sum count rank pct\\_rank cumsum \\texttt{qcut:4}",
+            "group mean on every row; rank cumsum \\texttt{qcut:4}; \\texttt{interpolate} \\texttt{ffill} by \\texttt{-x}",
             "tips",
         ),
         (
