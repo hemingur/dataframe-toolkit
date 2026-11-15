@@ -184,3 +184,177 @@ class TestExecute:
 
         fig = _run(tmp_path, simulate_gwas(), "--chi2col", "Chisq")
         assert fig.axes[0].get_ylim()[1] > 80
+
+
+@pytest.fixture
+def two_scans():
+    """The same three variants in scans a and b, plus one in c."""
+    return pd.DataFrame(
+        {
+            "Chr": ["1", "1", "2", "1", "1", "2", "1"],
+            "pos": [100, 200, 300, 100, 200, 300, 100],
+            "Pval": [1e-10, 0.5, 1e-3, 1e-4, 0.1, 1e-30, 0.2],
+            "study": ["a", "a", "a", "b", "b", "b", "c"],
+        }
+    )
+
+
+class TestMiami:
+    def test_two_halves_lower_upside_down(self, tmp_path, two_scans, scatters):
+        df = two_scans[two_scans["study"] != "c"]
+        fig = _run(tmp_path, df, "--miami", "study", "--no-thin")
+        (_, ya, _), (_, yb, _) = scatters
+        assert ya.tolist() == pytest.approx([10, -np.log10(0.5), 3])
+        assert yb.tolist() == pytest.approx([4, 1, 30])
+        upper, lower = fig.axes
+        assert upper.get_ylim()[0] == 0 and 10 < upper.get_ylim()[1] < 30
+        lo, hi = lower.get_ylim()
+        assert hi == 0 and lo > 30  # inverted: 0 at the top
+        assert upper.texts[-1].get_text() == "a"
+        assert [t.get_text() for t in lower.texts] == ["b"]
+        # threshold lines in both halves
+        for ax in fig.axes:
+            heights = sorted(ln.get_ydata()[0] for ln in ax.get_lines())
+            assert heights == pytest.approx([5, -np.log10(5e-8)])
+
+    def test_gap_holds_the_chromosome_numbers(self, tmp_path, two_scans):
+        fig = _run(tmp_path, two_scans, "--miami", "study", "a", "b")
+        upper, lower = fig.axes
+        fig.canvas.draw()
+        top, bottom = upper.get_position().y0, lower.get_position().y1
+        assert top > bottom  # a gap
+        numbers = upper.texts[:-1]
+        assert [t.get_text() for t in numbers] == ["1", "2"]
+        # centred in the gap (figure coordinates)
+        renderer = fig.canvas.get_renderer()
+        for t in numbers:
+            box = t.get_window_extent(renderer).transformed(fig.transFigure.inverted())
+            assert (box.y0 + box.y1) / 2 == pytest.approx((top + bottom) / 2, abs=0.01)
+            assert box.y0 > bottom and box.y1 < top
+        assert upper.get_xlim() == lower.get_xlim()
+
+    def test_halves_on_one_scale(self, tmp_path, two_scans):
+        df = two_scans[two_scans["study"] != "c"]
+        fig = _run(tmp_path, df, "--miami", "study")
+        upper, lower = fig.axes
+        per_unit = [
+            ax.get_position().height / abs(np.diff(ax.get_ylim())[0])
+            for ax in (upper, lower)
+        ]
+        assert per_unit[0] == pytest.approx(per_unit[1], rel=0.01)
+
+    def test_named_values_pick_and_order(self, tmp_path, two_scans, scatters):
+        fig = _run(tmp_path, two_scans, "--miami", "study", "b", "a", "--no-thin")
+        (_, yb, _), (_, ya, _) = scatters
+        assert yb.tolist() == pytest.approx([4, 1, 30])  # c left out
+        assert fig.axes[0].texts[-1].get_text() == "b"
+
+    def test_ylim_caps_each_half(self, tmp_path, two_scans, scatters):
+        df = two_scans[two_scans["study"] != "c"]
+        fig = _run(tmp_path, df, "--miami", "study", "--ylim", "-20", "8")
+        upper, lower = fig.axes
+        assert upper.get_ylim() == (0.0, 8.0) and lower.get_ylim() == (20.0, 0.0)
+        _, a_capped, b_inside, b_capped = scatters
+        assert a_capped[1].tolist() == [8.0] and a_capped[2]["marker"] == "^"
+        assert b_capped[1].tolist() == [20.0] and b_capped[2]["marker"] == "v"
+
+    def test_title_on_the_upper_half(self, tmp_path, two_scans):
+        fig = _run(tmp_path, two_scans, "--miami", "study", "a", "b", "-t", "T")
+        assert fig.axes[0].get_title() == "T"
+
+    def test_panels(self, tmp_path, two_scans):
+        df = pd.concat([two_scans.assign(set=1), two_scans.assign(set=2)])
+        fig = _run(tmp_path, df, "--miami", "study", "a", "b", "--subgraphcol", "set")
+        assert len(fig.axes) == 4
+        assert [ax.get_title() for ax in fig.axes[::2]] == ["1", "2"]
+
+    def test_more_than_two_values_needs_names(self, tmp_path, two_scans):
+        with pytest.raises(ValueError, match="holds 3 values"):
+            _run(tmp_path, two_scans, "--miami", "study")
+
+    def test_unknown_value(self, tmp_path, two_scans):
+        with pytest.raises(ValueError, match="'x'"):
+            _run(tmp_path, two_scans, "--miami", "study", "a", "x")
+
+    def test_wrong_number_of_arguments(self, tmp_path, two_scans):
+        with pytest.raises(ValueError, match="not 2 arguments"):
+            _run(tmp_path, two_scans, "--miami", "study", "a")
+
+    def test_not_with_groupcol(self, tmp_path, two_scans):
+        with pytest.raises(ValueError, match="can't be combined"):
+            _run(tmp_path, two_scans, "--miami", "study", "a", "b", "-g", "study")
+
+    def test_taller_default_size(self, tmp_path, two_scans):
+        fig = _run(tmp_path, two_scans, "--miami", "study", "a", "b")
+        assert tuple(fig.get_size_inches()) == pytest.approx((12, 6))
+
+
+class TestLogy:
+    def test_symlog_axis_and_ticks(self, tmp_path, scan):
+        fig = _run(tmp_path, scan, "--logy")
+        ax = fig.axes[0]
+        assert ax.get_yscale() == "symlog"
+        assert ax.yaxis.get_transform().linthresh == 10
+        # linear part, then 1-2-5 steps up to the 1e-40 peak
+        assert ax.get_yticks().tolist() == [0, 5, 10, 20]
+        assert ax.yaxis.get_major_formatter()(20, 0) == "20"
+
+    def test_threshold_value(self, tmp_path, scan):
+        fig = _run(tmp_path, scan, "--logy", "3")
+        assert fig.axes[0].yaxis.get_transform().linthresh == 3
+
+    def test_only_powers_of_ten_on_a_tall_axis(self, tmp_path, scan):
+        df = scan.assign(m=[3000, 1, 2, 0.5, 400, 1])
+        fig = _run(tmp_path, df, "--mlogpcol", "m", "--logy")
+        log = [t for t in fig.axes[0].get_yticks() if t > 10]
+        assert log == [100, 1000]
+
+    def test_with_miami(self, tmp_path, two_scans):
+        fig = _run(tmp_path, two_scans, "--miami", "study", "a", "b", "--logy")
+        upper, lower = fig.axes
+        assert upper.get_yticks().tolist() == [0, 5, 10]
+        assert lower.get_yticks().tolist() == [0, 5, 10, 20]
+        assert lower.get_ylim()[1] == 0
+
+    def test_bad_threshold(self, tmp_path, scan):
+        with pytest.raises(ValueError, match="--logy"):
+            _run(tmp_path, scan, "--logy", "0")
+
+
+class TestSigcolor:
+    def test_points_past_the_line(self, tmp_path, scan, scatters):
+        _run(tmp_path, scan, "--no-thin", "--sigcolor", "red")
+        _, y, kw = scatters[0]
+        red = np.array([c == "red" for c in kw["c"]])
+        assert red.tolist() == (y >= -np.log10(5e-8)).tolist()
+
+
+class TestThinOnDrawnScale:
+    """With --logy the thinning grid is even on the drawn axis."""
+
+    @pytest.fixture
+    def column(self):
+        rng = np.random.default_rng(5)
+        y = np.append(-np.log10(rng.uniform(size=200_000)), 84.0)
+        return np.zeros(len(y)), y
+
+    def _kept_below_1(self, column, *argv):
+        from dftk.commands.manhattan_cmd import thin_points
+
+        x, y = column
+        keep = thin_points(x, y, _args(*argv))
+        assert keep[y >= 2].all()  # p <= 0.01 always drawn
+        return int((keep & (y < 1)).sum())
+
+    def test_linear_axis_grid_in_minus_log10_p(self, column):
+        # 1000 rows over 0..84: about 12 in 0..1
+        assert self._kept_below_1(column) <= 13
+
+    def test_logy_grid_on_the_drawn_axis(self, column):
+        # symlog, T = 1: 0..1 is 1.11 of the 3.04 drawn units, ~366 rows
+        assert 340 <= self._kept_below_1(column, "--logy", "1") <= 370
+
+    def test_no_thin(self, column):
+        assert self._kept_below_1(column, "--logy", "1", "--no-thin") == int(
+            (column[1] < 1).sum()
+        )
