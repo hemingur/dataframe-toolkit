@@ -123,8 +123,9 @@ def _threshold(value: str) -> float | None:
 
 def add_gwas_column_arguments(
     parser: argparse.ArgumentParser, position: bool = True
-) -> None:
-    """Column options shared by manhattan and qq (qq: position=False)."""
+) -> argparse._ArgumentGroup:
+    """Column options shared by manhattan, qq (position=False) and locus;
+    returns the group, for more column options."""
     g = parser.add_argument_group("columns")
     if position:
         g.add_argument(
@@ -159,6 +160,7 @@ def add_gwas_column_arguments(
         metavar="N|COL",
         help="Degrees of freedom of --chi2col: a number or a column (default: 1).",
     )
+    return g
 
 
 def gwas_columns(args: argparse.Namespace, position: bool = True):
