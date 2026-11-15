@@ -472,6 +472,92 @@ class TestFfillBfill:
         )
 
 
+class TestFillTypes:
+    """Column and X types, and edge cases from the review of #42."""
+
+    def test_nullable_int_values_and_x(self):
+        df = pd.DataFrame(
+            {"day": pd.array([0, 1, 4, None], dtype="Int64"),
+             "temp": pd.array([0, None, 8, None], dtype="Int64")}
+        )  # fmt: skip
+        _same(_fill(df, groupcols=None), [0, 2, 8, nan])
+
+    def test_int_column_comes_back_decimal(self):
+        df = pd.DataFrame({"day": [0, 1], "temp": [1, 2]})
+        out = _apply_transform(df.copy(), "temp", "interpolate", None, "d", "day")
+        assert out["d"].dtype == float and out["d"].tolist() == [1.0, 2.0]
+
+    def test_bool_column_is_an_error(self):
+        df = pd.DataFrame({"day": [0, 1, 2], "temp": [True, None, False]})
+        df["temp"] = df["temp"].astype("boolean")
+        with pytest.raises(ValueError, match="numeric"):
+            _fill(df, groupcols=None)
+
+    def test_bool_x_is_an_error_for_interpolate(self):
+        df = pd.DataFrame({"day": [True, False], "temp": [1.0, nan]})
+        with pytest.raises(ValueError, match="true/false"):
+            _fill(df, groupcols=None)
+
+    def test_date_x_interpolate(self):
+        df = pd.DataFrame(
+            {"day": pd.to_datetime(["2026-01-01", "2026-01-02", "2026-01-11", None]),
+             "temp": [0.0, nan, 10.0, nan]}
+        )  # fmt: skip
+        _same(_fill(df, groupcols=None), [0, 1, 10, nan])
+
+    def test_timezone_date_x_interpolate(self):
+        days = pd.to_datetime(["2026-01-01", "2026-01-03", "2026-01-05"])
+        df = pd.DataFrame(
+            {"day": days.tz_localize("Europe/Oslo"), "temp": [0.0, nan, 4.0]}
+        )
+        _same(_fill(df, groupcols=None), [0, 2, 4])
+
+    @pytest.mark.parametrize(
+        "x",
+        [
+            pd.to_datetime(["2026-03-01", "2026-01-01", "2026-02-01"]),
+            ["2026-03-01", "2026-01-01", "2026-02-01"],  # ISO dates as text
+        ],
+    )
+    def test_ffill_date_or_text_x(self, x):
+        df = pd.DataFrame({"day": x, "temp": [nan, 1.0, nan]})
+        _same(_fill(df, "ffill", groupcols=None), [1, 1, 1])
+        _same(_fill(df, "bfill", groupcols=None), [nan, 1, nan])
+
+    def test_text_x_is_an_error_for_interpolate(self):
+        df = pd.DataFrame({"day": ["a", "b"], "temp": [1.0, nan]})
+        with pytest.raises(ValueError, match="numbers or dates"):
+            _fill(df, groupcols=None)
+
+    def test_ffill_rows_without_x_left_alone(self):
+        df = pd.DataFrame({"day": [0, nan, 2], "temp": [1.0, nan, nan]})
+        _same(_fill(df, "ffill", groupcols=None), [1, nan, 1])
+
+    def test_bfill_missing_group_key_is_its_own_group(self):
+        df = pd.DataFrame(
+            {"site": [None, None, "A"], "day": [0, 1, 2], "temp": [nan, 1.0, 9.0]}
+        )
+        _same(_fill(df, "bfill"), [1, 1, 9])
+
+    def test_two_group_columns_with_a_missing_key(self):
+        df = pd.DataFrame(
+            {"site": ["A", "A", "A", "A"], "depth": [None, None, 1.0, 1.0],
+             "day": [0, 1, 0, 1], "temp": [1.0, nan, nan, 5.0]}
+        )  # fmt: skip
+        _same(_fill(df, "ffill", groupcols=("site", "depth")), [1, 1, nan, 5])
+
+    def test_repeated_x_error_even_without_gaps(self):
+        df = pd.DataFrame({"day": [1, 1], "temp": [1.0, 2.0]})
+        with pytest.raises(ValueError, match="Repeated"):
+            _fill(df, groupcols=None)
+
+    @pytest.mark.parametrize("transform", ["interpolate", "ffill", "bfill"])
+    @pytest.mark.parametrize("groupcols", [None, ("site",)])
+    def test_empty_table(self, transform, groupcols):
+        df = pd.DataFrame({"site": [], "day": [], "temp": []}, dtype=float)
+        assert _fill(df, transform, groupcols=groupcols) == []
+
+
 class TestFillCommand:
     def test_end_to_end(self, sites):
         rows = _run(
