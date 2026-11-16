@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.22.1] — 2026-11-16
+
+### Fixed
+- `line --yci LO,HI` works again when the table comes through an `-o` pipe (or any parquet file): since 0.20.0 the two columns weren't read, and the example in `line -h` failed. A `--yci` value that isn't two comma-separated names is a clean error.
+- `stat` gave empty `cilo` and `cihi` for any column or group with a missing value; they now leave missing values out, like the other statistics. `stat -h` and `line -h` say what they are: percentiles of the data (the middle 95 % by default), not a confidence interval of the mean.
+- `eval` `where()`:
+  - an argument that isn't a column, a quoted string or a number is now evaluated as a pandas expression, so `where(tip > 3, -tip, tip)` works in one step. Before, `-tip` became the text "-tip" and a condition like `tip > 3` crashed with a traceback;
+  - an unquoted word that is not a column is an error that says to quote it, instead of silently becoming text;
+  - the condition must be true/false (or 0 and 1; missing counts as false): a text column is an error suggesting a comparison, instead of every row counting as true;
+  - commas inside quotes or calls no longer split arguments, and text mixed with numbers (`where(big, "large", 0)`) no longer fails.
+- Help examples split over lines with a trailing backslash printed as one long line in `eval -h`, `scat -h` and `manhattan -h`; a test now checks every command's help.
+
+### Added
+- `line -ls/--linestyle STYLE`: `-ls none -m o` draws points with their error bars and no connecting line (a dot-and-whisker plot).
+
 ## [0.22.0] — 2026-11-15
 
 ### Added
