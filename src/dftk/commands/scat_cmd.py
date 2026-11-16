@@ -274,17 +274,17 @@ can overshoot the data; a larger --frac or --xlim helps:
 Hexagonal binning for large tables (54,000 diamonds), log colour scale and
 log axes; hexagons are binned on the log scale:
 
-  dftk dataset diamonds -o | dftk scat -x carat -y price \
+  dftk dataset diamonds -o | dftk scat -x carat -y price \\
       --hexbin --hexlog --logx --logy
 
 Colour each hexagon by the mean of another column instead of the count:
 
-  dftk dataset diamonds -o | dftk scat -x carat -y price \
+  dftk dataset diamonds -o | dftk scat -x carat -y price \\
       --hexbin --colorcol depth --gridsize 50
 
 One hexbin panel per group, all on the same colour scale:
 
-  dftk dataset diamonds -o | dftk scat -x carat -y price \
+  dftk dataset diamonds -o | dftk scat -x carat -y price \\
       --hexbin --hexlog --subgraphcol cut --gridsize 40
 
 Publication figure (Nature single column, PDF):

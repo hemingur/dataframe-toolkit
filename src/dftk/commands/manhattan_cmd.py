@@ -92,9 +92,9 @@ them; points past --sig in red.
 Here the second scan is the example scan with every chi-squared halved,
 and melt stacks the two columns into one, with a study column:
 
-  dftk dataset gwas -o \
-      | dftk eval -f "half = Chisq / 2" --select Chr pos Chisq half -o \
-      | dftk melt -i Chr pos -d study -v chi2 -o \
+  dftk dataset gwas -o \\
+      | dftk eval -f "half = Chisq / 2" --select Chr pos Chisq half -o \\
+      | dftk melt -i Chr pos -d study -v chi2 -o \\
       | dftk manhattan --chi2col chi2 --miami study --sigcolor red -f miami.png
 
 With more than two scans in the column, name the two: --miami study a b.
