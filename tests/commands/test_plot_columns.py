@@ -15,6 +15,7 @@ import pandas as pd  # noqa: E402
 import pytest  # noqa: E402
 
 from dftk.commands.chi_cmd import ChiCommand  # noqa: E402
+from dftk.commands.forest_cmd import ForestCommand  # noqa: E402
 from dftk.commands.hist_cmd import HistCommand  # noqa: E402
 from dftk.commands.line_cmd import LineCommand  # noqa: E402
 from dftk.commands.locus_cmd import LocusCommand  # noqa: E402
@@ -90,6 +91,17 @@ def _run(command, path, tmp_path, *argv):
         ),
         (QqCommand(), [], {"P"}),
         (QqCommand(), ["--mlogpcol", "a", "-g", "study"], {"a", "study"}),
+        # --ci names two columns in one string
+        (
+            ForestCommand(),
+            ["-y", "study", "-x", "a", "--ci", "lo,hi", "--textcol", "k"],
+            {"study", "a", "lo", "hi", "k"},
+        ),
+        (
+            ForestCommand(),
+            ["-y", "study", "-x", "a", "--se", "k", "-g", "CHR", "--section", "BP"],
+            {"study", "a", "k", "CHR", "BP"},
+        ),
     ],
 )
 def test_only_used_columns_read(
