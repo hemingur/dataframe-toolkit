@@ -534,3 +534,105 @@ def _ld_z(z_lead: float, r2: np.ndarray, noise: np.ndarray) -> np.ndarray:
     # measured from the causal variant, so it should be the one on top).
     r = np.sqrt(r2)
     return np.clip(r * z_lead + np.sqrt(1 - r2) * noise, None, 0.98 * z_lead)
+
+
+# Phenotypes of the simulated PheWAS, by category (top to bottom as listed)
+_PHEWAS_PHENOTYPES = {
+    "Cardiovascular": (
+        "Atrial fibrillation", "Coronary artery disease", "Heart failure",
+        "Hypertension", "Stroke", "Venous thromboembolism", "Aortic stenosis",
+        "Peripheral artery disease", "Cardiomyopathy",
+    ),
+    "Metabolic": (
+        "Type 2 diabetes", "Obesity", "Gout", "Hypothyroidism", "Hyperlipidaemia",
+        "Osteoporosis", "Type 1 diabetes", "Hyperparathyroidism",
+    ),
+    "Haematology": (
+        "Anaemia", "Neutropenia", "Thrombocytopenia", "Iron deficiency",
+        "Lymphoma", "Myelodysplasia", "Leukaemia",
+    ),
+    "Immune and infection": (
+        "Asthma", "Rheumatoid arthritis", "Psoriasis", "Crohn's disease",
+        "Ulcerative colitis", "Pneumonia", "Sepsis", "Herpes zoster",
+        "Multiple sclerosis",
+    ),
+    "Neurological": (
+        "Migraine", "Epilepsy", "Parkinson's disease", "Alzheimer's disease",
+        "Peripheral neuropathy", "Sleep apnoea", "Essential tremor",
+    ),
+    "Psychiatric": (
+        "Depression", "Anxiety", "Bipolar disorder", "Schizophrenia", "ADHD",
+        "Alcohol use disorder",
+    ),
+    "Kidney and liver": (
+        "Chronic kidney disease", "Kidney stones", "Fatty liver disease",
+        "Cirrhosis", "Gallstones", "Pancreatitis",
+    ),
+    "Cancer": (
+        "Breast cancer", "Prostate cancer", "Colorectal cancer", "Lung cancer",
+        "Melanoma", "Bladder cancer", "Kidney cancer", "Pancreatic cancer",
+    ),
+    "Reproduction and development": (
+        "Infertility", "Miscarriage", "Pre-eclampsia", "Congenital heart defect",
+        "Endometriosis", "Cleft lip",
+    ),
+    "Musculoskeletal": (
+        "Osteoarthritis", "Back pain", "Fracture", "Carpal tunnel syndrome",
+    ),
+    "Eye and ear": (
+        "Cataract", "Glaucoma", "Macular degeneration", "Hearing loss",
+    ),
+}  # fmt: skip
+
+# (true log odds ratio per loss-of-function allele, prevalence) of the
+# phenotypes with an effect: heterozygotes have it once, homozygotes twice.
+# Every other phenotype has none and a random prevalence.
+_PHEWAS_EFFECTS = {
+    "Neutropenia": (0.8, 0.01),
+    "Cataract": (0.4, 0.15),
+    "Type 2 diabetes": (0.35, 0.08),
+    "Atrial fibrillation": (0.25, 0.1),
+    "Coronary artery disease": (-0.3, 0.08),
+}
+
+
+def simulate_phewas(
+    n_het: int = 4000, n_hom: int = 60, seed: int = 20261116
+) -> pd.DataFrame:
+    """A synthetic phenome-wide scan of loss-of-function carriers, for
+    examples: no real people, gene or results.
+
+    Columns: category, phenotype, prevalence, genotype (het, hom),
+    n_carriers, beta (log odds ratio against non-carriers), se, Pval.
+    One row per phenotype and genotype, in category order, het first.
+    Each phenotype gets a prevalence K (log-uniform, 0.3-20 %), and
+    SE(log OR) = 1 / sqrt(n K (1 - K)) for n carriers, so the few
+    homozygotes give wide intervals.  Five phenotypes have a real effect
+    and a set prevalence (_PHEWAS_EFFECTS, doubled in homozygotes, one of
+    them protective; significant in heterozygotes, not in homozygotes); the
+    estimates are the true effect plus normal noise of that SE, and Pval is
+    two-sided.  Deterministic for a given *seed*.  numpy only (no scipy).
+    """
+    rng = np.random.default_rng(seed)
+    rows = []
+    for category, phenotypes in _PHEWAS_PHENOTYPES.items():
+        for phenotype in phenotypes:
+            prevalence = float(np.exp(rng.uniform(np.log(0.003), np.log(0.2))))
+            effect, prevalence = _PHEWAS_EFFECTS.get(phenotype, (0.0, prevalence))
+            for genotype, n, dose in (("het", n_het, 1), ("hom", n_hom, 2)):
+                se = 1 / math.sqrt(n * prevalence * (1 - prevalence))
+                beta = dose * effect + se * rng.standard_normal()
+                rows.append(
+                    (
+                        category, phenotype, round(prevalence, 4), genotype, n,
+                        round(beta, 4), round(se, 4),
+                        math.erfc(abs(beta / se) / math.sqrt(2)),
+                    )
+                )  # fmt: skip
+    return pd.DataFrame(
+        rows,
+        columns=[
+            "category", "phenotype", "prevalence", "genotype", "n_carriers",
+            "beta", "se", "Pval",
+        ],
+    )  # fmt: skip

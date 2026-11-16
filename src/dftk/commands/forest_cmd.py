@@ -78,6 +78,22 @@ axis, with the numbers and p-values on the right:
       | dftk forest -y marker -x effect --se stdev --exp --text --textcol pval \\
           -xl "price ratio" -f ratios.png
 
+The top hits of a phenome-wide scan of loss-of-function carriers
+(dataset phewas is simulated), as odds ratios with their p-values:
+
+  dftk dataset phewas -o \\
+      | dftk query -q "genotype == 'het' and Pval < 0.01" --sortasc Pval -o \\
+      | dftk forest -y phenotype -x beta --se se --exp --text --textcol Pval \\
+          -xl "odds ratio" -f top.png
+
+Heterozygous and homozygous carriers side by side, under category
+headers; the few homozygotes give wide intervals, cut off at 0.1 and 20:
+
+  dftk dataset phewas -o \\
+      | dftk query -q "category in ['Cardiovascular', 'Haematology']" -o \\
+      | dftk forest -y phenotype -x beta --se se --exp -g genotype \\
+          --section category --text -xm 0.1 20 -xl "odds ratio" -f carriers.png
+
 Under section headers, one series per sex (penguin body mass by species
 and island, mean ± 1.96 SEM):
 

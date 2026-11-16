@@ -14,7 +14,7 @@ statistical modelling and publication-quality figures.
 small, real dataset, so you can copy-paste any of them and run them right
 now. Run `dftk dataset --list` to browse everything available (dozens of
 datasets from seaborn, statsmodels, and pydataset, plus `gwas`, a synthetic
-association scan made by dftk). `dftk dataset NAME` searches dftk, seaborn,
+association scan, and `phewas`, a synthetic phenome-wide scan, both made by dftk). `dftk dataset NAME` searches dftk, seaborn,
 statsmodels and pydataset in that order and returns the first match, so
 `--source` is optional — pass it only to disambiguate a name that exists in
 more than one source, or to restrict the search.
@@ -489,6 +489,13 @@ dftk dataset gwas -o | dftk query -q "Chr == '6' and pos > 31.6e6 and pos < 33.6
 ```
 
 `forest` draws one row per estimate: a point with its interval, labels down the left, top to bottom in file order (sort first to order them), and a reference line at 0. Give the interval as two columns (`--ci lo,hi`) or a standard error (`--se se`, ± 1.96 SE, `--level` to change). `--exp` turns log odds ratios (or any log-scale estimate) into ratios on a log axis with the reference at 1; `--text` writes `estimate [lo, hi]` to the right and `--textcol` adds columns such as the p-value or the number of carriers. `-g` puts several series on each row (het and hom carriers, two cohorts), `--section` groups rows under bold headers, `--weighted` sizes the markers by 1/SE². Coefficients from `fit`:
+
+`dataset phewas` is a simulated phenome-wide scan of loss-of-function carriers (heterozygous and homozygous rows per phenotype, log odds ratios, five real effects) to try it on:
+
+```bash
+dftk dataset phewas -o | dftk query -q "genotype == 'het' and Pval < 0.01" --sortasc Pval -o \
+    | dftk forest -y phenotype -x beta --se se --exp --text --textcol Pval -xl "odds ratio" -f top.png
+```
 
 ```bash
 dftk dataset tips -o \

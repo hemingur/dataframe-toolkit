@@ -34,6 +34,11 @@ _DFTK_DATASETS = {
         "synthetic association scan: SNP, Chr, pos, Pval, Chisq, r2 "
         "(~121k variants, six peaks)"
     ),
+    "phewas": (
+        "synthetic PheWAS of loss-of-function carriers: category, phenotype, "
+        "prevalence, genotype (het/hom), n_carriers, beta (log OR), se, Pval "
+        "(74 phenotypes, five real effects)"
+    ),
 }
 
 
@@ -42,6 +47,10 @@ def _load_dftk(name: str) -> pd.DataFrame:
         from dftk.common.gwas import simulate_gwas
 
         return simulate_gwas()
+    if name == "phewas":
+        from dftk.common.gwas import simulate_phewas
+
+        return simulate_phewas()
     raise ValueError(f"dftk dataset {name!r} not found")
 
 
