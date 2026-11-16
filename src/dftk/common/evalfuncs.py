@@ -183,20 +183,39 @@ class _StatsFunc:
         return table.apply(lambda row: self.row_func(row.to_numpy()), axis=1)
 
 
-def _resolve_where_val(val: str, df: pd.DataFrame):
-    """Resolve a where() argument to a scalar, Series, or literal string.
+def split_arguments(body: str) -> list[str]:
+    """Split a call's argument string at the commas outside quotes and
+    brackets: 'a > 0, "x, y", f(b, c)' gives three arguments."""
+    parts, depth, quote, start = [], 0, None, 0
+    for i, ch in enumerate(body):
+        if quote:
+            if ch == quote:
+                quote = None
+        elif ch in "\"'":
+            quote = ch
+        elif ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            depth -= 1
+        elif ch == "," and depth == 0:
+            parts.append(body[start:i].strip())
+            start = i + 1
+    parts.append(body[start:].strip())
+    return parts
 
-    Resolution order:
-      1. Quoted string literal  ("foo" or 'foo')
-      2. Column name present in *df*
-      3. Integer literal
-      4. Float literal
-      5. Bare string (returned as-is)
+
+_IDENTIFIER = re.compile(r"[A-Za-z_]\w*")
+
+
+def _resolve_where_val(val: str, df: pd.DataFrame, role: str):
+    """Resolve a where() argument to a scalar or a Series.
+
+    In order: a quoted string ("foo" or 'foo') is that text; a column name
+    is the column; a number is the number; anything else is a pandas
+    expression of the columns (-tip, tip * 2, tip > 3).
     """
     s = val.strip()
-    if (s.startswith('"') and s.endswith('"')) or (
-        s.startswith("'") and s.endswith("'")
-    ):
+    if len(s) >= 2 and s[0] == s[-1] and s[0] in "\"'":
         return s[1:-1]
     if s in df.columns:
         return df[s]
@@ -208,26 +227,72 @@ def _resolve_where_val(val: str, df: pd.DataFrame):
         return float(s)
     except ValueError:
         pass
-    return s
+    if s in ("True", "False"):
+        return s == "True"
+    if _IDENTIFIER.fullmatch(s):
+        hint = (
+            f"  Available columns: {list(df.columns)}"
+            if role == "condition"
+            else f'  For text, quote it: "{s}".'
+        )
+        raise FormulaMistake(f"where(): the {role} {s!r} is not a column.{hint}")
+    try:
+        return df.eval(s)
+    except Exception as exc:
+        raise FormulaMistake(
+            f"where(): can't evaluate the {role} {s!r}: {exc}"
+        ) from None
+
+
+def _where_condition(val: str, df: pd.DataFrame) -> np.ndarray:
+    """The condition as a boolean array: a true/false column or expression,
+    or numbers 0 and 1.  Missing counts as false."""
+    cond = _resolve_where_val(val, df, "condition")
+    if not isinstance(cond, pd.Series):
+        raise FormulaMistake(
+            f"where(): the condition {val!r} must be a column or an expression "
+            "of columns that is true or false, e.g. where(tip > 3, ...)."
+        )
+    if pd.api.types.is_bool_dtype(cond):
+        return cond.fillna(False).to_numpy(dtype=bool)
+    if pd.api.types.is_numeric_dtype(cond) and cond.dropna().isin([0, 1]).all():
+        return (cond == 1).to_numpy()
+    if cond.dropna().map(lambda v: isinstance(v, (bool, np.bool_))).all():
+        return cond.fillna(False).astype(bool).to_numpy()
+    shown = [v.item() if hasattr(v, "item") else v for v in pd.unique(cond.dropna())]
+    shown = shown[:3]
+    raise FormulaMistake(
+        f"where(): the condition {val!r} must be true or false (or 0 and 1), "
+        f"but it holds values like {shown}.  Compare it, e.g. "
+        f"where({val} == {shown[0]!r}, ...)."
+        if shown
+        else f"where(): the condition {val!r} must be true or false."
+    )
 
 
 class _WhereFunc:
-    """Callable for ``where(cond_col, true_val, false_val)`` using ``np.where``.
+    """Callable for ``where(cond, true_val, false_val)`` using ``np.where``.
 
-    Receives the full DataFrame so that *true_val* and *false_val* can be
-    resolved as column references, quoted string literals, or numeric literals.
+    Receives the full DataFrame so that each argument can be a column, a
+    quoted string, a number or a pandas expression (_resolve_where_val).
     """
 
-    def __init__(self, cond_col: str, true_val: str, false_val: str) -> None:
-        self.cond_col = cond_col
+    def __init__(self, cond: str, true_val: str, false_val: str) -> None:
+        self.cond = cond
         self.true_val = true_val
         self.false_val = false_val
 
     def __call__(self, df: pd.DataFrame):
-        cond = df[self.cond_col]
-        true_res = _resolve_where_val(self.true_val, df)
-        false_res = _resolve_where_val(self.false_val, df)
-        return np.where(cond, true_res, false_res)
+        cond = _where_condition(self.cond, df)
+        true_res = _resolve_where_val(self.true_val, df, "value if true")
+        false_res = _resolve_where_val(self.false_val, df, "value if false")
+        try:
+            return np.where(cond, true_res, false_res)
+        except TypeError:  # text and numbers: numpy has no common type
+            return np.where(
+                cond, np.asarray(true_res, dtype=object),
+                np.asarray(false_res, dtype=object),
+            )  # fmt: skip
 
 
 SPECIAL_FUNCTIONS = (
@@ -292,12 +357,13 @@ def special_function(formula: str, df_columns: list[str]):
         )
 
     if func_name == "where":
-        if len(cols) != 3:
-            raise ValueError(
-                "where() requires exactly 3 arguments: "
-                "where(cond_col, true_val, false_val)"
+        args = split_arguments(body)
+        if len(args) != 3 or not all(args):
+            raise FormulaMistake(
+                f"where() takes 3 arguments, where(condition, value if true, "
+                f"value if false), not {len(args)}: {formula!r}"
             )
-        return dest, _WhereFunc(cols[0], cols[1], cols[2]), []
+        return dest, _WhereFunc(*args), []
 
     if func_name == "overlap":
         func = partial(lambda x: max(0, min(x[1], x[3]) - max(x[0] - 1, x[2] - 1)))
