@@ -272,6 +272,30 @@ class TestDftkSource:
         assert len(rows) > 40_000
         assert list(rows[0]) == ["SNP", "Chr", "pos", "Pval", "Chisq", "r2"]
 
+    def test_phewas(self):
+        from dftk.common.gwas import _PHEWAS_EFFECTS, simulate_phewas
+
+        df = simulate_phewas()
+        assert list(df.columns) == [
+            "category", "phenotype", "prevalence", "genotype", "n_carriers",
+            "beta", "se", "Pval",
+        ]  # fmt: skip
+        assert len(df) == 2 * df["phenotype"].nunique()
+        assert list(df["genotype"][:2]) == ["het", "hom"]
+        het = df[df["genotype"] == "het"].set_index("phenotype")
+        hom = df[df["genotype"] == "hom"].set_index("phenotype")
+        assert (hom["se"] > 3 * het["se"]).all()  # few homozygotes
+        # the planted effects, and only they, are significant in het carriers
+        hits = set(het.index[het["Pval"] < 1e-5])
+        assert hits == set(_PHEWAS_EFFECTS)
+        assert het.loc["Coronary artery disease", "beta"] < 0
+        assert not (hom["Pval"] < 1e-5).any()
+        pd.testing.assert_frame_equal(df, simulate_phewas())  # deterministic
+
+    def test_phewas_loads(self):
+        rows = _capture_execute(_make_args(NAME="phewas", source=None))
+        assert rows[0]["genotype"] == "het"
+
     def test_listed(self):
         raw = _capture_raw(_make_args(list_datasets=True, source=["dftk"]))
         lines = raw.strip().splitlines()
