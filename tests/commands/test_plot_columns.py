@@ -53,6 +53,8 @@ def table(tmp_path):
             "study": np.tile(["s1", "s2"], n // 2),
             "unused": "x",
             "unused2": 0.0,
+            "lo": -10.0,
+            "hi": 10.0,
         }
     )
     path = tmp_path / "t.parquet"
@@ -72,6 +74,12 @@ def _run(command, path, tmp_path, *argv):
     [
         (ScatCommand(), ["-x", "a", "-y", "b", "--colorcol", "c"], {"a", "b", "c"}),
         (LineCommand(), ["-x", "a", "-y", "b", "-g", "study"], {"a", "b", "study"}),
+        # --yci names two columns in one string (lost before 0.22.1)
+        (
+            LineCommand(),
+            ["-x", "a", "-y", "b", "--yci", "lo, hi"],
+            {"a", "b", "lo", "hi"},
+        ),
         (HistCommand(), ["-x", "a", "--subgraphcol", "study"], {"a", "study"}),
         (ChiCommand(), ["-x", "a", "-y", "b"], {"a", "b"}),
         (ManhattanCommand(), [], {"CHR", "BP", "P"}),
