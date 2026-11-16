@@ -570,6 +570,27 @@ class TestLineCommand:
         finally:
             os.unlink(fname)
 
+    def test_linestyle_none_draws_points_only(self, simple_df):
+        import matplotlib.pyplot as plt
+
+        from dftk.commands.line_cmd import _line_ax
+
+        fig, ax = plt.subplots()
+        df = simple_df.assign(lo=simple_df["y"] - 1, hi=simple_df["y"] + 2)
+        _line_ax(ax, df, _line_args("", "", linestyle="none", marker="o", yci="lo,hi"))
+        line = ax.containers[0].lines[0]  # the data line, not the bars
+        assert line.get_linestyle() == "None" and line.get_marker() == "o"
+        plt.close(fig)
+
+    @pytest.mark.parametrize("yci", ["lo", "lo,hi,x", "lo,"])
+    def test_yci_needs_two_columns(self, simple_df, yci):
+        fname = _tsv(simple_df)
+        try:
+            with pytest.raises(ValueError, match="--yci takes two column names"):
+                LineCommand().execute(_line_args(fname, _png(), yci=yci))
+        finally:
+            os.unlink(fname)
+
     def test_missing_yerr_col_raises(self, simple_df):
         fname = _tsv(simple_df)
         out = _png()

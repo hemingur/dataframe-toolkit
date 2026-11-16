@@ -319,6 +319,18 @@ class TestEdgeCases:
         expected_lo = np.percentile(x, 2.5, method="nearest")
         assert result["cilo"].iloc[0] == pytest.approx(expected_lo)
 
+    def test_ci_skips_missing_values(self):
+        """cilo/cihi leave out missing values, as the other statistics do."""
+        x = np.array([1.0, 2.0, np.nan, 4.0, 8.0])
+        result = _compute_stats(pd.DataFrame({"x": x}), _stat_args(cols=["x"]))
+        assert result["cilo"].iloc[0] == pytest.approx(np.nanpercentile(x, 2.5))
+        assert result["cihi"].iloc[0] == pytest.approx(np.nanpercentile(x, 97.5))
+
+    def test_ci_all_missing_is_missing(self):
+        df = pd.DataFrame({"g": ["a", "a", "b"], "x": [np.nan, np.nan, 1.0]})
+        result = _compute_stats(df, _stat_args(cols=["x"], groupcol=["g"]))
+        assert np.isnan(result["cilo"].iloc[0]) and result["cilo"].iloc[1] == 1.0
+
     def test_stat_names_order(self, simple_df):
         """Output columns follow the canonical _STAT_NAMES order."""
         result = _compute_stats(simple_df, _stat_args(cols=["x"]))

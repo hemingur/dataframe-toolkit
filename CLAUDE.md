@@ -146,7 +146,7 @@ def execute(self, args):
 
 - Row aggregation: `sum mean std min max median` (glob patterns supported)
 - Row index: `idxmax idxmin` (returns column name of max/min per row)
-- Conditional: `where(cond_col, true_val, false_val)` — np.where-style; each value resolved as column name, quoted string `"foo"`, or numeric literal
+- Conditional: `where(cond, if_true, if_false)` — np.where-style; each argument is a column, a quoted string `"foo"`, a number or a pandas expression (`-tip`, `tip > 3`); the condition must be true/false or 0/1; an unquoted non-column word is an error (`_resolve_where_val`)
 - Bitwise: `applymask overlap`
 - Column glob: `colsum(col*)`
 - NumPy: `sign`

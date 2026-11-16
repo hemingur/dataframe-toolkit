@@ -42,13 +42,26 @@ from dftk.common.plot import (
 # ---------------------------------------------------------------------------
 
 
+def yci_columns(args) -> list[str]:
+    """The two column names of --yci LO,HI ([] without it)."""
+    if not args.yci:
+        return []
+    cols = [c.strip() for c in args.yci.split(",")]
+    if len(cols) != 2 or not all(cols):
+        raise ValueError(
+            f"--yci takes two column names separated by a comma, e.g. "
+            f"--yci cilo,cihi; not {args.yci!r}."
+        )
+    return cols
+
+
 def _resolve_yerr(df, args):
     """Return yerr array for df, or None.  Handles --yerr and --yci."""
     if args.yerr is not None:
         err = df[args.yerr].values
         return [err, err]
     if args.yci is not None:
-        lo_col, hi_col = args.yci.split(",")
+        lo_col, hi_col = yci_columns(args)
         lo = (df[args.ycol] - df[lo_col]).values
         hi = (df[hi_col] - df[args.ycol]).values
         return [lo, hi]
@@ -109,6 +122,7 @@ def _line_ax(ax, df, args, title_suffix: str = ""):
     legendloc = tuple(args.legendloc) if args.legendloc else "best"
     marker = getattr(args, "marker", "")
     drawstyle = getattr(args, "drawstyle", "default")
+    linestyle = getattr(args, "linestyle", "-")
 
     if args.groupcol is not None:
         for groupname, gdf in subgraph_groups(
@@ -124,6 +138,7 @@ def _line_ax(ax, df, args, title_suffix: str = ""):
                 yerr=yerr,
                 marker=marker,
                 drawstyle=drawstyle,
+                linestyle=linestyle,
                 label=label,
                 capsize=3,
             )
@@ -137,6 +152,7 @@ def _line_ax(ax, df, args, title_suffix: str = ""):
             yerr=yerr,
             marker=marker,
             drawstyle=drawstyle,
+            linestyle=linestyle,
             label=label if label else None,
             capsize=3,
         )
@@ -179,10 +195,16 @@ Symmetric error bars (mean ± SEM flipper length per species):
   dftk dataset penguins -o | dftk stat -c flipper_length_mm -g species -o \\
       | dftk line -x species -y mean --yerr sem
 
-Asymmetric confidence intervals (mean bill length per species):
+Asymmetric intervals: mean bill length per species, with a bar over the
+middle 95 % of the values (stat's cilo and cihi are percentiles of the data):
 
   dftk dataset penguins -o | dftk stat -c bill_length_mm -g species -o \\
       | dftk line -x species -y mean --yci cilo,cihi
+
+Points with intervals and no connecting line (a dot-and-whisker plot):
+
+  dftk dataset penguins -o | dftk stat -c bill_length_mm -g species -o \\
+      | dftk line -x species -y mean --yci cilo,cihi -ls none -m o
 
 Subplot grid, one panel per month (year-over-year trend within each month):
 
@@ -231,6 +253,14 @@ class LineCommand(BaseCommand):
             default="",
             metavar="MARKER",
             help="Matplotlib marker style (default: none).",
+        )
+        s.add_argument(
+            "-ls",
+            "--linestyle",
+            default="-",
+            metavar="STYLE",
+            help="Matplotlib line style: - -- : -. or none for points only, "
+            "e.g. estimates with --yci intervals (default: -).",
         )
         s.add_argument(
             "--drawstyle",
@@ -288,15 +318,15 @@ class LineCommand(BaseCommand):
         if not args.xcol or not args.ycol:
             raise ValueError("--xcol (-x) and --ycol (-y) are required.")
 
-        df = io.read(args, columns=option_columns(args))
+        # --yci names two columns in one string: add them by name
+        df = io.read(args, columns=option_columns(args, *yci_columns(args)))
         check_cols(df, [args.xcol, args.ycol], "-x/-y")
         check_cols(df, args.groupcol, "-g/--groupcol")
         check_cols(df, args.subgraphcol, "--subgraphcol")
         if args.yerr:
             check_cols(df, [args.yerr], "--yerr")
         if args.yci:
-            lo, hi = args.yci.split(",")
-            check_cols(df, [lo.strip(), hi.strip()], "--yci")
+            check_cols(df, yci_columns(args), "--yci")
 
         if args.file:
             import matplotlib

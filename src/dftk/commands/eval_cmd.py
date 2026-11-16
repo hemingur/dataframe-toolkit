@@ -109,14 +109,16 @@ Available special functions:
     sum  mean  std  min  max  median
 
   Conditional assignment:
-    where(cond_col, true_val, false_val)
-      — np.where-style conditional; cond_col must be a boolean column.
-        true_val and false_val can each be: a column name, a quoted
-        string literal ("foo"), or a numeric literal.
-      Example:
-        dftk dataset tips -o | dftk eval \
-          -f "big = total_bill > 30" \
-          -f "label = where(big, \"large\", \"small\")"
+    where(condition, value if true, value if false)
+      — np.where-style.  Each argument is a column, a quoted string
+        ("foo"), a number, or a pandas expression of the columns
+        (-tip, tip * 2).  The condition must be true or false (or 0
+        and 1), e.g. a true/false column or tip > 3; missing counts as
+        false.  An unquoted word that is not a column is an error.
+      Examples:
+        dftk dataset tips -o \\
+            | dftk eval -f 'label = where(total_bill > 30, "large", "small")'
+        dftk dataset tips -o | dftk eval -f "signed = where(sex == 'Male', -tip, tip)"
 
   Bitwise:
     applymask(col, mask_col)     — col & mask_col

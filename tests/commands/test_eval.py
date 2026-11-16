@@ -726,3 +726,77 @@ class TestStatsFunctionArguments:
         df = pd.DataFrame({"t": [2.0, 3.0]}, index=[10, 20])
         result = _eval(df, _eval_args(formula=["p = t2pval(t, 5)"]))
         assert result["p"].notna().all()
+
+
+# ---------------------------------------------------------------------------
+# where()
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def tips():
+    return pd.DataFrame(
+        {
+            "tip": [1.0, 4.0, 5.0, np.nan],
+            "sex": ["F", "M", "M", "F"],
+            "big": [False, True, True, False],
+            "flag": [0, 1, 1, 0],
+        }
+    )
+
+
+def _where(df, formula):
+    return _eval(df.copy(), _eval_args(formula=[formula]))
+
+
+class TestWhere:
+    def test_columns_strings_numbers(self, tips):
+        out = _where(tips, 'z = where(big, "large", 0)')
+        assert out["z"].tolist() == [0, "large", "large", 0]
+        assert _where(tips, "z = where(big, tip, 0)")["z"].tolist()[:3] == [0, 4, 5]
+
+    def test_expression_values(self, tips):
+        out = _where(tips, "z = where(big, -tip, tip * 2)")
+        assert out["z"].tolist()[:3] == [2.0, -4.0, -5.0]
+
+    def test_expression_condition(self, tips):
+        out = _where(tips, "z = where(tip > 4, -tip, tip)")
+        assert out["z"].tolist()[:3] == [1.0, 4.0, -5.0]
+        out = _where(tips, "z = where(sex == 'M', 1, 2)")
+        assert out["z"].tolist() == [2, 1, 1, 2]
+
+    def test_missing_in_condition_is_false(self, tips):
+        out = _where(tips, "z = where(tip > 0, 1, 2)")
+        assert out["z"].tolist() == [1, 1, 1, 2]
+
+    def test_zero_one_condition(self, tips):
+        assert _where(tips, "z = where(flag, 1, 2)")["z"].tolist() == [2, 1, 1, 2]
+
+    def test_true_false_literals(self, tips):
+        assert _where(tips, "z = where(big, True, False)")["z"].tolist() == [
+            False, True, True, False,
+        ]  # fmt: skip
+
+    def test_commas_inside_quotes_and_calls(self, tips):
+        out = _where(tips, 'z = where(big, "a, b", tip.clip(0, 2))')
+        assert out["z"].tolist()[:2] == ["1.0", "a, b"]
+
+    def test_unquoted_word_is_an_error(self, tips):
+        with pytest.raises(ValueError, match="'large' is not a column.*quote it"):
+            _where(tips, "z = where(big, large, 0)")
+
+    def test_unknown_condition_column(self, tips):
+        with pytest.raises(ValueError, match="condition 'nope' is not a column"):
+            _where(tips, "z = where(nope, 1, 0)")
+
+    def test_text_condition_is_an_error(self, tips):
+        with pytest.raises(ValueError, match="true or false.*sex == 'F'"):
+            _where(tips, "z = where(sex, 1, 0)")
+
+    def test_bad_expression_is_an_error(self, tips):
+        with pytest.raises(ValueError, match="can't evaluate the value if true"):
+            _where(tips, "z = where(big, tip *, 0)")
+
+    def test_wrong_number_of_arguments(self, tips):
+        with pytest.raises(ValueError, match="takes 3 arguments.*not 2"):
+            _where(tips, "z = where(big, 1)")

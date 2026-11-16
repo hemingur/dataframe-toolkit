@@ -86,7 +86,10 @@ def _ci(name: str, level: float, method: str):
     """
 
     def cifunction(a):
-        return np.percentile(a, q=level, method=method)
+        # missing values left out, as for the other statistics
+        a = np.asarray(a, dtype=float)
+        a = a[~np.isnan(a)]
+        return np.percentile(a, q=level, method=method) if a.size else np.nan
 
     cifunction.__name__ = name
     return cifunction
@@ -206,7 +209,9 @@ class StatCommand(BaseCommand):
         )
         g.add_argument(
             "--confidencelevel",
-            help="Confidence level in percent (default: 95.0)",
+            help="Percent of the values between cilo and cihi, which are "
+            "percentiles of the data (default: 95.0, the 2.5th and 97.5th); "
+            "for a confidence interval of a statistic, see --bootstrap",
             type=float,
             default=95.0,
             metavar="PCT",
