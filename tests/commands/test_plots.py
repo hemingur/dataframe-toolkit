@@ -112,6 +112,10 @@ def _scat_args(fname, outfile, **kwargs):
         hexbin=False,
         gridsize=100,
         hexlog=False,
+        xerr=None,
+        yerr=None,
+        errscale=1.0,
+        weights=None,
         **_base_read_args(),
     )
     base.update(kwargs)
@@ -406,6 +410,119 @@ class TestScatFit:
                 ScatCommand().execute(
                     _scat_args(fname, _png(), fit="lowess", frac=frac)
                 )
+        finally:
+            os.unlink(fname)
+
+
+def _errorbar_segments(ax):
+    """{"x" or "y": [((x0, y0), (x1, y1)), ...]} of the error-bar lines."""
+    from matplotlib.collections import LineCollection
+
+    out = {"x": [], "y": []}
+    for c in ax.collections:
+        if isinstance(c, LineCollection):
+            for (x0, y0), (x1, y1) in c.get_segments():
+                out["x" if y0 == y1 else "y"].append(((x0, y0), (x1, y1)))
+    return out
+
+
+class TestScatErrorbars:
+    def test_yerr_and_xerr_with_scale(self, simple_df):
+        df = simple_df.assign(xe=0.5)
+        ax = _draw(df, yerr="err", xerr="xe", errscale=2.0)
+        seg = _errorbar_segments(ax)
+        (x0, y0), (x1, y1) = seg["y"][0]
+        assert y1 - y0 == pytest.approx(4 * df["err"].iloc[0])
+        (x0, y0), (x1, y1) = seg["x"][0]
+        assert x1 - x0 == pytest.approx(2.0)
+
+    def test_group_colour(self, simple_df):
+        from matplotlib.collections import LineCollection
+
+        ax = _draw(simple_df, yerr="err", groupcol=["group"])
+        bars = [c for c in ax.collections if isinstance(c, LineCollection)]
+        points = [c for c in ax.collections if not isinstance(c, LineCollection)]
+        assert {tuple(b.get_color()[0][:3]) for b in bars} == {
+            tuple(p.get_facecolor()[0][:3]) for p in points
+        }
+
+    @pytest.mark.parametrize(
+        "kwargs, match",
+        [
+            (dict(yerr="neg"), "negative"),
+            (dict(yerr="nosuch"), "nosuch"),
+            (dict(yerr="err", errscale=0), "--errscale"),
+            (dict(yerr="err", hexbin=True), "--hexbin"),
+        ],
+    )
+    def test_errors(self, simple_df, kwargs, match):
+        fname = _tsv(simple_df.assign(neg=-1.0))
+        try:
+            with pytest.raises(ValueError, match=match):
+                ScatCommand().execute(_scat_args(fname, _png(), **kwargs))
+        finally:
+            os.unlink(fname)
+
+    def test_writes_file(self, simple_df):
+        fname, out = _tsv(simple_df), _png()
+        try:
+            ScatCommand().execute(_scat_args(fname, out, yerr="err", xerr="err"))
+            _assert_file_created(out)
+        finally:
+            os.unlink(fname)
+            os.unlink(out)
+
+
+class TestScatWeightedFit:
+    def _slope(self, ax):
+        (line,) = ax.get_lines()
+        x, y = line.get_xdata(), line.get_ydata()
+        return (y[-1] - y[0]) / (x[-1] - x[0])
+
+    def test_weights_pull_the_line(self, capsys):
+        # two clusters on different lines; heavy weights on one decide the slope
+        x = np.array([1.0, 2, 3, 4, 1, 2, 3, 4])
+        y = np.array([1.0, 2, 3, 4, 3, 6, 9, 12])
+        w = np.array([1000.0] * 4 + [0.001] * 4)
+        df = pd.DataFrame({"x": x, "y": y, "w": w})
+        unweighted = self._slope(_draw(df, fit="ols"))
+        weighted = _draw(df, fit="ols", weights="w")
+        assert self._slope(weighted) == pytest.approx(1.0, abs=1e-3)
+        assert unweighted == pytest.approx(2.0, abs=0.01)
+        legend = weighted.get_legend().get_texts()[0].get_text()
+        assert "(weighted)" in legend
+
+    def test_through_origin_ivw(self, capsys):
+        rng = np.random.default_rng(3)
+        bx = rng.uniform(0.05, 0.5, 200)
+        se = 0.01 + 0.05 * bx
+        df = pd.DataFrame({"x": bx, "y": 0.4 * bx + rng.normal(0, se), "w": 1 / se**2})
+        ax = _draw(df, fit="ols", weights="w", nointercept=True)
+        assert self._slope(ax) == pytest.approx(0.4, abs=0.02)
+        (line,) = ax.get_lines()
+        x, y = line.get_xdata(), line.get_ydata()
+        assert y[0] == pytest.approx(0.4 * x[0], abs=0.02)  # through the origin
+
+    def test_rows_without_weight_left_out(self, capsys):
+        df = pd.DataFrame(
+            {"x": [1.0, 2, 3, 4, 5], "y": [1.0, 2, 3, 4, 50], "w": [1, 1, 1, 1, None]}
+        )
+        assert self._slope(_draw(df, fit="ols", weights="w")) == pytest.approx(1.0)
+
+    @pytest.mark.parametrize(
+        "kwargs, match",
+        [
+            (dict(weights="w"), "add --fit"),
+            (dict(weights="w", fit="lowess"), "add --fit"),
+            (dict(weights="w", fit="ols", robust=True), "--robust"),
+            (dict(weights="neg", fit="ols"), "negative"),
+        ],
+    )
+    def test_errors(self, cloud_df, kwargs, match):
+        fname = _tsv(cloud_df.assign(neg=-1.0))
+        try:
+            with pytest.raises(ValueError, match=match):
+                ScatCommand().execute(_scat_args(fname, _png(), **kwargs))
         finally:
             os.unlink(fname)
 
