@@ -5,6 +5,7 @@
 ### Added
 - `scat --xerr COL --yerr COL`: error bars from columns of ± values (e.g. standard errors), in each point's colour, under the points; `--errscale Z` multiplies them (1.96 for 95 % intervals). Not with `--hexbin`.
 - `scat -w/--weights COL`: weighted least squares for the `--fit ols` line; rows without a weight are left out and the legend says "(weighted)". With `--nointercept` and weights 1/se² this is the inverse-variance-weighted (IVW) Mendelian-randomisation slope, drawn over its instruments with `--xerr`/`--yerr` (example in `scat -h`). Not with `--robust` or `--fit lowess`.
+- `--vline X[:LABEL]` and `--hline Y[:LABEL]` on `scat`, `line` and `hist` (and `--vline` on `forest`): dashed grey reference lines, several per option, each labelled along the line when written `X:LABEL`, e.g. the carrier count on a power curve (`--vline 412:cohort`, example in `line -h`). They are kept in view unless `--xlim`/`--ylim` leave them out.
 
 ## [0.23.0] — 2026-11-17
 

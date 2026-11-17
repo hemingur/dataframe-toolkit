@@ -30,9 +30,11 @@ from dftk.common.plot import (
     add_figure_arguments,
     add_group_arguments,
     add_legend_arguments,
+    add_refline_arguments,
     add_xy_arguments,
     apply_labels,
     apply_limits,
+    apply_reflines,
     apply_style,
     apply_ticks,
     make_figure,
@@ -279,6 +281,7 @@ def _scatter_ax(ax, df, args, title_suffix: str = ""):
         if getattr(args, "fit", None):
             _fit_overlay(ax, df[xcol], df[ycol], args, w_series=_weights(df, args))
 
+    apply_reflines(ax, args)
     apply_limits(ax, args)
     apply_ticks(ax, args)
     apply_labels(ax, args, default_xlabel=xcol or "", default_ylabel=ycol or "")
@@ -383,6 +386,7 @@ class ScatCommand(BaseCommand):
         self.add_read_arguments(parser)
         add_xy_arguments(parser)
         add_figure_arguments(parser)
+        add_refline_arguments(parser)
         add_group_arguments(parser)
         add_legend_arguments(parser)
 

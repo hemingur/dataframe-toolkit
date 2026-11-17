@@ -23,8 +23,10 @@ from dftk.common.plot import (
     add_figure_arguments,
     add_group_arguments,
     add_legend_arguments,
+    add_refline_arguments,
     apply_labels,
     apply_limits,
+    apply_reflines,
     apply_style,
     make_figure,
     make_grouplabel,
@@ -111,6 +113,7 @@ def _hist_ax(ax, df, args, title_suffix: str = ""):
         if label:
             ax.legend(loc=legendloc, title=args.legendtitle)
 
+    apply_reflines(ax, args)
     apply_limits(ax, args)
     apply_labels(
         ax,
@@ -171,6 +174,10 @@ Weighted histogram (weight by party size):
 
   dftk dataset tips -o | dftk hist -x total_bill -y size
 
+Reference lines, labelled (NUMBER:LABEL, or just NUMBER):
+
+  dftk dataset tips -o | dftk hist -x total_bill --vline 20:typical 40:large
+
 Publication figure (Nature single column, PDF):
 
   dftk dataset tips -o | dftk hist -x total_bill \\
@@ -188,6 +195,7 @@ class HistCommand(BaseCommand):
 
         self.add_read_arguments(parser)
         add_figure_arguments(parser)
+        add_refline_arguments(parser)
         add_group_arguments(parser)
         add_legend_arguments(parser)
 

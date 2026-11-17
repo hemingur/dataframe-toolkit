@@ -366,6 +366,82 @@ def apply_limits(ax: matplotlib.axes.Axes, args: argparse.Namespace) -> None:
         )
 
 
+def refline(value: str) -> tuple[float, str | None]:
+    """--vline / --hline value: a number, or NUMBER:LABEL."""
+    number, _, label = value.partition(":")
+    try:
+        x = float(number)
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"expected a number or NUMBER:LABEL, not {value!r}"
+        ) from None
+    return x, (label or None)
+
+
+_REFLINE_COLOUR = "0.35"
+
+
+def apply_reflines(ax: matplotlib.axes.Axes, args: argparse.Namespace) -> None:
+    """Draw --vline / --hline: dashed grey lines, each with its label (if
+    any) along it, inside the axes.  Call before the axis limits are set,
+    so the lines are in view unless --xlim / --ylim leave them out."""
+    from matplotlib.transforms import blended_transform_factory
+
+    for x, label in getattr(args, "vline", None) or []:
+        ax.axvline(x, color=_REFLINE_COLOUR, ls="--", lw=0.9, zorder=1.5)
+        if label:
+            ax.text(
+                x,
+                0.98,
+                f" {label}",
+                rotation=90,
+                va="top",
+                ha="right",
+                fontsize="small",
+                color=_REFLINE_COLOUR,
+                transform=blended_transform_factory(ax.transData, ax.transAxes),
+            )
+    for y, label in getattr(args, "hline", None) or []:
+        ax.axhline(y, color=_REFLINE_COLOUR, ls="--", lw=0.9, zorder=1.5)
+        if label:
+            ax.text(
+                0.99,
+                y,
+                f"{label} ",
+                va="bottom",
+                ha="right",
+                fontsize="small",
+                color=_REFLINE_COLOUR,
+                transform=blended_transform_factory(ax.transAxes, ax.transData),
+            )
+
+
+def add_refline_arguments(
+    parser: argparse.ArgumentParser, vertical: bool = True, horizontal: bool = True
+) -> None:
+    """Add --vline / --hline (reference lines with optional labels)."""
+    g = parser.add_argument_group("reference lines")
+    if vertical:
+        g.add_argument(
+            "--vline",
+            nargs="+",
+            type=refline,
+            default=[],
+            metavar="X[:LABEL]",
+            help="Vertical dashed line(s) at X, labelled if :LABEL is given "
+            "(e.g. --vline 412:carriers).",
+        )
+    if horizontal:
+        g.add_argument(
+            "--hline",
+            nargs="+",
+            type=refline,
+            default=[],
+            metavar="Y[:LABEL]",
+            help="Horizontal dashed line(s) at Y, labelled if :LABEL is given.",
+        )
+
+
 def apply_ticks(ax: matplotlib.axes.Axes, args: argparse.Namespace) -> None:
     """Apply --xticks / --yticks major/minor locators."""
     xticks = getattr(args, "xticks", None)
