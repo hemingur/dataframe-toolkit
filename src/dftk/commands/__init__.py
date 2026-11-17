@@ -62,6 +62,7 @@ COMMAND_GROUPS: list[tuple[str, list[tuple[str, str]]]] = [
             ("scat", "scat_cmd:ScatCommand"),
             ("line", "line_cmd:LineCommand"),
             ("hist", "hist_cmd:HistCommand"),
+            ("box", "box_cmd:BoxCommand"),
             ("chi", "chi_cmd:ChiCommand"),
             ("heatmap", "heatmap_cmd:HeatmapCommand"),
             ("pairs", "pairs_cmd:PairsCommand"),
