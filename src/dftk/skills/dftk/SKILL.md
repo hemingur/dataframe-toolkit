@@ -157,7 +157,11 @@ scale above 10, `--miami COL [UPPER LOWER]` two scans, the second upside
 down below it), `qq` (QQ plot of p-values with a 95 % band and the genomic inflation
 lambda; same p-value options, `-g` one curve and lambda per group, `--logy`),
 `locus` (one region, cut out with `query` first: -log10(p) by position, `--ldcol r2`
-colours by LD with the lead, `--lead`/`--label` take an ID or `chr6:32600000`). `-g COL`
+colours by LD with the lead, `--lead`/`--label` take an ID or `chr6:32600000`),
+`forest` (estimates with intervals, one row each, file order top to bottom:
+`-y LABEL -x EST --se SE` or `--ci LO,HI`; `--exp` for log odds ratios, `--text`
+`--textcol Pval n` numbers on the right, `-g` series per row, `--section` headers;
+`fit -o | forest -y marker -x effect --ci cilo,cihi` plots coefficients). `-g COL`
 overlays groups, `--subgraphcol COL` makes panels.
 
 Other: `dataset NAME` loads a bundled example table, `annotate FILE.parquet`

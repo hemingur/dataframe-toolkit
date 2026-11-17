@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- `forest`: forest plot, one row per estimate with its confidence interval, labels down the left in file order. The interval comes from two columns (`--ci LO,HI`) or a standard error (`--se SE`, ± z·SE for `--level`, default 0.95). `--exp` draws exp() of estimate and interval on a log axis with the reference line at 1 (log odds ratios become odds ratios); `--logx` for ratios already in the table; `--ref` moves or removes the reference line. `--text` writes `estimate [lo, hi]` in a column to the right (`--digits`), and `--textcol` adds columns as they are (p-values, carrier counts); the figure grows to make room. `-g` draws several series per row side by side, in colour (`--groupcolorder`), with the text lines in the same colours; `--section` puts rows under bold headers. `--weighted` sizes markers by 1/SE²; `--xlim` ends intervals that run off the axis in an arrow. Works with `fit` output directly (`-y marker -x effect --ci cilo,cihi`).
+- `dataset phewas`: a simulated phenome-wide scan of loss-of-function carriers to try `forest` and `qq` on: category, phenotype, prevalence, genotype (het, hom), n_carriers, beta (log odds ratio), se, Pval for 74 phenotypes. Five have a real effect (one protective), significant in the 4,000 heterozygotes; the 60 homozygotes give wide intervals.
+
 ## [0.22.1] — 2026-11-16
 
 ### Fixed
