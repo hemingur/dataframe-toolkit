@@ -139,6 +139,7 @@ publication-quality output.
 | `pairs` | Scatter-plot matrix with KDEs (or histograms) on the diagonal; `-g` colours groups, `--upper corr` puts r in the upper triangle |
 | `qq` | QQ plot of p-values: observed against expected -log10(p), confidence band, genomic inflation λ; `-g` one curve and λ per group |
 | `forest` | Forest plot: one row per estimate with its interval (`--se` or `--ci lo,hi`), `--exp` for odds/hazard ratios on a log axis, `--text`/`--textcol` numbers on the right, `-g` several series per row, `--section` headers |
+| `phewas` | PheWAS plot: -log10(p) of each phenotype grouped by category (one colour each), ▲/▼ by the sign of `--betacol`, Bonferroni line, hits labelled |
 | `locus` | Regional association plot: -log10(p) in one region coloured by r² with the lead variant (`--ldcol`), lead as a diamond, `--lead`/`--label` by ID or `chr:pos` |
 | `manhattan` | Genome-wide -log10(p) by position (`Chr`, `pos`, `Pval`, or `--mlogpcol`/`--chi2col`); significance lines, thinning for millions of variants, `-g`/`--subgraphcol` for several scans |
 
@@ -486,6 +487,12 @@ dftk dataset gwas -o | dftk eval -f "Chisq = Chisq * 1.15" -o | dftk qq --chi2co
 ```bash
 dftk dataset gwas -o | dftk query -q "Chr == '6' and pos > 31.6e6 and pos < 33.6e6" -o \
     | dftk locus --ldcol r2 -f locus.png
+```
+
+`phewas` draws a phenome-wide scan: -log10(p) of each phenotype, the phenotypes grouped by category along the x axis in one colour per category (columns `category`, `phenotype` and `Pval` unless named with `-c`, `-l` and the p-value options of `manhattan`). With `--betacol beta` the points are triangles pointing up or down with the sign of the effect. The significance line is Bonferroni (0.05 / number of tests) unless `--sig` gives a p-value, and the phenotypes above it are labelled, at most `--label N` (default 10). One row per phenotype: pick one genotype or mask with `query` first.
+
+```bash
+dftk dataset phewas -o | dftk query -q "genotype == 'het'" -o | dftk phewas --betacol beta -f phewas.png
 ```
 
 `forest` draws one row per estimate: a point with its interval, labels down the left, top to bottom in file order (sort first to order them), and a reference line at 0. Give the interval as two columns (`--ci lo,hi`) or a standard error (`--se se`, ± 1.96 SE, `--level` to change). `--exp` turns log odds ratios (or any log-scale estimate) into ratios on a log axis with the reference at 1; `--text` writes `estimate [lo, hi]` to the right and `--textcol` adds columns such as the p-value or the number of carriers. `-g` puts several series on each row (het and hom carriers, two cohorts), `--section` groups rows under bold headers, `--weighted` sizes the markers by 1/SE². Coefficients from `fit`:

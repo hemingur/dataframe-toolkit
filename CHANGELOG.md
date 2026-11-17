@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- `phewas`: PheWAS plot, -log10(p) of each phenotype with the phenotypes grouped by category along the x axis, one colour per category, categories in order of first appearance. Columns `category`, `phenotype` and `Pval` unless named (`-c`, `-l`; `--pcol`, `--mlogpcol`, `--chi2col` as in `manhattan`). `--betacol` draws triangles pointing up or down with the sign of the effect, with a legend. The significance line is at 0.05 / number of tests (Bonferroni) unless `--sig P` (or `none`); `--suggestive` adds a second. The phenotypes above the line are labelled, strongest first, at most `--label N` (default 10), moved apart where they would overlap. `--ylim` caps points on the top edge; `--logy` as in `manhattan`.
+
 ## [0.23.0] — 2026-11-17
 
 ### Added

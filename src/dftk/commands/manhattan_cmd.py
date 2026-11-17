@@ -245,6 +245,7 @@ def scatter_capped(ax, x, y, hi, args, colours=None, capmarker="^", **kw):
     )  # fmt: skip
     if over.any():
         common.pop("label", None)
+        common.pop("marker", None)  # the cap has its own: capmarker
         ax.scatter(
             x[over], np.full(over.sum(), hi), s=size * 4, marker=capmarker,
             clip_on=False, c=None if colours is None else colours[over], **common,
