@@ -145,7 +145,9 @@ Statistics (all accept `-g` for per-group results):
 
 Plots (always with `-f FILE`): `scat` (scatter; `--fit` for an OLS line,
 `--fit lowess` for a smooth curve, per group with `-g`; `--hexbin` for
-tables too large for points), `line`, `hist`
+tables too large for points; `--xerr SE --yerr SE` error bars, `--errscale 1.96`
+for 95 % CIs; `--fit -w W --nointercept` weighted line through the origin, e.g.
+an IVW Mendelian-randomisation slope with `W = 1/se_y**2` from `eval`), `line`, `hist`
 (also KDE), `box` (box or `--kind violin` plot of `-y VALUE` by `-x CATEGORY`, `-g`
 side by side, `--points` jittered on top, `--count` n per box), `chi` (tail-dependence chi-plot), `heatmap` (coloured grid from a
 long table `-x COL -y COL -v VALUE`, or a wide one with `-y ROWS`; a
@@ -159,11 +161,14 @@ down below it), `qq` (QQ plot of p-values with a 95 % band and the genomic infla
 lambda; same p-value options, `-g` one curve and lambda per group, `--logy`),
 `locus` (one region, cut out with `query` first: -log10(p) by position, `--ldcol r2`
 colours by LD with the lead, `--lead`/`--label` take an ID or `chr6:32600000`),
+`phewas` (-log10(p) per phenotype grouped by `category`, labels from `phenotype`;
+`--betacol beta` triangles up/down by sign, Bonferroni line by default, hits labelled),
 `forest` (estimates with intervals, one row each, file order top to bottom:
 `-y LABEL -x EST --se SE` or `--ci LO,HI`; `--exp` for log odds ratios, `--text`
 `--textcol Pval n` numbers on the right, `-g` series per row, `--section` headers;
 `fit -o | forest -y marker -x effect --ci cilo,cihi` plots coefficients). `-g COL`
-overlays groups, `--subgraphcol COL` makes panels.
+overlays groups, `--subgraphcol COL` makes panels. `scat`, `line`, `hist` take
+`--vline X[:LABEL]` / `--hline Y[:LABEL]` reference lines (`forest` takes `--vline`).
 
 Other: `dataset NAME` loads a bundled example table, `annotate FILE.parquet`
 reads and writes provenance metadata, `clean` removes leftover temp pipe

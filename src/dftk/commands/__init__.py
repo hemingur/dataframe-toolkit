@@ -69,6 +69,7 @@ COMMAND_GROUPS: list[tuple[str, list[tuple[str, str]]]] = [
             ("manhattan", "manhattan_cmd:ManhattanCommand"),
             ("qq", "qq_cmd:QqCommand"),
             ("locus", "locus_cmd:LocusCommand"),
+            ("phewas", "phewas_cmd:PhewasCommand"),
             ("forest", "forest_cmd:ForestCommand"),
         ],
     ),
