@@ -20,6 +20,7 @@ from dftk.commands.hist_cmd import HistCommand  # noqa: E402
 from dftk.commands.line_cmd import LineCommand  # noqa: E402
 from dftk.commands.locus_cmd import LocusCommand  # noqa: E402
 from dftk.commands.manhattan_cmd import ManhattanCommand  # noqa: E402
+from dftk.commands.phewas_cmd import PhewasCommand  # noqa: E402
 from dftk.commands.qq_cmd import QqCommand  # noqa: E402
 from dftk.commands.scat_cmd import ScatCommand  # noqa: E402
 
@@ -96,6 +97,11 @@ def _run(command, path, tmp_path, *argv):
         ),
         (QqCommand(), [], {"P"}),
         (QqCommand(), ["--mlogpcol", "a", "-g", "study"], {"a", "study"}),
+        (
+            PhewasCommand(),
+            ["-c", "study", "-l", "CHR", "--betacol", "a"],
+            {"P", "study", "CHR", "a"},
+        ),
         # --ci names two columns in one string
         (
             ForestCommand(),
