@@ -145,7 +145,9 @@ Statistics (all accept `-g` for per-group results):
 
 Plots (always with `-f FILE`): `scat` (scatter; `--fit` for an OLS line,
 `--fit lowess` for a smooth curve, per group with `-g`; `--hexbin` for
-tables too large for points), `line`, `hist`
+tables too large for points; `--xerr SE --yerr SE` error bars, `--errscale 1.96`
+for 95 % CIs; `--fit -w W --nointercept` weighted line through the origin, e.g.
+an IVW Mendelian-randomisation slope with `W = 1/se_y**2` from `eval`), `line`, `hist`
 (also KDE), `chi` (tail-dependence chi-plot), `heatmap` (coloured grid from a
 long table `-x COL -y COL -v VALUE`, or a wide one with `-y ROWS`; a
 correlogram is `corr --all -o | heatmap -x col1 -y col2 -v correlation
@@ -164,7 +166,8 @@ colours by LD with the lead, `--lead`/`--label` take an ID or `chr6:32600000`),
 `-y LABEL -x EST --se SE` or `--ci LO,HI`; `--exp` for log odds ratios, `--text`
 `--textcol Pval n` numbers on the right, `-g` series per row, `--section` headers;
 `fit -o | forest -y marker -x effect --ci cilo,cihi` plots coefficients). `-g COL`
-overlays groups, `--subgraphcol COL` makes panels.
+overlays groups, `--subgraphcol COL` makes panels. `scat`, `line`, `hist` take
+`--vline X[:LABEL]` / `--hline Y[:LABEL]` reference lines (`forest` takes `--vline`).
 
 Other: `dataset NAME` loads a bundled example table, `annotate FILE.parquet`
 reads and writes provenance metadata, `clean` removes leftover temp pipe

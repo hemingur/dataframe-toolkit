@@ -25,9 +25,11 @@ from dftk.common.plot import (
     add_figure_arguments,
     add_group_arguments,
     add_legend_arguments,
+    add_refline_arguments,
     add_xy_arguments,
     apply_labels,
     apply_limits,
+    apply_reflines,
     apply_style,
     apply_ticks,
     make_figure,
@@ -162,6 +164,7 @@ def _line_ax(ax, df, args, title_suffix: str = ""):
     if getattr(args, "fit", False) and args.groupcol is None:
         _fit_overlay(ax, df[xcol], df[ycol], args)
 
+    apply_reflines(ax, args)
     apply_limits(ax, args)
     apply_ticks(ax, args)
     apply_labels(ax, args, default_xlabel=xcol or "", default_ylabel=ycol or "")
@@ -223,6 +226,15 @@ Fit and overlay regression line:
       --sql "SELECT * FROM data WHERE month = 'Jan'" -o \\
       | dftk line -x year -y passengers --fit
 
+Smallest odds ratio detectable with 80 % power against the number of
+carriers (disease prevalence 5 %, p < 5e-4), with the cohort's carrier
+count marked by a labelled vertical line:
+
+  dftk query --sql "SELECT n::DOUBLE AS carriers,
+      exp((3.48 + 0.84) / sqrt(n * 0.05 * 0.95)) AS or_min
+      FROM range(10, 5001, 10) t(n)" -o \\
+      | dftk line -x carriers -y or_min --logy --vline 412:cohort --hline 2
+
 Publication figure (Nature double column, PDF):
 
   dftk dataset flights -o | dftk query \\
@@ -243,6 +255,7 @@ class LineCommand(BaseCommand):
         self.add_read_arguments(parser)
         add_xy_arguments(parser)
         add_figure_arguments(parser)
+        add_refline_arguments(parser)
         add_group_arguments(parser)
         add_legend_arguments(parser)
 
