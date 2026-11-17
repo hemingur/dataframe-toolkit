@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- `scat --xerr COL --yerr COL`: error bars from columns of ± values (e.g. standard errors), in each point's colour, under the points; `--errscale Z` multiplies them (1.96 for 95 % intervals). Not with `--hexbin`.
+- `scat -w/--weights COL`: weighted least squares for the `--fit ols` line; rows without a weight are left out and the legend says "(weighted)". With `--nointercept` and weights 1/se² this is the inverse-variance-weighted (IVW) Mendelian-randomisation slope, drawn over its instruments with `--xerr`/`--yerr` (example in `scat -h`). Not with `--robust` or `--fit lowess`.
+
 ## [0.23.0] — 2026-11-17
 
 ### Added

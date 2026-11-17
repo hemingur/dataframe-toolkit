@@ -131,7 +131,7 @@ publication-quality output.
 
 | Command | Description                                                                                                                                                                         |
 |---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `scat`  | Scatter plot; OLS/robust or LOWESS fit (`--fit lowess`, one per group with `-g`), hexagonal binning for large tables (`--hexbin`), bubble size (`--sizecol`), colour (`--colorcol`) |
+| `scat`  | Scatter plot; OLS/robust or LOWESS fit (`--fit lowess`, one per group with `-g`), hexagonal binning for large tables (`--hexbin`), bubble size (`--sizecol`), colour (`--colorcol`), error bars (`--xerr`/`--yerr`, `--errscale 1.96`), weighted fit (`--fit -w W`) |
 | `line`  | Line plot; optional error bars (`--yerr`) or intervals (`--yci lo,hi`), `-ls none -m o` for points only, and fit overlay                                                                                               |
 | `hist`  | Histogram or KDE (`--kde`); normalisation, cumulative mode, mean±σ annotation (`--stats`)                                                                                           |
 | `chi`   | Corner-resolved chi-plot: whether tail dependence sits in the lower or upper corner                                                                                                 |
