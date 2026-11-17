@@ -12,6 +12,9 @@ Port of dfscat.py with improvements:
   - --hexbin  hexagonal binning for large tables (port of dfhexb.py)
   - --sizecol  point size from a data column (was --area)
   - --colorcol  continuous colour mapping from a data column (was --color)
+  - --xerr / --yerr  error bars from columns (--errscale 1.96 for 95 % CIs)
+  - -w/--weights  weighted least squares for --fit ols (e.g. 1/se² for an
+    inverse-variance-weighted Mendelian randomisation line)
 """
 
 import argparse
@@ -19,6 +22,7 @@ import sys
 
 import matplotlib.lines as mlines
 import numpy as np
+import pandas as pd
 
 from dftk.commands.base import BaseCommand
 from dftk.common.io import check_cols, io, option_columns
@@ -45,18 +49,22 @@ from dftk.common.plot import (
 # ---------------------------------------------------------------------------
 
 
-def _ols_curve(x, y, args, label: str):
-    """Fit OLS (or RLM) of y on x; return (x_plot, y_plot, legend text)."""
+def _ols_curve(x, y, args, label: str, w=None):
+    """Fit OLS (RLM with --robust, WLS with weights *w*) of y on x; return
+    (slope, intercept, legend text)."""
     import pandas as pd
 
     from dftk.commands.fit_cmd import regress_it
 
+    data = pd.DataFrame({"_x": x, "_y": y})
+    if w is not None:
+        data["_w"] = w
     fit_args = argparse.Namespace(
         formula="_y ~ _x" if not args.nointercept else "_y ~ _x - 1",
-        weights=None,
+        weights="_w" if w is not None else None,
         robust=getattr(args, "robust", False),
     )
-    res = regress_it(pd.DataFrame({"_x": x, "_y": y}), fit_args)
+    res = regress_it(data, fit_args)
     if label:
         print(f"== {label}", file=sys.stderr)
     print(res.summary(), file=sys.stderr)
@@ -67,6 +75,8 @@ def _ols_curve(x, y, args, label: str):
         text = f"{slope:+.3g} × {args.xcol}"
     else:
         text = f"{intercept:.3g}{slope:+.3g} × {args.xcol}"
+    if w is not None:
+        text += "  (weighted)"
     if getattr(args, "pvalue", False):
         pval = res.pvalues.get("_x", res.pvalues.iloc[-1])
         text += f"  -log10(p)={-np.log10(pval):.2g}"
@@ -85,17 +95,22 @@ def _lowess_curve(x, y, args):
     return curve[:, 0], curve[:, 1]
 
 
-def _fit_overlay(ax, x_series, y_series, args, color=None, label: str = ""):
+def _fit_overlay(
+    ax, x_series, y_series, args, color=None, label: str = "", w_series=None
+):
     """Overlay the --fit line or curve on ax.
 
     Without *color* (no --groupcol) the fit gets its own red legend entry,
     as before.  With *color* it is drawn in the group's colour, over that
     group's x range, and the group legend already identifies it.
+    *w_series*: weights for the OLS line (rows without one are left out).
     """
     import pandas as pd
 
-    data = pd.DataFrame({"x": x_series.values, "y": y_series.values}).dropna()
-    data = data.astype(float)
+    data = pd.DataFrame({"x": x_series.values, "y": y_series.values})
+    if w_series is not None:
+        data["w"] = pd.to_numeric(w_series, errors="coerce").values
+    data = data.dropna().astype(float)
     if len(data) < 3:
         print(
             f"--fit: skipped {label or 'data'} (fewer than 3 points)", file=sys.stderr
@@ -107,7 +122,8 @@ def _fit_overlay(ax, x_series, y_series, args, color=None, label: str = ""):
         x_plot, y_plot = _lowess_curve(x, y, args)
         text = f"LOWESS (frac={args.frac:.2g})"
     else:
-        slope, intercept, text = _ols_curve(x, y, args, label)
+        w = data["w"].to_numpy() if w_series is not None else None
+        slope, intercept, text = _ols_curve(x, y, args, label, w)
         xmin, xmax = (x.min(), x.max()) if color is not None else ax.get_xlim()
         x_plot = np.linspace(xmin, xmax, 200)
         y_plot = intercept + slope * x_plot
@@ -184,6 +200,31 @@ def _share_hexbin_colours(axes) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _errorbars(ax, df, args, color) -> None:
+    """Draw --xerr / --yerr bars (times --errscale) under the points."""
+    xerr = getattr(args, "xerr", None)
+    yerr = getattr(args, "yerr", None)
+    if not (xerr or yerr):
+        return
+    scale = getattr(args, "errscale", 1.0)
+    ax.errorbar(
+        df[args.xcol],
+        df[args.ycol],
+        xerr=df[xerr].to_numpy(dtype=float) * scale if xerr else None,
+        yerr=df[yerr].to_numpy(dtype=float) * scale if yerr else None,
+        fmt="none",
+        ecolor=color,
+        elinewidth=0.8,
+        alpha=0.7,
+        zorder=1,
+    )
+
+
+def _weights(df, args):
+    w = getattr(args, "weights", None)
+    return df[w] if w else None
+
+
 def _scatter_ax(ax, df, args, title_suffix: str = ""):
     """Draw scatter on a single Axes, with optional --groupcol colouring."""
     import matplotlib.pyplot as plt
@@ -208,10 +249,14 @@ def _scatter_ax(ax, df, args, title_suffix: str = ""):
             kw = dict(scatter_kw)
             if args.sizecol:
                 kw["s"] = gdf[args.sizecol]
-            points = ax.scatter(gdf[xcol], gdf[ycol], label=label, **kw)
+            points = ax.scatter(gdf[xcol], gdf[ycol], label=label, zorder=2, **kw)
+            color = points.get_facecolor()[0]
+            _errorbars(ax, gdf, args, color)
             if getattr(args, "fit", None):
-                color = points.get_facecolor()[0]
-                _fit_overlay(ax, gdf[xcol], gdf[ycol], args, color=color, label=label)
+                _fit_overlay(
+                    ax, gdf[xcol], gdf[ycol], args, color=color, label=label,
+                    w_series=_weights(gdf, args),
+                )  # fmt: skip
         ax.legend(loc=legendloc, title=args.legendtitle)
     else:
         kw = dict(scatter_kw)
@@ -219,17 +264,22 @@ def _scatter_ax(ax, df, args, title_suffix: str = ""):
             kw["s"] = df[args.sizecol]
         if args.colorcol:
             sc = ax.scatter(
-                df[xcol], df[ycol], c=df[args.colorcol], cmap="viridis", **kw
-            )
+                df[xcol], df[ycol], c=df[args.colorcol], cmap="viridis", zorder=2,
+                **kw,
+            )  # fmt: skip
             plt.colorbar(sc, ax=ax, label=args.colorcol)
+            _errorbars(ax, df, args, "grey")
         else:
             label = args.legend or ""
-            ax.scatter(df[xcol], df[ycol], label=label if label else None, **kw)
+            points = ax.scatter(
+                df[xcol], df[ycol], label=label if label else None, zorder=2, **kw
+            )
+            _errorbars(ax, df, args, points.get_facecolor()[0])
             if label:
                 ax.legend(loc=legendloc, title=args.legendtitle)
 
         if getattr(args, "fit", None):
-            _fit_overlay(ax, df[xcol], df[ycol], args)
+            _fit_overlay(ax, df[xcol], df[ycol], args, w_series=_weights(df, args))
 
     apply_reflines(ax, args)
     apply_limits(ax, args)
@@ -302,6 +352,26 @@ Bubble chart (point size from column):
 Continuous colour mapping:
 
   dftk dataset tips -o | dftk scat -x total_bill -y tip --colorcol tip
+
+Error bars from standard-error columns, as 95 % intervals (mean tip
+against mean bill per party size):
+
+  dftk dataset tips -o | dftk stat -c total_bill tip -g size -o \\
+      | dftk pivot -i size -g name -v mean sem -o \\
+      | dftk scat -x mean_total_bill -y mean_tip --xerr sem_total_bill \\
+          --yerr sem_tip --errscale 1.96
+
+Mendelian-randomisation style: effect on the outcome (by) against effect
+on the exposure (bx), each ± its standard error, and the inverse-variance-
+weighted line through the origin (weights 1/se_y²; 30 made-up instruments
+with a true slope of 0.4):
+
+  dftk randvar -n 30 -d bx --dist uniform --parameters loc:0.05,scale:0.45 \\
+          --randomseed 1 -o \\
+      | dftk randvar -d noise --dist norm --parameters scale:0.02 --randomseed 2 -o \\
+      | dftk eval -f "se_x = 0.01 + 0.04 * bx" -f "se_y = 0.01 + 0.06 * bx" \\
+          -f "by = 0.4 * bx + noise" -f "w = 1 / se_y**2" -o \\
+      | dftk scat -x bx -y by --xerr se_x --yerr se_y --fit -w w --nointercept
 """
 
 
@@ -339,6 +409,28 @@ class ScatCommand(BaseCommand):
             default=None,
             metavar="COL",
             help="Column for continuous colour mapping.",
+        )
+
+        e = parser.add_argument_group("error bars")
+        e.add_argument(
+            "--xerr",
+            default=None,
+            metavar="COL",
+            help="Column of symmetric ± errors on x (e.g. a standard error).",
+        )
+        e.add_argument(
+            "--yerr",
+            default=None,
+            metavar="COL",
+            help="Column of symmetric ± errors on y.",
+        )
+        e.add_argument(
+            "--errscale",
+            type=float,
+            default=1.0,
+            metavar="Z",
+            help="Multiply --xerr/--yerr by Z (default: 1; 1.96 turns standard "
+            "errors into 95%% confidence intervals).",
         )
 
         h = parser.add_argument_group("hexbin options")
@@ -391,6 +483,14 @@ class ScatCommand(BaseCommand):
             "--nointercept", action="store_true", help="Suppress intercept in --fit."
         )
         f.add_argument(
+            "-w",
+            "--weights",
+            default=None,
+            metavar="COL",
+            help="Weights for --fit ols (weighted least squares), e.g. 1/se² "
+            "made with eval; rows without a weight are left out of the fit.",
+        )
+        f.add_argument(
             "--pvalue",
             action="store_true",
             help="Add −log₁₀(p) to the fit legend label.",
@@ -416,6 +516,26 @@ class ScatCommand(BaseCommand):
                 )
             if args.sizecol:
                 raise ValueError("--hexbin cannot be combined with --sizecol.")
+        for opt, col in (("--xerr", args.xerr), ("--yerr", args.yerr)):
+            if col:
+                check_cols(df, [col], opt)
+                values = pd.to_numeric(df[col], errors="coerce")
+                if (values < 0).any():
+                    raise ValueError(f"{opt} column {col!r} has negative values.")
+        if args.errscale <= 0:
+            raise ValueError(f"--errscale must be above 0, not {args.errscale:g}.")
+        if args.weights:
+            check_cols(df, [args.weights], "-w/--weights")
+            if args.fit != "ols":
+                raise ValueError("-w/--weights weights the --fit ols line; add --fit.")
+            if args.robust:
+                raise ValueError("-w/--weights can't be combined with --robust.")
+            if (pd.to_numeric(df[args.weights], errors="coerce") < 0).any():
+                raise ValueError(
+                    f"-w/--weights column {args.weights!r} has negative values."
+                )
+        if args.hexbin and (args.xerr or args.yerr):
+            raise ValueError("--hexbin draws no points to put error bars on.")
         if args.fit == "lowess" and not 0 < args.frac <= 1:
             raise ValueError(f"--frac must be in (0, 1], got {args.frac}")
 

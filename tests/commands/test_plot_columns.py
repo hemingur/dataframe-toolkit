@@ -74,6 +74,11 @@ def _run(command, path, tmp_path, *argv):
     "command, argv, expected",
     [
         (ScatCommand(), ["-x", "a", "-y", "b", "--colorcol", "c"], {"a", "b", "c"}),
+        (
+            ScatCommand(),
+            ["-x", "a", "-y", "b", "--xerr", "k", "--yerr", "hi", "--fit", "-w", "k"],
+            {"a", "b", "k", "hi"},
+        ),
         (LineCommand(), ["-x", "a", "-y", "b", "-g", "study"], {"a", "b", "study"}),
         # --yci names two columns in one string (lost before 0.22.1)
         (

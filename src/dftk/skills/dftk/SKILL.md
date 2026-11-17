@@ -145,7 +145,9 @@ Statistics (all accept `-g` for per-group results):
 
 Plots (always with `-f FILE`): `scat` (scatter; `--fit` for an OLS line,
 `--fit lowess` for a smooth curve, per group with `-g`; `--hexbin` for
-tables too large for points), `line`, `hist`
+tables too large for points; `--xerr SE --yerr SE` error bars, `--errscale 1.96`
+for 95 % CIs; `--fit -w W --nointercept` weighted line through the origin, e.g.
+an IVW Mendelian-randomisation slope with `W = 1/se_y**2` from `eval`), `line`, `hist`
 (also KDE), `chi` (tail-dependence chi-plot), `heatmap` (coloured grid from a
 long table `-x COL -y COL -v VALUE`, or a wide one with `-y ROWS`; a
 correlogram is `corr --all -o | heatmap -x col1 -y col2 -v correlation
