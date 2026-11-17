@@ -142,6 +142,8 @@ publication-quality output.
 | `locus` | Regional association plot: -log10(p) in one region coloured by r² with the lead variant (`--ldcol`), lead as a diamond, `--lead`/`--label` by ID or `chr:pos` |
 | `manhattan` | Genome-wide -log10(p) by position (`Chr`, `pos`, `Pval`, or `--mlogpcol`/`--chi2col`); significance lines, thinning for millions of variants, `-g`/`--subgraphcol` for several scans |
 
+`scat`, `line` and `hist` draw dashed reference lines with `--vline X` and `--hline Y`, each labelled when written `X:LABEL` (`--vline 412:carriers`); `forest` takes `--vline`.
+
 ### Utilities
 
 | Command    | Description                                                              |

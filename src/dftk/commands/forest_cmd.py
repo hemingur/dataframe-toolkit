@@ -21,6 +21,8 @@ from dftk.common.io import check_cols, io, option_columns
 from dftk.common.plot import (
     WONG_PALETTE,
     add_figure_arguments,
+    add_refline_arguments,
+    apply_reflines,
     apply_style,
     make_figure,
     parse_figsize,
@@ -594,6 +596,7 @@ class ForestCommand(BaseCommand):
         )
 
         add_figure_arguments(parser)
+        add_refline_arguments(parser, horizontal=False)
         parser.set_defaults(size=None)
 
     def execute(self, args: argparse.Namespace) -> None:
@@ -652,6 +655,7 @@ class ForestCommand(BaseCommand):
         _draw(ax, df, est, ypos, args)
         if ref is not None:
             ax.axvline(ref, color=_REF_COLOUR, lw=0.8, ls="--", zorder=1)
+        apply_reflines(ax, args)
         if args.exp or args.logx:
             ax.set_xscale("log")
             _log_ticks(ax, est, xlim, ref)
