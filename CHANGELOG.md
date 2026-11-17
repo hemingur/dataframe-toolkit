@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- `box`: box plot of a value (`-y`) by category (`-x`; without it, one box of all rows), categories in sorted order (numbers numerically, so a genotype 0/1/2 is in order) unless `--order` gives one. Tukey whiskers; `--kind violin` draws densities instead. `-g` splits each box into one per group, side by side and in colour (`--groupcolorder`). `--points` draws every point on top, jittered; `--count` writes the number of values under each category; `--logy`, `--ylim`. Rows without a value or category are left out.
+
 ## [0.23.0] — 2026-11-17
 
 ### Added

@@ -133,6 +133,7 @@ publication-quality output.
 |---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `scat`  | Scatter plot; OLS/robust or LOWESS fit (`--fit lowess`, one per group with `-g`), hexagonal binning for large tables (`--hexbin`), bubble size (`--sizecol`), colour (`--colorcol`) |
 | `line`  | Line plot; optional error bars (`--yerr`) or intervals (`--yci lo,hi`), `-ls none -m o` for points only, and fit overlay                                                                                               |
+| `box` | Box or violin plot (`--kind violin`) of a value by category; `-g` boxes side by side, `--points` every point jittered on top, `--count` n under each category, `--order` |
 | `hist`  | Histogram or KDE (`--kde`); normalisation, cumulative mode, mean±σ annotation (`--stats`)                                                                                           |
 | `chi`   | Corner-resolved chi-plot: whether tail dependence sits in the lower or upper corner                                                                                                 |
 | `heatmap` | Coloured grid of values from a long (`-x -y -v`) or wide (`-y`) table; correlograms from `corr --all`, `--annot`, `--lower` |

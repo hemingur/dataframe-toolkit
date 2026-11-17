@@ -146,7 +146,8 @@ Statistics (all accept `-g` for per-group results):
 Plots (always with `-f FILE`): `scat` (scatter; `--fit` for an OLS line,
 `--fit lowess` for a smooth curve, per group with `-g`; `--hexbin` for
 tables too large for points), `line`, `hist`
-(also KDE), `chi` (tail-dependence chi-plot), `heatmap` (coloured grid from a
+(also KDE), `box` (box or `--kind violin` plot of `-y VALUE` by `-x CATEGORY`, `-g`
+side by side, `--points` jittered on top, `--count` n per box), `chi` (tail-dependence chi-plot), `heatmap` (coloured grid from a
 long table `-x COL -y COL -v VALUE`, or a wide one with `-y ROWS`; a
 correlogram is `corr --all -o | heatmap -x col1 -y col2 -v correlation
 --annot --vmin -1 --vmax 1`), `pairs` (scatter-plot matrix with KDEs on the diagonal; `-c COL…`,
