@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- `--vline X[:LABEL]` and `--hline Y[:LABEL]` on `scat`, `line` and `hist` (and `--vline` on `forest`): dashed grey reference lines, several per option, each labelled along the line when written `X:LABEL`, e.g. the carrier count on a power curve (`--vline 412:cohort`, example in `line -h`). They are kept in view unless `--xlim`/`--ylim` leave them out.
+
 ## [0.23.0] — 2026-11-17
 
 ### Added
