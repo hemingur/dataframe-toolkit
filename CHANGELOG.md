@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- `heatmap --subgraphcol COL`: one heatmap per value of a column, side by side (`--ncols`, `--subgraphorder`, `--subgraphformat`). Every panel has the rows and columns of the whole table in the same places, and all share one colour scale and one colour bar (`--vmin`, `--vmax`, `--center` apply to all), so a colour means the same value in every panel. Tick labels only on the outer edge. In wide input (`-y` alone) the subgraph column is never a heatmap column, even when numeric.
+- `box --hline Y[:LABEL]`: dashed reference lines across the boxes, as on `scat`, `line` and `hist`, e.g. a detection limit or a population mean (`--hline 3:mean`, example in `box -h`); also on a `--logy` axis. The label has a light background so it can be read over a box.
+
 ## [0.24.0] — 2026-11-17
 
 ### Added

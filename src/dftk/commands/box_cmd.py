@@ -19,6 +19,8 @@ from dftk.common.io import check_cols, io, option_columns
 from dftk.common.plot import (
     WONG_PALETTE,
     add_figure_arguments,
+    add_refline_arguments,
+    apply_reflines,
     apply_style,
     make_figure,
     save_or_show,
@@ -52,6 +54,11 @@ Tips by day, with every bill drawn on top, and how many there are:
 
   dftk dataset tips -o | dftk box -x day -y tip --points --count \\
       --order Thur Fri Sat Sun -f tips.png
+
+A reference line: the mean tip over all days is about 3 dollars:
+
+  dftk dataset tips -o | dftk box -x day -y tip --hline 3:mean \\
+      --order Thur Fri Sat Sun -f tips_mean.png
 
 Smokers and non-smokers side by side within each day:
 
@@ -187,6 +194,7 @@ class BoxCommand(BaseCommand):
         )
 
         add_figure_arguments(parser)
+        add_refline_arguments(parser, vertical=False)
         parser.set_defaults(size="7x4.5")
 
     def execute(self, args: argparse.Namespace) -> None:
@@ -319,6 +327,11 @@ def draw(ax, data: pd.DataFrame, args, order, hue_order) -> None:
             title_fontsize="small",
             loc=tuple(args.legendloc) if args.legendloc else "best",
         )
+    before = len(ax.texts)
+    apply_reflines(ax, args)
+    for label in ax.texts[before:]:
+        # The line runs behind the boxes; its label stays readable over one
+        label.set(zorder=5, bbox=dict(fc="white", ec="none", alpha=0.8, pad=1))
     if args.ylim is not None:
         ax.set_ylim(*args.ylim)
     ax.spines[["top", "right"]].set_visible(False)
