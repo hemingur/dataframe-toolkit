@@ -154,3 +154,44 @@ class TestErrors:
         levels.loc[0, "level"] = 0
         with pytest.raises(ValueError, match="above 0"):
             _run(tmp_path, levels, "-y", "level", "--logy")
+
+
+class TestHline:
+    @staticmethod
+    def _reflines(ax):
+        """y of the dashed reference lines."""
+        return [
+            float(line.get_ydata()[0])
+            for line in ax.lines
+            if line.get_linestyle() == "--"
+        ]
+
+    def test_lines_and_labels(self, tmp_path, levels):
+        ax = _run(
+            tmp_path, levels, "-x", "dosage", "-y", "level",
+            "--hline", "50:half", "80",
+        )  # fmt: skip
+        assert self._reflines(ax) == [50.0, 80.0]
+        labels = [t for t in ax.texts if t.get_text().strip() == "half"]
+        assert len(labels) == 1
+        # drawn above the boxes, on a background, so it can be read over one
+        assert labels[0].get_zorder() > 2 and labels[0].get_bbox_patch() is not None
+
+    def test_on_log_axis(self, tmp_path, levels):
+        ax = _run(
+            tmp_path, levels, "-x", "dosage", "-y", "level", "--logy",
+            "--hline", "30:LoD",
+        )  # fmt: skip
+        assert ax.get_yscale() == "log"
+        assert self._reflines(ax) == [30.0]
+
+    def test_ylim_still_applies(self, tmp_path, levels):
+        ax = _run(
+            tmp_path, levels, "-x", "dosage", "-y", "level",
+            "--hline", "500", "-ym", "0", "200",
+        )  # fmt: skip
+        assert ax.get_ylim() == (0.0, 200.0)
+
+    def test_no_vline(self):
+        with pytest.raises(SystemExit):
+            _args("-y", "level", "--vline", "1")
