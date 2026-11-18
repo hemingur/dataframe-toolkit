@@ -169,7 +169,7 @@ colours by LD with the lead, `--lead`/`--label` take an ID or `chr6:32600000`),
 `--textcol Pval n` numbers on the right, `-g` series per row, `--section` headers;
 `fit -o | forest -y marker -x effect --ci cilo,cihi` plots coefficients). `-g COL`
 overlays groups, `--subgraphcol COL` makes panels. `scat`, `line`, `hist` take
-`--vline X[:LABEL]` / `--hline Y[:LABEL]` reference lines (`forest` takes `--vline`).
+`--vline X[:LABEL]` / `--hline Y[:LABEL]` reference lines (`forest` takes `--vline`, `box` `--hline`).
 
 Other: `dataset NAME` loads a bundled example table, `annotate FILE.parquet`
 reads and writes provenance metadata, `clean` removes leftover temp pipe
