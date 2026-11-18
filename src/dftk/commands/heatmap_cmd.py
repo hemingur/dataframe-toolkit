@@ -380,7 +380,9 @@ class HeatmapCommand(BaseCommand):
 
         nrows, ncols = subgraph_layout(len(panels), args.ncols)
         fig, axes = make_figure(args, nrows=nrows, ncols=ncols)
-        fig.set_layout_engine("constrained")  # room for one shared colour bar
+        # Room for one shared colour bar; "compressed" also closes the gaps that
+        # --square leaves between panels
+        fig.set_layout_engine("compressed" if args.square else "constrained")
         used = []
         for idx, ((title, matrix), cells) in enumerate(zip(panels, shown, strict=True)):
             row, col = divmod(idx, ncols)
