@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- `heatmap --subgraphcol COL`: one heatmap per value of a column, side by side (`--ncols`, `--subgraphorder`, `--subgraphformat`). Every panel has the rows and columns of the whole table in the same places, and all share one colour scale and one colour bar (`--vmin`, `--vmax`, `--center` apply to all), so a colour means the same value in every panel. Tick labels only on the outer edge. In wide input (`-y` alone) the subgraph column is never a heatmap column, even when numeric.
+
 ## [0.24.0] — 2026-11-17
 
 ### Added

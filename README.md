@@ -136,7 +136,7 @@ publication-quality output.
 | `box` | Box or violin plot (`--kind violin`) of a value by category; `-g` boxes side by side, `--points` every point jittered on top, `--count` n under each category, `--order` |
 | `hist`  | Histogram or KDE (`--kde`); normalisation, cumulative mode, mean±σ annotation (`--stats`)                                                                                           |
 | `chi`   | Corner-resolved chi-plot: whether tail dependence sits in the lower or upper corner                                                                                                 |
-| `heatmap` | Coloured grid of values from a long (`-x -y -v`) or wide (`-y`) table; correlograms from `corr --all`, `--annot`, `--lower` |
+| `heatmap` | Coloured grid of values from a long (`-x -y -v`) or wide (`-y`) table; correlograms from `corr --all`, `--annot`, `--lower`; `--subgraphcol` panels on one colour scale |
 | `pairs` | Scatter-plot matrix with KDEs (or histograms) on the diagonal; `-g` colours groups, `--upper corr` puts r in the upper triangle |
 | `qq` | QQ plot of p-values: observed against expected -log10(p), confidence band, genomic inflation λ; `-g` one curve and λ per group |
 | `forest` | Forest plot: one row per estimate with its interval (`--se` or `--ci lo,hi`), `--exp` for odds/hazard ratios on a log axis, `--text`/`--textcol` numbers on the right, `-g` several series per row, `--section` headers |
@@ -448,6 +448,14 @@ dftk dataset iris -o | dftk pairs -g species --upper corr --diag hist -f iris_pa
 ```bash
 dftk dataset penguins -o | dftk pivot -i species -g island -v body_mass_g -f count -o \
   | dftk heatmap -y species --annot --cmap Blues -f penguin_counts.png
+```
+
+`--subgraphcol` draws one heatmap per value of a column, side by side. Every panel has the same rows, columns and colour scale, with one colour bar, so a colour means the same value in every panel:
+
+```bash
+dftk dataset penguins -o | dftk pivot -i species island sex -v body_mass_g -f mean -o \
+  | dftk heatmap -x island -y species -v mean_body_mass_g --subgraphcol sex \
+      --annot --fmt .0f -f penguin_mass_by_sex.png
 ```
 
 ### Manhattan plots

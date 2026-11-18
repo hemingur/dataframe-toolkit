@@ -150,7 +150,8 @@ for 95 % CIs; `--fit -w W --nointercept` weighted line through the origin, e.g.
 an IVW Mendelian-randomisation slope with `W = 1/se_y**2` from `eval`), `line`, `hist`
 (also KDE), `box` (box or `--kind violin` plot of `-y VALUE` by `-x CATEGORY`, `-g`
 side by side, `--points` jittered on top, `--count` n per box), `chi` (tail-dependence chi-plot), `heatmap` (coloured grid from a
-long table `-x COL -y COL -v VALUE`, or a wide one with `-y ROWS`; a
+long table `-x COL -y COL -v VALUE`, or a wide one with `-y ROWS`; `--subgraphcol`
+panels share rows, columns and one colour scale; a
 correlogram is `corr --all -o | heatmap -x col1 -y col2 -v correlation
 --annot --vmin -1 --vmax 1`), `pairs` (scatter-plot matrix with KDEs on the diagonal; `-c COL…`,
 `-g COL`, `--upper corr`), `manhattan` (genome-wide -log10(p); columns
