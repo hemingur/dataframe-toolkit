@@ -395,6 +395,10 @@ class HeatmapCommand(BaseCommand):
                 xticklabels=lowest, yticklabels=col == 0,
             )  # fmt: skip
             ax.set_title(title)
+            if lowest and row < nrows - 1:
+                # An empty grid cell below: its labels hang into that space,
+                # so the layout needn't widen the gap under the whole row
+                ax.xaxis.set_in_layout(False)
             used.append(ax)
         for idx in range(len(panels), nrows * ncols):
             axes[idx // ncols][idx % ncols].set_visible(False)
