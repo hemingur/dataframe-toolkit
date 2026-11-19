@@ -190,3 +190,117 @@ class TestColumns:
     def test_ylim_caps(self, tmp_path, results):
         ax = _run(tmp_path, results, "-ym", "0", "10")
         assert max(y for _, _, y in _points(ax)) == pytest.approx(10)
+
+
+class TestSubgraph:
+    """--subgraphcol: one panel per value, shared x positions and y axis."""
+
+    @pytest.fixture
+    def models(self, results):
+        # The lof model leaves out Anaemia (untested) and has a weaker AF
+        lof = results.drop(index=2).assign(model="lof")
+        lof.loc[0, "Pval"] = 0.05
+        return pd.concat([results.assign(model="all"), lof], ignore_index=True)
+
+    def _fig(self, tmp_path, df, *argv):
+        data = tmp_path / "in.tsv"
+        df.to_csv(data, sep="\t", index=False)
+        png = tmp_path / "out.png"
+        saved = []
+        orig = phewas_mod.save_or_show
+        with patch.object(
+            phewas_mod, "save_or_show", lambda f, a: saved.append(f) or orig(f, a)
+        ):
+            PhewasCommand().execute(_args(str(data), *argv, "-f", str(png)))
+        return saved[0]
+
+    @staticmethod
+    def _panels(fig):
+        return [ax for ax in fig.axes if ax.get_visible()]
+
+    @staticmethod
+    def _xy(ax):
+        return {(x, round(y, 3)) for _, x, y in _points(ax)}
+
+    def test_stacked_with_titles(self, tmp_path, models):
+        fig = self._fig(tmp_path, models, "--subgraphcol", "model")
+        top, bottom = self._panels(fig)
+        assert (top.get_title(), bottom.get_title()) == ("all", "lof")
+        assert top.get_position().y0 > bottom.get_position().y1  # one per row
+
+    def test_same_x_for_a_phenotype_in_every_panel(self, tmp_path, models):
+        fig = self._fig(tmp_path, models, "--subgraphcol", "model")
+        top, bottom = self._panels(fig)
+        xs_top = {round(y, 3): x for _, x, y in _points(top)}
+        xs_bottom = {round(y, 3): x for _, x, y in _points(bottom)}
+        # Cataract (p 1e-20) and Stroke (p 0.2) at the same x in both panels
+        assert xs_top[20.0] == xs_bottom[20.0]
+        assert xs_top[round(-np.log10(0.2), 3)] == xs_bottom[round(-np.log10(0.2), 3)]
+        # Anaemia untested in lof: a gap, not a shift
+        assert len(_points(bottom)) == len(_points(top)) - 1
+        assert top.get_xlim() == bottom.get_xlim()
+
+    def test_one_y_axis(self, tmp_path, models):
+        fig = self._fig(tmp_path, models, "--subgraphcol", "model")
+        top, bottom = self._panels(fig)
+        assert top.get_ylim() == bottom.get_ylim()
+
+    def test_bonferroni_per_panel(self, tmp_path, models, caplog):
+        with caplog.at_level(logging.INFO, logger=phewas_mod.logger.name):
+            fig = self._fig(tmp_path, models, "--subgraphcol", "model")
+        top, bottom = self._panels(fig)
+        line = lambda ax: [ln.get_ydata()[0] for ln in ax.lines]  # noqa: E731
+        assert line(top) == [pytest.approx(-np.log10(0.05 / 5))]
+        assert line(bottom) == [pytest.approx(-np.log10(0.05 / 4))]
+        assert "all: 0.05/5 = 0.01; lof: 0.05/4 = 0.013" in caplog.text
+
+    def test_fixed_sig_same_in_every_panel(self, tmp_path, models, caplog):
+        with caplog.at_level(logging.INFO, logger=phewas_mod.logger.name):
+            fig = self._fig(tmp_path, models, "--subgraphcol", "model", "--sig", "1e-5")
+        heights = [ln.get_ydata()[0] for ax in self._panels(fig) for ln in ax.lines]
+        assert heights == [pytest.approx(5.0)] * 2
+        assert "Bonferroni line per panel" not in caplog.text
+
+    def test_labels_per_panel(self, tmp_path, models):
+        fig = self._fig(tmp_path, models, "--subgraphcol", "model")
+        top, bottom = self._panels(fig)
+        assert [t.get_text() for t in top.texts] == ["Cataract", "AF", "CAD"]
+        # AF is p 0.05 in lof, below that panel's line
+        assert [t.get_text() for t in bottom.texts] == ["Cataract", "CAD"]
+
+    def test_legend_and_categories_once(self, tmp_path, models):
+        fig = self._fig(tmp_path, models, "--subgraphcol", "model", "--betacol", "beta")
+        top, bottom = self._panels(fig)
+        assert top.get_legend() is not None and bottom.get_legend() is None
+        assert all(t.get_text() == "" for t in top.get_xticklabels())
+        assert [t.get_text() for t in bottom.get_xticklabels()] == [
+            "Heart",
+            "Blood",
+            "Eye",
+        ]
+
+    def test_grid_order_and_format(self, tmp_path, models):
+        df = pd.concat([models, models[models.model == "all"].assign(model="x")])
+        fig = self._fig(
+            tmp_path, df, "--subgraphcol", "model", "--ncols", "2",
+            "--subgraphorder", "lof", "--subgraphformat", "Model: {model}",
+        )  # fmt: skip
+        panels = self._panels(fig)
+        assert [ax.get_title() for ax in panels] == [
+            "Model: lof",
+            "Model: all",
+            "Model: x",
+        ]
+        assert sum(not ax.get_visible() for ax in fig.axes) == 1
+        # the right-hand panel (above the empty cell) carries the categories
+        assert [t.get_text() for t in panels[1].get_xticklabels()][0] == "Heart"
+        assert panels[1].get_ylabel() == ""
+
+    @pytest.mark.parametrize("col", ["category", "phenotype"])
+    def test_subgraphcol_cannot_be_category_or_label(self, tmp_path, models, col):
+        with pytest.raises(ValueError, match="is also -c or -l"):
+            self._fig(tmp_path, models, "--subgraphcol", col)
+
+    def test_missing_subgraphcol(self, tmp_path, models):
+        with pytest.raises(ValueError, match="nosuch"):
+            self._fig(tmp_path, models, "--subgraphcol", "nosuch")

@@ -30,7 +30,10 @@ from dftk.common.plot import (
     add_figure_arguments,
     apply_style,
     make_figure,
+    make_grouplabel,
     save_or_show,
+    subgraph_groups,
+    subgraph_layout,
 )
 
 logger = logging.getLogger(__name__)
@@ -71,7 +74,14 @@ of them (default 10; 0 for none); labels that would overlap are moved
 down.
 
 One row per phenotype: several tests of a phenotype (e.g. heterozygous and
-homozygous carriers) would stand side by side; pick one with query.
+homozygous carriers) would stand side by side; pick one with query, or
+draw one panel each with --subgraphcol.
+
+--subgraphcol COL draws one PheWAS per value of COL (a burden model, a
+gene, a genotype), stacked (--ncols for a grid).  A phenotype stands at the
+same x in every panel, a missing one leaves a gap, and the panels share one
+y axis.  The Bonferroni line counts each panel's own tests (it is logged
+when the panels differ); --sig P draws one line at P in every panel.
 
 EXAMPLES
 --------
@@ -83,6 +93,11 @@ The simulated scan of heterozygous loss-of-function carriers:
 
   dftk dataset phewas -o | dftk query -q "genotype == 'het'" -o \\
       | dftk phewas --betacol beta -f phewas.png
+
+Heterozygous and homozygous carriers, one panel each:
+
+  dftk dataset phewas -o | dftk phewas --betacol beta \\
+      --subgraphcol genotype -f phewas_by_genotype.png
 
 Fixed threshold, a suggestive line, more room for the labels:
 
@@ -162,22 +177,58 @@ def layout(data: pd.DataFrame) -> tuple[np.ndarray, list[tuple[str, float, float
     return x, spans
 
 
+def shared_layout(
+    panels: list[pd.DataFrame],
+) -> tuple[list[np.ndarray], list[tuple[str, float, float]]]:
+    """x of every row of every panel, and the category spans: one x per
+    phenotype (category and label) across all panels, so that a phenotype
+    stands at the same place in each; one missing from a panel leaves a gap."""
+    keys = pd.concat([p[["_cat", "_label"]] for p in panels]).drop_duplicates()
+    x, spans = layout(keys.reset_index(drop=True))
+    at = dict(zip(zip(keys["_cat"], keys["_label"], strict=True), x, strict=True))
+    xs = [
+        np.array([at[k] for k in zip(p["_cat"], p["_label"], strict=True)], dtype=float)
+        for p in panels
+    ]
+    return xs, spans
+
+
 def significance(args, n: int) -> float | None:
     if args.sig == "bonferroni":
         return 0.05 / n
     return args.sig
 
 
-def _draw(ax, data: pd.DataFrame, args) -> None:
-    x, spans = layout(data)
+def _lines(args, n: int) -> list[float]:
+    """-log10 of the significance and suggestive lines for n tests."""
+    sig = significance(args, n)
+    return [-np.log10(p) for p in (sig, args.suggestive) if p is not None]
+
+
+def _ylim(panels: list[pd.DataFrame], args) -> tuple[float, float]:
+    """y limits shared by all panels: room for the highest point or line."""
+    top = max(max([float(p["_y"].max()), *_lines(args, len(p))]) for p in panels)
+    lo, hi = 0.0, max(top, 1.0) * 1.08
+    if args.ylim is not None:
+        lo, hi = float_or(args.ylim[0], lo), float_or(args.ylim[1], hi)
+    return lo, hi
+
+
+def _draw(
+    ax,
+    data: pd.DataFrame,
+    args,
+    x: np.ndarray,
+    spans: list[tuple[str, float, float]],
+    ylim: tuple[float, float],
+    legend: bool = True,
+    categories: bool = True,
+    ylabel: bool = True,
+) -> None:
     y = data["_y"].to_numpy()
     sign = data["_sign"].to_numpy()
     sig = significance(args, len(data))
-    lines = [-np.log10(p) for p in (sig, args.suggestive) if p is not None]
-
-    lo, hi = 0.0, max([float(y.max()), *lines, 1.0]) * 1.08
-    if args.ylim is not None:
-        lo, hi = float_or(args.ylim[0], lo), float_or(args.ylim[1], hi)
+    lo, hi = ylim
 
     colour_of = {
         cat: _CATEGORY_COLOURS[i % len(_CATEGORY_COLOURS)]
@@ -235,7 +286,7 @@ def _draw(ax, data: pd.DataFrame, args) -> None:
                 len(above),
             )
 
-    if args.betacol and (sign != 0).any():
+    if legend and args.betacol and (sign != 0).any():
         from matplotlib.lines import Line2D
 
         handles = [
@@ -252,17 +303,23 @@ def _draw(ax, data: pd.DataFrame, args) -> None:
         )
 
     ax.set_xticks([(a + b) / 2 for _, a, b in spans])
-    ax.set_xticklabels([c for c, _, _ in spans], rotation=45, ha="right")
-    for label, (cat, _, _) in zip(ax.get_xticklabels(), spans, strict=True):
-        label.set_color(colour_of[cat])
+    if categories:
+        ax.set_xticklabels([c for c, _, _ in spans], rotation=45, ha="right")
+        for label, (cat, _, _) in zip(ax.get_xticklabels(), spans, strict=True):
+            label.set_color(colour_of[cat])
+    else:
+        ax.set_xticklabels([])
     ax.tick_params(axis="x", length=0)
     ax.set_xlim(-_GAP / 2 - 0.5, spans[-1][2] + _GAP / 2 + 0.5)
     ax.set_ylim(lo, hi)
     if args.logy is not None:
         log_yaxis(ax, args.logy, lo, hi)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.set_xlabel(args.xlabel if args.xlabel is not None else "")
-    ax.set_ylabel(args.ylabel if args.ylabel is not None else r"$-\log_{10}(p)$")
+    ax.set_xlabel(args.xlabel if args.xlabel is not None and categories else "")
+    default_ylabel = r"$-\log_{10}(p)$"
+    ax.set_ylabel(
+        (args.ylabel if args.ylabel is not None else default_ylabel) if ylabel else ""
+    )
 
 
 def spread_labels(fig, ax) -> None:
@@ -278,6 +335,32 @@ def spread_labels(fig, ax) -> None:
             dx, dy = text.xyann
             text.xyann = (dx, dy - box.height * 72 / fig.dpi * 0.5)
         placed.append(text.get_window_extent(renderer))
+
+
+def _panels(data: pd.DataFrame, args) -> tuple[list[str], list[pd.DataFrame]]:
+    """Titles and rows of the --subgraphcol panels; logs each panel's
+    Bonferroni threshold when they differ."""
+    check_cols(data, args.subgraphcol, "--subgraphcol")
+    clash = set(args.subgraphcol) & {args.catcol, args.labelcol}
+    if clash:
+        raise ValueError(f"--subgraphcol {', '.join(sorted(clash))} is also -c or -l")
+    groups = subgraph_groups(data, args.subgraphcol, args.subgraphorder)
+    if not groups:
+        raise ValueError(f"--subgraphcol {' '.join(args.subgraphcol)} has no values")
+    titles = [
+        make_grouplabel(k, args.subgraphcol, args.subgraphformat) for k, _ in groups
+    ]
+    panels = [g.reset_index(drop=True) for _, g in groups]
+    counts = [len(p) for p in panels]
+    if args.sig == "bonferroni" and len(set(counts)) > 1:
+        logger.info(
+            "Bonferroni line per panel: %s",
+            "; ".join(
+                f"{t}: 0.05/{n} = {0.05 / n:.2g}"
+                for t, n in zip(titles, counts, strict=True)
+            ),
+        )
+    return titles, panels
 
 
 class PhewasCommand(BaseCommand):
@@ -377,6 +460,39 @@ class PhewasCommand(BaseCommand):
             "(default: best).",
         )
 
+        s = parser.add_argument_group("panels")
+        s.add_argument(
+            "--subgraphcol",
+            nargs="+",
+            default=None,
+            metavar="COL",
+            help="One PheWAS per value of this column (a burden model, a gene), "
+            "stacked, with the phenotypes at the same x and one y axis; the "
+            "Bonferroni line counts each panel's own tests.",
+        )
+        s.add_argument(
+            "--subgraphorder",
+            nargs="+",
+            default=None,
+            metavar="VAL",
+            help="Panel order for --subgraphcol. Values not listed appear last "
+            "in sorted order.",
+        )
+        s.add_argument(
+            "--subgraphformat",
+            default=None,
+            metavar="TEMPLATE",
+            help="Panel title template, with {colname} placeholders, e.g. "
+            "'Model: {model}'.",
+        )
+        s.add_argument(
+            "--ncols",
+            type=int,
+            default=1,
+            metavar="N",
+            help="Panels per row (default: 1, stacked).",
+        )
+
         add_figure_arguments(parser)
         parser.set_defaults(size="8x4.5")
 
@@ -401,11 +517,44 @@ class PhewasCommand(BaseCommand):
         if args.usetex:
             plt.rc("text", usetex=True)
         apply_style(args)
-        fig, axes = make_figure(args)
-        _draw(axes[0][0], data, args)
-        axes[0][0].set_title(args.title or "")
+        if not args.subgraphcol:
+            fig, axes = make_figure(args)
+            ax = axes[0][0]
+            x, spans = layout(data)
+            _draw(ax, data, args, x, spans, _ylim([data], args))
+            ax.set_title(args.title or "")
+            fig.tight_layout()
+            spread_labels(fig, ax)
+            save_or_show(fig, args)
+            return
+
+        titles, panels = _panels(data, args)
+        xs, spans = shared_layout(panels)
+        ylim = _ylim(panels, args)
+        nrows, ncols = subgraph_layout(len(panels), args.ncols)
+        fig, axes = make_figure(args, nrows=nrows, ncols=ncols)
+        used = []
+        for idx, (title, panel, x) in enumerate(zip(titles, panels, xs, strict=True)):
+            row, col = divmod(idx, ncols)
+            ax = axes[row][col]
+            # Category names under the lowest panel of each column only
+            lowest = idx + ncols >= len(panels)
+            _draw(
+                ax, panel, args, x, spans, ylim,
+                legend=idx == 0, categories=lowest, ylabel=col == 0,
+            )  # fmt: skip
+            ax.set_title(title)
+            if lowest and row < nrows - 1:
+                # An empty grid cell below: its labels hang into that space
+                ax.xaxis.set_in_layout(False)
+            used.append(ax)
+        for idx in range(len(panels), nrows * ncols):
+            axes[idx // ncols][idx % ncols].set_visible(False)
+        if args.title:
+            fig.suptitle(args.title)
         fig.tight_layout()
-        spread_labels(fig, axes[0][0])
+        for ax in used:
+            spread_labels(fig, ax)
         save_or_show(fig, args)
 
 
