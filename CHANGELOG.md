@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- `heatmap --subgraphcol`: when the last row of panels is short (8 panels in 3 columns), the rows are evenly spaced again. The tick labels of a panel above an empty grid cell used to widen the gap under its whole row.
+
 ## [0.25.0] — 2026-11-18
 
 ### Added

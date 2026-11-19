@@ -251,6 +251,22 @@ class TestSubgraph:
         assert len(self._panels(fig)) == 3
         assert sum(not ax.get_visible() for ax in fig.axes) == 1
 
+    def test_even_row_gaps_with_an_empty_cell(self, tmp_path, by_sex):
+        # 5 panels in 2 columns: the 4th is the lowest of its column and has
+        # tick labels, above an empty cell; the rows stay evenly spaced
+        df = pd.concat([by_sex[by_sex.sex == "F"].assign(sex=s) for s in "ABCDE"])
+        fig = self._run(
+            tmp_path, df, "-x", "col", "-y", "row", "-v", "v",
+            "--subgraphcol", "sex", "--ncols", "2",
+        )  # fmt: skip
+        fig.canvas.draw()
+        panels = self._panels(fig)
+        assert [t.get_text() for t in panels[3].get_xticklabels()] == ["x", "y"]
+        tops = [panels[i].get_position().y1 for i in (0, 2, 4)]
+        bottoms = [panels[i].get_position().y0 for i in (0, 2, 4)]
+        gap1, gap2 = bottoms[0] - tops[1], bottoms[1] - tops[2]
+        assert gap1 == pytest.approx(gap2, abs=1e-3)
+
     def test_wide_leaves_out_numeric_subgraph_column(self, tmp_path):
         df = pd.DataFrame(
             {
