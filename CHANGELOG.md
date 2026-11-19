@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- `phewas --subgraphcol COL`: one PheWAS per value of a column (burden models of one gene, genes within one model, genotypes), stacked one per row by default (`--ncols` for a grid, `--subgraphorder`, `--subgraphformat`). A phenotype stands at the same x in every panel, one missing from a panel leaves a gap, and all panels share one y axis. The Bonferroni line counts each panel's own tests, and the log gives each panel's threshold when they differ; `--sig P` draws one line at P in every panel. Hits are labelled per panel; the `--betacol` legend and the category names appear once.
+
 ## [0.25.1] — 2026-11-19
 
 ### Fixed
