@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Added
+- `phewas --labelpercat K`: at most K labels per category (per panel), strongest first, so several strong hits in one category (variations of one phenotype) no longer take every label; `--label N` still caps the total. The log says how many hits above the line were left without a label.
+- `phewas --labelnumbers`: labels are numbers, 1, 2, … left to right, instead of phenotype names, and the key (number, category, phenotype, Pval, and the `--betacol` and `--subgraphcol` values) goes to stdout as TSV for a caption (`> key.tsv`). With `--subgraphcol` a phenotype keeps one number in every panel.
+
+### Changed
+- `phewas`: every category is now as wide on the x axis, its phenotypes spread evenly across it, instead of one unit per phenotype (a category with 4 phenotypes was half as wide as one with 9). `--catwidth count` gives the old layout.
+
 ### Documentation
 - JSON files: README "JSON files", `query -h` and the skill say that dftk reads JSON as a table, so writing it back as JSON gives every record every key (`null` where a record had none), and point to `jq` for filtering JSON that should stay JSON (`jq -c 'select(...)'`) or turning it into TSV for a pipeline (`jq -r '[...] | @tsv'`).
 

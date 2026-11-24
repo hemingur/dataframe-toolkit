@@ -513,10 +513,12 @@ dftk dataset gwas -o | dftk query -q "Chr == '6' and pos > 31.6e6 and pos < 33.6
     | dftk locus --ldcol r2 -f locus.png
 ```
 
-`phewas` draws a phenome-wide scan: -log10(p) of each phenotype, the phenotypes grouped by category along the x axis in one colour per category (columns `category`, `phenotype` and `Pval` unless named with `-c`, `-l` and the p-value options of `manhattan`). With `--betacol beta` the points are triangles pointing up or down with the sign of the effect. The significance line is Bonferroni (0.05 / number of tests) unless `--sig` gives a p-value, and the phenotypes above it are labelled, at most `--label N` (default 10). One row per phenotype: pick one genotype or mask with `query` first, or draw one panel each with `--subgraphcol`.
+`phewas` draws a phenome-wide scan: -log10(p) of each phenotype, the phenotypes grouped by category along the x axis in one colour per category (columns `category`, `phenotype` and `Pval` unless named with `-c`, `-l` and the p-value options of `manhattan`). With `--betacol beta` the points are triangles pointing up or down with the sign of the effect. The significance line is Bonferroni (0.05 / number of tests) unless `--sig` gives a p-value, and the phenotypes above it are labelled, at most `--label N` (default 10). `--labelpercat 1` labels only the strongest hit of each category, and `--labelnumbers` writes numbers instead of names, left to right, with the key on stdout for a caption. Every category is as wide on the x axis (`--catwidth count` makes a category as wide as its number of phenotypes). One row per phenotype: pick one genotype or mask with `query` first, or draw one panel each with `--subgraphcol`.
 
 ```bash
 dftk dataset phewas -o | dftk query -q "genotype == 'het'" -o | dftk phewas --betacol beta -f phewas.png
+dftk dataset phewas -o | dftk query -q "genotype == 'het'" -o \
+    | dftk phewas --betacol beta --labelpercat 1 --labelnumbers -f phewas.png > phewas_key.tsv
 ```
 
 `--subgraphcol COL` stacks one PheWAS per value of a column: burden models of one gene, genes within one model, or genotypes. A phenotype stands at the same x in every panel and the panels share one y axis. The Bonferroni line counts each panel's own tests; `--sig P` draws one line at P in all of them:
