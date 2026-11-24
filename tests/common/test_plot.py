@@ -13,6 +13,7 @@ from dftk.common.plot import (
     WONG_PALETTE,
     apply_limits,
     apply_style,
+    figure_size,
     make_figure,
     make_grouplabel,
     parse_figsize,
@@ -91,6 +92,37 @@ class TestMakeFigure:
 
         fig, axes = make_figure(_args(), nrows=2, ncols=3)
         assert axes.shape == (2, 3)
+        plt.close(fig)
+
+
+class TestFigureSize:
+    """--size is the whole figure; without it, a size per panel, capped."""
+
+    @pytest.mark.parametrize("grid", [(1, 1), (2, 4), (4, 1)])
+    @pytest.mark.parametrize(
+        "size, expected",
+        [("double", (7.2, parse_figsize("double")[1])), ("20x12", (20.0, 12.0))],
+    )
+    def test_given_size_is_the_whole_figure(self, grid, size, expected):
+        assert figure_size(_args(size=size), *grid) == pytest.approx(expected)
+
+    @pytest.mark.parametrize(
+        "grid, expected",
+        [((1, 1), (10.0, 6.0)), ((1, 2), (16.0, 6.0)), ((4, 1), (10.0, 10.0))],
+    )
+    def test_default_grows_per_panel_up_to_the_cap(self, grid, expected):
+        assert figure_size(_args(size=None), *grid) == expected
+
+    def test_command_default_per_panel(self):
+        args = _args(size=None, default_size="8x4.5")
+        assert figure_size(args, 2, 1) == (8.0, 9.0)
+        assert figure_size(args, 3, 1) == (8.0, 10.0)
+
+    def test_make_figure_uses_it(self):
+        import matplotlib.pyplot as plt
+
+        fig, _ = make_figure(_args(size="double"), nrows=2, ncols=4)
+        assert tuple(fig.get_size_inches()) == pytest.approx(parse_figsize("double"))
         plt.close(fig)
 
 
