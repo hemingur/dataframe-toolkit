@@ -195,7 +195,7 @@ class BoxCommand(BaseCommand):
 
         add_figure_arguments(parser)
         add_refline_arguments(parser, vertical=False)
-        parser.set_defaults(size="7x4.5")
+        parser.set_defaults(default_size="7x4.5")
 
     def execute(self, args: argparse.Namespace) -> None:
         df = io.read(args, columns=option_columns(args))

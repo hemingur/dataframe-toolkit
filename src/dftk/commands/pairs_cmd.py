@@ -15,7 +15,6 @@ import pandas as pd
 from dftk.commands.base import BaseCommand
 from dftk.common.io import check_cols, io
 from dftk.common.plot import (
-    _DEFAULT_SIZE,
     WONG_PALETTE,
     add_figure_arguments,
     apply_style,
@@ -178,7 +177,7 @@ def _corr_text(ax, df, groups, xcol: str, ycol: str, method: str, cmap, colors):
 
 
 def _figsize(args: argparse.Namespace, k: int) -> tuple[float, float]:
-    if args.size != _DEFAULT_SIZE:
+    if args.size is not None:
         return parse_figsize(args.size)
     side = min(_PANEL_INCHES * k, _MAX_INCHES)
     return side, side

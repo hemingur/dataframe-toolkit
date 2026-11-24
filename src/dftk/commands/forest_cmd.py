@@ -597,7 +597,6 @@ class ForestCommand(BaseCommand):
 
         add_figure_arguments(parser)
         add_refline_arguments(parser, horizontal=False)
-        parser.set_defaults(size=None)
 
     def execute(self, args: argparse.Namespace) -> None:
         if not 0 < args.level < 1:

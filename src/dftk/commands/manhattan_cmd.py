@@ -607,7 +607,6 @@ class ManhattanCommand(BaseCommand):
         )
 
         add_figure_arguments(parser)
-        parser.set_defaults(size=None)
         add_group_arguments(parser)
         add_legend_arguments(parser)
 
@@ -619,8 +618,7 @@ class ManhattanCommand(BaseCommand):
             raise ValueError("--miami and -g/--groupcol can't be combined.")
         if args.logy is not None and args.logy <= 0:
             raise ValueError(f"--logy must be above 0, not {args.logy:g}.")
-        if args.size is None:
-            args.size = "12x6" if args.miami else "12x4"
+        args.default_size = "12x6" if args.miami else "12x4"
         data = gwas_table(df, args)
         if args.miami:
             data, args.miami_names = miami_halves(data, args.miami)

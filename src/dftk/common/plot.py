@@ -176,24 +176,14 @@ def make_figure(
     Returns (fig, axes) where axes is always a 2-D numpy array of shape
     (nrows, ncols) for uniform indexing even when nrows=ncols=1.
 
-    For publication presets (single/double/full) the per-panel size is
-    respected exactly.  For freeform sizes (WxH, including the default)
-    the total figure is capped at _MAX_SCREEN_W × _MAX_SCREEN_H so that
-    large subplot grids remain at a comfortable screen size.
+    --size, when given (a preset or WxH), is the whole figure, exactly: the
+    panels share it.  Without it, the command's default size
+    (``args.default_size``, else _DEFAULT_SIZE) is the size of one panel, and
+    the figure grows with the grid up to _MAX_SCREEN_W × _MAX_SCREEN_H.
     """
     import matplotlib.pyplot as plt
 
-    size_str = getattr(args, "size", _DEFAULT_SIZE)
-    w, h = parse_figsize(size_str)
-
-    w_total = w * ncols
-    h_total = h * nrows
-
-    # Cap total size for freeform (non-preset) sizes so grids don't balloon.
-    if size_str not in _SIZE_PRESETS:
-        w_total = min(w_total, _MAX_SCREEN_W)
-        h_total = min(h_total, _MAX_SCREEN_H)
-
+    w_total, h_total = figure_size(args, nrows, ncols)
     fig, axes = plt.subplots(
         nrows,
         ncols,
@@ -201,6 +191,18 @@ def make_figure(
         squeeze=False,
     )
     return fig, axes
+
+
+def figure_size(
+    args: argparse.Namespace, nrows: int = 1, ncols: int = 1
+) -> tuple[float, float]:
+    """(width, height) in inches of a figure of nrows × ncols panels; see
+    make_figure."""
+    given = getattr(args, "size", None)
+    if given is not None:
+        return parse_figsize(given)
+    w, h = parse_figsize(getattr(args, "default_size", None) or _DEFAULT_SIZE)
+    return min(w * ncols, _MAX_SCREEN_W), min(h * nrows, _MAX_SCREEN_H)
 
 
 # ---------------------------------------------------------------------------
@@ -603,10 +605,12 @@ def add_figure_arguments(parser: argparse.ArgumentParser) -> None:
     g.add_argument("-t", "--title", default="", metavar="TEXT", help="Figure title.")
     g.add_argument(
         "--size",
-        default=_DEFAULT_SIZE,
+        default=None,
         metavar="PRESET|WxH",
-        help='Figure size: single (3.5" col), double (7.2" col), or WxH '
-        f"in inches (default: {_DEFAULT_SIZE}).",
+        help='Size of the whole figure, panels included: single (3.5" '
+        'journal column), double (7.2"), or WxH in inches (default: '
+        "a size per panel, growing with the panels up to "
+        f"{_MAX_SCREEN_W:g}x{_MAX_SCREEN_H:g}).",
     )
     g.add_argument(
         "--fontsize",

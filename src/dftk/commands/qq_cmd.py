@@ -264,7 +264,7 @@ class QqCommand(BaseCommand):
         )
 
         add_figure_arguments(parser)
-        parser.set_defaults(size="5x5")
+        parser.set_defaults(default_size="5x5")
         add_group_arguments(parser)
         add_legend_arguments(parser)
 
