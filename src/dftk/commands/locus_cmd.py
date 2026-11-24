@@ -346,7 +346,7 @@ class LocusCommand(BaseCommand):
         )
 
         add_figure_arguments(parser)
-        parser.set_defaults(size="7x4")
+        parser.set_defaults(default_size="7x4")
 
     def execute(self, args: argparse.Namespace) -> None:
         if args.logy is not None and args.logy <= 0:

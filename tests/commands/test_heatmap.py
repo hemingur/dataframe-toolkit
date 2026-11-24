@@ -126,6 +126,39 @@ class TestExecute:
         )
         assert texts == ["1.00", "-0.50", "1.00"]
 
+    @pytest.mark.parametrize(
+        "options, size",
+        [
+            ([], 9.0),  # --fontsize screen: tick labels 9 pt
+            (["--fontsize", "publication"], 6.0),
+            (["--fontsize", "presentation"], 12.0),
+            (["--fontsize", "publication", "--annotsize", "4.5"], 4.5),
+        ],
+    )
+    def test_annot_size_follows_tick_labels(
+        self, tmp_path, long_df, monkeypatch, options, size
+    ):
+        sizes = []
+        orig = matplotlib.axes.Axes.text
+        monkeypatch.setattr(
+            matplotlib.axes.Axes,
+            "text",
+            lambda self, x, y, s, **kw: (
+                sizes.append(kw.get("fontsize")) or orig(self, x, y, s, **kw)
+            ),
+        )
+        argv = ["-x", "col1", "-y", "col2", "-v", "r", "--annot", *options]
+        self._run(tmp_path, long_df, *argv)
+        assert sizes == [size] * 4
+        assert (
+            matplotlib.rcParams["xtick.labelsize"] == size or "--annotsize" in options
+        )
+
+    def test_bad_annotsize(self, tmp_path, long_df):
+        with pytest.raises(ValueError, match="--annotsize must be above 0"):
+            self._run(tmp_path, long_df, "-x", "col1", "-y", "col2", "-v", "r",
+                      "--annot", "--annotsize", "0")  # fmt: skip
+
     def test_lower_needs_square(self, tmp_path, wide_df):
         with pytest.raises(ValueError, match="square"):
             self._run(tmp_path, wide_df, "-y", "day", "--select", "dinner", "--lower")

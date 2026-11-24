@@ -609,7 +609,7 @@ class PhewasCommand(BaseCommand):
         )
 
         add_figure_arguments(parser)
-        parser.set_defaults(size="8x4.5")
+        parser.set_defaults(default_size="8x4.5")
 
     def execute(self, args: argparse.Namespace) -> None:
         if args.logy is not None and args.logy <= 0:
