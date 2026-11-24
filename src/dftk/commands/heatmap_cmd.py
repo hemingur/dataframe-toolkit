@@ -145,6 +145,9 @@ def _heatmap(
     ax.set_aspect("equal" if args.square else "auto")
 
     if args.annot:
+        import matplotlib
+
+        size = args.annotsize or matplotlib.rcParams["xtick.labelsize"]
         for (i, j), v in np.ndenumerate(shown.filled(np.nan)):
             if np.isfinite(v):
                 # Dark text on light cells, light text on dark cells
@@ -157,6 +160,7 @@ def _heatmap(
                     ha="center",
                     va="center",
                     color="black" if light else "white",
+                    fontsize=size,
                 )
     return mesh
 
@@ -242,8 +246,9 @@ COLOURS AND NUMBERS
 -------------------
 --cmap takes any matplotlib colour map (viridis, magma, RdBu_r, coolwarm,
 ...). --annot writes each value in its cell, with --fmt as a Python format
-(.2f, .1%, g; default g for whole numbers, else .2f). Empty cells stay
-blank.
+(.2f, .1%, g; default g for whole numbers, else .2f), as large as the
+tick labels (--fontsize publication makes both smaller; --annotsize PT
+sets the numbers alone). Empty cells stay blank.
 
   dftk dataset penguins -o | dftk pivot -i species -g island -v body_mass_g \\
       -f count -o \\
@@ -287,6 +292,14 @@ class HeatmapCommand(BaseCommand):
             metavar="FMT",
             help="Format of --annot values, e.g. .2f or .1%% (default: g for "
             "whole numbers, else .2f).",
+        )
+        g.add_argument(
+            "--annotsize",
+            type=float,
+            default=None,
+            metavar="PT",
+            help="Font size of the --annot values in points (default: that of "
+            "the tick labels, set by --fontsize).",
         )
         g.add_argument(
             "--cmap",
@@ -345,6 +358,8 @@ class HeatmapCommand(BaseCommand):
         add_figure_arguments(parser)
 
     def execute(self, args: argparse.Namespace) -> None:
+        if args.annotsize is not None and args.annotsize <= 0:
+            raise ValueError(f"--annotsize must be above 0, not {args.annotsize:g}.")
         df = io.read(args)
         if args.select:
             check_cols(df, args.select, "--select")
