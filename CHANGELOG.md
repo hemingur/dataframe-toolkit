@@ -9,6 +9,9 @@
 ### Changed
 - `phewas`: every category is now as wide on the x axis, its phenotypes spread evenly across it, instead of one unit per phenotype (a category with 4 phenotypes was half as wide as one with 9). `--catwidth count` gives the old layout.
 
+### Documentation
+- JSON files: README "JSON files", `query -h` and the skill say that dftk reads JSON as a table, so writing it back as JSON gives every record every key (`null` where a record had none), and point to `jq` for filtering JSON that should stay JSON (`jq -c 'select(...)'`) or turning it into TSV for a pipeline (`jq -r '[...] | @tsv'`).
+
 ## [0.26.0] — 2026-11-19
 
 ### Added

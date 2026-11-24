@@ -92,7 +92,9 @@ Output format: TSV unless `-o FILE` ends in `.json` (array of records),
 `.jsonl`, `.md` (Markdown table) or `.tex` (bare booktabs tabular, for
 `\input` in a LaTeX table); `--format tsv|json|jsonl|md|tex` does the same
 on stdout. Lists and nested values are one line of JSON in TSV and stay
-nested in JSON output.
+nested in JSON output. JSON read by `query` becomes a table, so JSON output
+writes a key missing from a record as `null`: to filter JSON and keep it
+JSON, use jq, not dftk.
 
 ## Choosing a command
 
