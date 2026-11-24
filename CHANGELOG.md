@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- `phewas --labelpercat K`: at most K labels per category (per panel), strongest first, so several strong hits in one category (variations of one phenotype) no longer take every label; `--label N` still caps the total. The log says how many hits above the line were left without a label.
+- `phewas --labelnumbers`: labels are numbers, 1, 2, … left to right, instead of phenotype names, and the key (number, category, phenotype, Pval, and the `--betacol` and `--subgraphcol` values) goes to stdout as TSV for a caption (`> key.tsv`). With `--subgraphcol` a phenotype keeps one number in every panel.
+
+### Changed
+- `phewas`: every category is now as wide on the x axis, its phenotypes spread evenly across it, instead of one unit per phenotype (a category with 4 phenotypes was half as wide as one with 9). `--catwidth count` gives the old layout.
+
 ## [0.26.0] — 2026-11-19
 
 ### Added

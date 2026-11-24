@@ -164,6 +164,8 @@ lambda; same p-value options, `-g` one curve and lambda per group, `--logy`),
 colours by LD with the lead, `--lead`/`--label` take an ID or `chr6:32600000`),
 `phewas` (-log10(p) per phenotype grouped by `category`, labels from `phenotype`;
 `--betacol beta` triangles up/down by sign, Bonferroni line by default, hits labelled;
+`--labelpercat 1` one label per category, `--labelnumbers` numbers with the key on
+stdout (`> key.tsv`); categories equally wide unless `--catwidth count`;
 `--subgraphcol MODEL` stacks one panel per burden model or gene, same x, one y axis,
 Bonferroni per panel),
 `forest` (estimates with intervals, one row each, file order top to bottom:
