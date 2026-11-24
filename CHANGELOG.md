@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.27.0] — 2026-11-24
 
 ### Added
 - `phewas --labelpercat K`: at most K labels per category (per panel), strongest first, so several strong hits in one category (variations of one phenotype) no longer take every label; `--label N` still caps the total. The log says how many hits above the line were left without a label.
