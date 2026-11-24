@@ -66,9 +66,35 @@ class TestLayout:
         data = results.assign(_cat=results["category"])
         x, spans = layout(data)
         assert [c for c, _, _ in spans] == ["Heart", "Blood", "Eye"]
-        # Heart rows keep their file order, then a gap before Blood
-        assert list(x) == [0, 1, 4, 2, 6]
-        assert spans[0][1:] == (0, 2)
+        # Heart rows keep their file order
+        assert x[0] < x[1] < x[3] < x[2] < x[4]
+
+    def test_equal_widths(self, results):
+        """Every category as wide, its phenotypes spread evenly across it."""
+        data = results.assign(_cat=results["category"])
+        x, spans = layout(data)
+        widths = {round(b - a, 9) for _, a, b in spans}
+        assert widths == {1.0}
+        heart = spans[0]
+        assert list(x[[0, 1, 3]]) == pytest.approx([1 / 6, 3 / 6, 5 / 6])
+        # One phenotype stands in the middle of its band
+        for i, (_, a, b) in ((2, spans[1]), (4, spans[2])):
+            assert x[i] == pytest.approx((a + b) / 2)
+        assert heart[2] < spans[1][1]  # a gap between bands
+
+    def test_count_widths(self, results):
+        """--catwidth count: one unit per phenotype, as before 0.27.0."""
+        data = results.assign(_cat=results["category"])
+        x, spans = layout(data, equal=False)
+        assert list(x) == [0.5, 1.5, 4.5, 2.5, 6.5]
+        assert [(a, b) for _, a, b in spans] == [(0, 3), (4, 5), (6, 7)]
+
+    def test_catwidth_option(self, tmp_path, results):
+        def xs(*argv):
+            return sorted(x for _, x, _ in _points(_run(tmp_path, results, *argv)))
+
+        assert xs() == pytest.approx([1 / 6, 3 / 6, 5 / 6, 1.65, 2.8])
+        assert xs("--catwidth", "count") == [0.5, 1.5, 2.5, 4.5, 6.5]
 
     def test_tick_labels_and_y(self, tmp_path, results):
         ax = _run(tmp_path, results)
@@ -144,7 +170,7 @@ class TestLabels:
         with caplog.at_level(logging.INFO):
             ax = _run(tmp_path, results, "--label", "1")
         assert [t.get_text() for t in ax.texts] == ["Cataract"]
-        assert "the 1 strongest of 3" in caplog.text
+        assert "Labelled 1 of 3 phenotypes above the line (--label 1)" in caplog.text
         assert len(_run(tmp_path, results, "--label", "0").texts) == 0
 
     def test_labels_do_not_overlap(self, tmp_path):
@@ -162,6 +188,69 @@ class TestLabels:
         for i in range(len(boxes)):
             for j in range(i):
                 assert not boxes[i].overlaps(boxes[j])
+
+    def test_label_per_category(self, tmp_path, results, caplog):
+        """AF and CAD are both Heart hits: only the stronger is labelled."""
+        with caplog.at_level(logging.INFO):
+            ax = _run(tmp_path, results, "--labelpercat", "1")
+        assert [t.get_text() for t in ax.texts] == ["Cataract", "AF"]
+        assert "Labelled 2 of 3" in caplog.text and "--labelpercat 1" in caplog.text
+        texts = _run(tmp_path, results, "--labelpercat", "2").texts
+        assert [t.get_text() for t in texts] == ["Cataract", "AF", "CAD"]
+
+    def test_label_per_category_and_total(self, tmp_path, results):
+        ax = _run(tmp_path, results, "--labelpercat", "1", "--label", "1")
+        assert [t.get_text() for t in ax.texts] == ["Cataract"]
+
+    def test_bad_label_per_category(self, tmp_path, results):
+        with pytest.raises(ValueError, match="--labelpercat must be 1 or more"):
+            _run(tmp_path, results, "--labelpercat", "0")
+
+
+class TestNumbers:
+    """--labelnumbers: numbers left to right, the key on stdout."""
+
+    @staticmethod
+    def _key(capsys):
+        import io
+
+        return pd.read_csv(io.StringIO(capsys.readouterr().out), sep="\t")
+
+    def test_numbered_left_to_right(self, tmp_path, results, capsys):
+        ax = _run(tmp_path, results, "--labelnumbers", "--betacol", "beta")
+        # Labelled strongest first; numbered by x: AF, CAD (Heart), Cataract (Eye)
+        number = {t.get_text(): t.xy[0] for t in ax.texts}
+        assert sorted(number, key=number.get) == ["1", "2", "3"]
+        key = self._key(capsys)
+        assert list(key.columns) == ["number", "category", "phenotype", "Pval", "beta"]
+        assert list(key["phenotype"]) == ["AF", "CAD", "Cataract"]
+        assert list(key["Pval"]) == pytest.approx([1e-8, 1e-6, 1e-20])
+        assert list(key["beta"]) == [0.3, -0.2, 0.4]
+
+    def test_with_label_per_category(self, tmp_path, results, capsys):
+        ax = _run(tmp_path, results, "--labelnumbers", "--labelpercat", "1")
+        assert sorted(t.get_text() for t in ax.texts) == ["1", "2"]
+        key = self._key(capsys)
+        assert list(zip(key["number"], key["phenotype"], strict=True)) == [
+            (1, "AF"),
+            (2, "Cataract"),
+        ]
+
+    def test_named_columns_in_key(self, tmp_path, results, capsys):
+        df = results.rename(columns={"category": "group", "phenotype": "trait"})
+        _run(tmp_path, df, "--labelnumbers", "-c", "group", "-l", "trait")
+        assert list(self._key(capsys).columns) == ["number", "group", "trait", "Pval"]
+
+    def test_nothing_above_the_line(self, tmp_path, results, capsys, caplog):
+        with caplog.at_level(logging.INFO):
+            ax = _run(tmp_path, results, "--labelnumbers", "--sig", "1e-30")
+        assert len(ax.texts) == 0
+        assert capsys.readouterr().out == ""
+        assert "no phenotype above the line" in caplog.text
+
+    def test_without_option_nothing_on_stdout(self, tmp_path, results, capsys):
+        _run(tmp_path, results)
+        assert capsys.readouterr().out == ""
 
 
 class TestColumns:
@@ -267,6 +356,36 @@ class TestSubgraph:
         assert [t.get_text() for t in top.texts] == ["Cataract", "AF", "CAD"]
         # AF is p 0.05 in lof, below that panel's line
         assert [t.get_text() for t in bottom.texts] == ["Cataract", "CAD"]
+
+    def test_numbers_shared_across_panels(self, tmp_path, models, capsys):
+        """A phenotype labelled in both panels keeps one number."""
+        fig = self._fig(tmp_path, models, "--subgraphcol", "model", "--labelnumbers")
+        all_, lof = self._panels(fig)
+        assert sorted(t.get_text() for t in all_.texts) == ["1", "2", "3"]
+        assert sorted(t.get_text() for t in lof.texts) == ["2", "3"]
+        import io
+
+        key = pd.read_csv(io.StringIO(capsys.readouterr().out), sep="\t")
+        assert list(key.columns) == ["number", "model", "category", "phenotype", "Pval"]
+        assert list(
+            zip(key["number"], key["model"], key["phenotype"], strict=True)
+        ) == [
+            (1, "all", "AF"),
+            (2, "all", "CAD"),
+            (2, "lof", "CAD"),
+            (3, "all", "Cataract"),
+            (3, "lof", "Cataract"),
+        ]
+
+    def test_label_per_category_per_panel(self, tmp_path, models, caplog):
+        with caplog.at_level(logging.INFO):
+            fig = self._fig(
+                tmp_path, models, "--subgraphcol", "model", "--labelpercat", "1"
+            )
+        all_, lof = self._panels(fig)
+        assert [t.get_text() for t in all_.texts] == ["Cataract", "AF"]
+        assert [t.get_text() for t in lof.texts] == ["Cataract", "CAD"]
+        assert "all: Labelled 2 of 3" in caplog.text
 
     def test_legend_and_categories_once(self, tmp_path, models):
         fig = self._fig(tmp_path, models, "--subgraphcol", "model", "--betacol", "beta")
