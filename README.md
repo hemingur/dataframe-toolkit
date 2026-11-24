@@ -215,14 +215,27 @@ dftk query --sql "
 # ATXN7  chr3:30-42
 ```
 
-To get JSON back, write `-o FILE.json` or `.jsonl`, or `--format json` for stdout (see [Output formats](#output-formats)). Nested values and mixed fields are written as JSON again; a key missing from a record is written as `null`:
+dftk reads JSON as a table, and a table has every column in every row: a record without a key gets an empty cell, and JSON output (`-o FILE.json`, `.jsonl`, `--format json`; see [Output formats](#output-formats)) writes that cell as `null`. So dftk is the tool for getting a table out of JSON, not for filtering JSON and keeping it JSON. With a third record `{"locus": "ATXN8"}` in `catalog.jsonl`:
 
 ```bash
-dftk query --sql "SELECT * FROM 'catalog.jsonl' WHERE locus LIKE 'ATXN%'" --format json
-# [
-#   {"locus": "ATXN7", "region": ["chr3:1-30", "chr3:30-42"]}
-# ]
+dftk query --sql "SELECT * FROM 'catalog.jsonl' WHERE locus LIKE 'ATXN%'" --format jsonl
+# {"locus": "ATXN7", "region": ["chr3:1-30", "chr3:30-42"]}
+# {"locus": "ATXN8", "region": null}
 ```
+
+[jq](https://jqlang.org/) filters records without making a table, so each comes out as it went in, and can also write TSV for a dftk pipeline:
+
+```bash
+jq -c 'select(.locus | startswith("ATXN"))' catalog.jsonl
+# {"locus":"ATXN7","region":["chr3:1-30","chr3:30-42"]}
+# {"locus":"ATXN8"}
+jq -r '[.locus, (.region // "" | tostring)] | @tsv' catalog.jsonl
+# AFF2   chrX:1-60
+# ATXN7  ["chr3:1-30","chr3:30-42"]
+# ATXN8
+```
+
+JSON output is for tables: results, small records (`append`, below), input for tools that want JSON. Nested values and mixed fields are written as JSON again.
 
 ### One row: status logs and small records
 

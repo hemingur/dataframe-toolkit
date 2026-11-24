@@ -60,6 +60,7 @@ tests/
   commands/test_stat.py     # ... and so on
   common/                   # tests for common utilities
   test_skill.py             # checks src/dftk/skills/dftk against the real commands and options
+  test_public_api.py        # interfaces other packages import (BaseCommand, io.read/printdf, check_cols, -o pipe)
 src/dftk/skills/dftk/       # shipped in the wheel; `dftk skill install` copies it to ~/.claude, ~/.codex
   SKILL.md                  # agent skill (Codex, Claude Code): conventions + command overview
   references/snakemake.md   # Snakemake / Make patterns, with a tested example Snakefile
@@ -130,6 +131,34 @@ def execute(self, args):
 - **groupby keys**: `df.groupby(["col"])` with a list always returns tuple keys even for a single column. Use the same groupby call on both sides so keys match directly.
 - **Tests use `make_args`**: imported from `tests/conftest.py`; creates a simple namespace for passing args to `_eval`, `_func`, etc. without going through the CLI parser.
 - **Help-text examples use `dftk dataset`, not `data.tsv`**: keep exactly one plain-file example per command (`dftk <command> data.tsv <minimal args>`) so the base non-piped syntax is still shown, then convert every other example in that command's epilog to `dftk dataset <name> -o | dftk <command> <args>` — `-o` alone writes a temp parquet and prints its path, and the receiving command, with no DATAFILE, finds that path on stdin and reads the file. Don't write the old `...` marker in examples: zsh with Oh My Zsh expands an unquoted `...` to `../..`, so copied examples break there (`...` still works, for old scripts). Every example must actually be run against the real CLI and checked for clean output before being committed, not just written to look plausible — same bar as the README's example rewrite in 0.5.1. Prefer reusing a small set of workhorse datasets (`tips`, `diamonds`, `penguins`, `iris`) across many commands rather than a different one per command, and reach for `dftk randvar` (piped, or standalone via `-n`) when an example needs a column no bundled dataset has (a weight column, a synthetic grouping ID, arbitrary query points to interpolate against a real reference curve) — see `pivot_cmd.py`'s hierarchical-bootstrap example and `interp_cmd.py`'s basic example for the pattern.
+
+---
+
+## Interfaces other packages use
+
+A companion toolkit, mltk (machine learning; not yet published), imports dftk
+and builds its commands on it, so its commands get DATAFILE handling, the
+`-o` pipe and the shared output options, and pipe into dftk both ways. ML
+methods (PCA, clustering, penalised fits) belong there, not in dftk. Keep these
+stable; change one only with a deprecation step (old name kept working for a
+release) and a CHANGELOG note:
+
+- `dftk.commands.base.BaseCommand`: the abstract `name`, `help`,
+  `add_arguments(parser)`, `execute(args)`, and `add_io_arguments(parser)`.
+- `dftk.common.io`: `io.read(args)`, `io.printdf(df, args)`,
+  `check_cols(df, cols, context)` (None is a no-op; a missing column raises
+  `ValueError`), `DFTK_TMPDIR`. `read`/`printdf` depend on the argument names
+  `parser_read`/`parser_output` put on `args`, so those are frozen with them.
+- Behaviour: the `-o` parquet pipe (temp path on stdout, read back from stdin),
+  the shared output option names (`-o`, `--select`, `--round`, `--postquery`,
+  `--format`, …; a new output option must not be a prefix-clash risk with
+  options outside packages define, e.g. their `-t/--table`), `ValueError` for
+  input errors (shown as `Input error:`, exit 1), and `dftk fit`'s first
+  columns `tag variable marker effect`, which outside fit commands copy so
+  their output pipes into `forest`.
+
+`tests/test_public_api.py` checks these. Everything else (`common/plot.py`,
+`option_columns`, `add_read_arguments`, command internals) is free to change.
 
 ---
 

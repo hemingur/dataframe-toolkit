@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Documentation
+- JSON files: README "JSON files", `query -h` and the skill say that dftk reads JSON as a table, so writing it back as JSON gives every record every key (`null` where a record had none), and point to `jq` for filtering JSON that should stay JSON (`jq -c 'select(...)'`) or turning it into TSV for a pipeline (`jq -r '[...] | @tsv'`).
+
 ## [0.26.0] — 2026-11-19
 
 ### Added

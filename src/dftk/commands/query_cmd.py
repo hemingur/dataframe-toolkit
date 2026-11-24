@@ -264,12 +264,15 @@ column of each field, len() counts a list, unnest() gives a row per item:
 In TSV output a list or object that is left nested is shown as one line
 of JSON (["x","y"]). A field that is a string in some records and a list
 in others gets DuckDB type JSON; its plain strings are shown without
-quotes. To get JSON back, give -o FILE.json (or .jsonl) or --format json;
-nested values, and such mixed fields, are written as JSON again, and a key
-missing from a record is written as null:
+quotes.
 
-  dftk query --sql "SELECT * FROM 'records.jsonl' WHERE pos.chr = '1'" \\
-    --format json
+The JSON becomes a table, with every column in every row: a record
+without a key gets an empty cell, and JSON output (-o FILE.json, .jsonl,
+--format json) writes it as null. To filter JSON and keep each record as
+it was, use jq (jq -c 'select(.pos.chr == "1")' records.jsonl); jq -r
+'[.id, .pos.chr] | @tsv' gives TSV for a dftk pipeline. JSON output of a
+table writes nested values, and such mixed fields, as JSON again:
+
   dftk query --sql "SELECT id, tags FROM 'records.jsonl'" -o ids.jsonl
 
 OUT-OF-CORE LARGE FILES
