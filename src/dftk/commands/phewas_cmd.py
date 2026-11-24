@@ -53,7 +53,9 @@ _CATEGORY_COLOURS = (
     "#8C564B",
     "#80BA5A",
 )
-_GAP = 2.0  # x gap between categories, in phenotype widths
+_GAP = 1.0  # --catwidth count: gap between categories, in phenotype widths
+_BAND = 1.0  # --catwidth equal: width of every category
+_BAND_GAP = 0.15  # --catwidth equal: gap between categories
 
 _EPILOG = """\
 Input: one row per test (phenotype), with a category, a phenotype name
@@ -61,7 +63,10 @@ and a p-value (columns category, phenotype and Pval unless named; the
 p-value as in manhattan: --pcol, --mlogpcol or --chi2col, common spellings
 found ignoring case).  Categories are drawn left to right in order of
 first appearance, each in its own colour, and the phenotypes in file
-order within them: sort first to order them differently.
+order within them: sort first to order them differently.  Every category
+is as wide, its phenotypes spread evenly across it; --catwidth count
+makes each phenotype one unit wide instead, so a category is as wide as
+its number of phenotypes.
 
 --betacol names a signed effect (beta, log odds ratio): points become
 triangles pointing up where it is above 0 and down where it is below.
@@ -71,7 +76,11 @@ The significance line is at 0.05 divided by the number of tests
 (Bonferroni) unless --sig gives a p-value; --sig none removes it.  The
 phenotypes above it are labelled, the strongest first, at most --label N
 of them (default 10; 0 for none); labels that would overlap are moved
-down.
+down.  --labelpercat K labels at most K per category, so several strong
+hits in one category (variations of one phenotype) don't take every
+label.  --labelnumbers writes numbers, 1, 2, ... left to right, instead of
+long names, and the key (number, category, phenotype, Pval, and the
+--betacol and --subgraphcol values) on stdout as TSV, for a caption.
 
 One row per phenotype: several tests of a phenotype (e.g. heterozygous and
 homozygous carriers) would stand side by side; pick one with query, or
@@ -98,6 +107,13 @@ Heterozygous and homozygous carriers, one panel each:
 
   dftk dataset phewas -o | dftk phewas --betacol beta \\
       --subgraphcol genotype -f phewas_by_genotype.png
+
+The strongest hit of each category, numbered, the key saved for the
+caption:
+
+  dftk dataset phewas -o | dftk query -q "genotype == 'het'" -o \\
+      | dftk phewas --betacol beta --labelpercat 1 --labelnumbers \\
+          -f phewas.png > phewas_key.tsv
 
 Fixed threshold, a suggestive line, more room for the labels:
 
@@ -161,9 +177,14 @@ def phewas_table(df: pd.DataFrame, args) -> pd.DataFrame:
     return out
 
 
-def layout(data: pd.DataFrame) -> tuple[np.ndarray, list[tuple[str, float, float]]]:
-    """x of every row, and (category, first x, last x) of each category:
-    categories in order of first appearance, rows in file order within."""
+def layout(
+    data: pd.DataFrame, equal: bool = True
+) -> tuple[np.ndarray, list[tuple[str, float, float]]]:
+    """x of every row, and (category, left edge, right edge) of each
+    category's band: categories in order of first appearance, rows in file
+    order within.  *equal*: every band is as wide (the phenotypes spread
+    evenly across it); otherwise each phenotype is one unit wide, so a band
+    is as wide as its count."""
     cats = list(dict.fromkeys(data["_cat"]))
     x = np.empty(len(data))
     spans = []
@@ -171,26 +192,99 @@ def layout(data: pd.DataFrame) -> tuple[np.ndarray, list[tuple[str, float, float
     codes = data["_cat"].to_numpy()
     for cat in cats:
         idx = np.flatnonzero(codes == cat)
-        x[idx] = start + np.arange(len(idx))
-        spans.append((cat, start, start + len(idx) - 1))
-        start += len(idx) - 1 + _GAP
+        n = len(idx)
+        width = _BAND if equal else float(n)
+        x[idx] = start + (np.arange(n) + 0.5) * width / n
+        spans.append((cat, start, start + width))
+        start += width + (_BAND_GAP if equal else _GAP)
     return x, spans
 
 
 def shared_layout(
-    panels: list[pd.DataFrame],
+    panels: list[pd.DataFrame], equal: bool = True
 ) -> tuple[list[np.ndarray], list[tuple[str, float, float]]]:
     """x of every row of every panel, and the category spans: one x per
     phenotype (category and label) across all panels, so that a phenotype
     stands at the same place in each; one missing from a panel leaves a gap."""
     keys = pd.concat([p[["_cat", "_label"]] for p in panels]).drop_duplicates()
-    x, spans = layout(keys.reset_index(drop=True))
+    x, spans = layout(keys.reset_index(drop=True), equal)
     at = dict(zip(zip(keys["_cat"], keys["_label"], strict=True), x, strict=True))
     xs = [
         np.array([at[k] for k in zip(p["_cat"], p["_label"], strict=True)], dtype=float)
         for p in panels
     ]
     return xs, spans
+
+
+def pick_labels(data: pd.DataFrame, args, panel: str = "") -> list[int]:
+    """Rows to label: above the significance line, strongest first, at most
+    --labelpercat per category and --label in all."""
+    sig = significance(args, len(data))
+    if sig is None or args.label == 0:
+        return []
+    y = data["_y"].to_numpy()
+    cats = data["_cat"].to_numpy()
+    above = np.flatnonzero(y >= -np.log10(sig))
+    picked: list[int] = []
+    per_cat: dict[str, int] = {}
+    for i in above[np.argsort(-y[above], kind="stable")]:
+        if len(picked) == args.label:
+            break
+        if args.labelpercat is not None and per_cat.get(cats[i], 0) >= args.labelpercat:
+            continue
+        per_cat[cats[i]] = per_cat.get(cats[i], 0) + 1
+        picked.append(int(i))
+    if len(above) > len(picked):
+        limits = [f"--label {args.label}"]
+        if args.labelpercat is not None:
+            limits.append(f"--labelpercat {args.labelpercat}")
+        logger.info(
+            "%sLabelled %d of %d phenotypes above the line (%s)",
+            f"{panel}: " if panel else "",
+            len(picked),
+            len(above),
+            ", ".join(limits),
+        )
+    return picked
+
+
+def number_labels(
+    panels: list[pd.DataFrame], xs: list[np.ndarray], picks: list[list[int]]
+) -> dict[float, int]:
+    """--labelnumbers: 1, 2, ... for the labelled phenotypes, left to right;
+    a phenotype labelled in several panels keeps one number."""
+    at = sorted({float(x[i]) for x, pick in zip(xs, picks, strict=True) for i in pick})
+    return {x: n for n, x in enumerate(at, start=1)}
+
+
+def write_key(
+    panels: list[pd.DataFrame],
+    xs: list[np.ndarray],
+    picks: list[list[int]],
+    numbers: dict[float, int],
+    args,
+) -> None:
+    """The --labelnumbers key on stdout: number, panel columns, category,
+    phenotype, Pval (and --betacol), in number order."""
+    import sys
+
+    rows = []
+    for panel, x, pick in zip(panels, xs, picks, strict=True):
+        for i in pick:
+            row = {"number": numbers[float(x[i])]}
+            for col in args.subgraphcol or []:
+                row[col] = panel[col].iloc[i]
+            row[args.catcol] = panel["_cat"].iloc[i]
+            row[args.labelcol] = panel["_label"].iloc[i]
+            row["Pval"] = f"{10 ** -panel['_y'].iloc[i]:.3g}"
+            if args.betacol:
+                row[args.betacol] = panel[args.betacol].iloc[i]
+            rows.append(row)
+    if not rows:
+        logger.info("--labelnumbers: no phenotype above the line to number")
+        return
+    key = pd.DataFrame(rows).sort_values("number", kind="stable")
+    key.to_csv(sys.stdout, sep="\t", index=False)
 
 
 def significance(args, n: int) -> float | None:
@@ -224,6 +318,8 @@ def _draw(
     legend: bool = True,
     categories: bool = True,
     ylabel: bool = True,
+    labels: list[int] = (),
+    numbers: dict[float, int] | None = None,
 ) -> None:
     y = data["_y"].to_numpy()
     sign = data["_sign"].to_numpy()
@@ -261,14 +357,16 @@ def _draw(
             zorder=1,
         )
 
-    if sig is not None and args.label > 0:
-        above = np.flatnonzero(y >= -np.log10(sig))
-        top = above[np.argsort(-y[above], kind="stable")][: args.label]
+    if len(labels):
         right = x.max() - 0.15 * (x.max() - x.min())
-        for i in top:
+        for i in labels:
             near_edge = x[i] > right  # label to the left, inside the axes
+            text = (
+                str(numbers[float(x[i])]) if numbers is not None
+                else data["_label"].iloc[i]
+            )  # fmt: skip
             ax.annotate(
-                data["_label"].iloc[i],
+                text,
                 (x[i], min(y[i], hi)),
                 xytext=(-4 if near_edge else 4, 4),
                 textcoords="offset points",
@@ -277,13 +375,6 @@ def _draw(
                 fontsize="small",
                 zorder=5,
                 annotation_clip=False,
-            )
-        if len(above) > len(top):
-            logger.info(
-                "Labelled the %d strongest of %d phenotypes above the line "
-                "(--label N for more)",
-                len(top),
-                len(above),
             )
 
     if legend and args.betacol and (sign != 0).any():
@@ -303,6 +394,7 @@ def _draw(
         )
 
     ax.set_xticks([(a + b) / 2 for _, a, b in spans])
+    margin = _BAND_GAP if args.catwidth == "equal" else _GAP
     if categories:
         ax.set_xticklabels([c for c, _, _ in spans], rotation=45, ha="right")
         for label, (cat, _, _) in zip(ax.get_xticklabels(), spans, strict=True):
@@ -310,7 +402,7 @@ def _draw(
     else:
         ax.set_xticklabels([])
     ax.tick_params(axis="x", length=0)
-    ax.set_xlim(-_GAP / 2 - 0.5, spans[-1][2] + _GAP / 2 + 0.5)
+    ax.set_xlim(spans[0][1] - margin, spans[-1][2] + margin)
     ax.set_ylim(lo, hi)
     if args.logy is not None:
         log_yaxis(ax, args.logy, lo, hi)
@@ -418,6 +510,29 @@ class PhewasCommand(BaseCommand):
             "strongest first (default: 10; 0 for none).",
         )
         g.add_argument(
+            "--labelpercat",
+            type=int,
+            default=None,
+            metavar="K",
+            help="Label at most K phenotypes per category (per panel), so the "
+            "hits of one category don't take every label (default: no limit).",
+        )
+        g.add_argument(
+            "--labelnumbers",
+            action="store_true",
+            help="Label with numbers, 1, 2, ... left to right, and write the "
+            "key (number, category, phenotype, Pval) to stdout as TSV, for a "
+            "caption.",
+        )
+        g.add_argument(
+            "--catwidth",
+            choices=["equal", "count"],
+            default="equal",
+            help="equal: every category as wide, its phenotypes spread across "
+            "it (default); count: each phenotype one unit, so a category is as "
+            "wide as its number of phenotypes.",
+        )
+        g.add_argument(
             "--logy",
             nargs="?",
             type=float,
@@ -501,6 +616,10 @@ class PhewasCommand(BaseCommand):
             raise ValueError(f"--logy must be above 0, not {args.logy:g}.")
         if args.label < 0:
             raise ValueError(f"--label must be 0 or more, not {args.label}.")
+        if args.labelpercat is not None and args.labelpercat < 1:
+            raise ValueError(
+                f"--labelpercat must be 1 or more, not {args.labelpercat}."
+            )
         df = io.read(args, columns=_columns(args))
         check_cols(df, [args.catcol], "-c/--catcol")
         check_cols(df, [args.labelcol], "-l/--labelcol")
@@ -517,44 +636,58 @@ class PhewasCommand(BaseCommand):
         if args.usetex:
             plt.rc("text", usetex=True)
         apply_style(args)
+        equal = args.catwidth == "equal"
+        if args.subgraphcol:
+            titles, panels = _panels(data, args)
+            xs, spans = shared_layout(panels, equal)
+        else:
+            titles, panels = [args.title or ""], [data]
+            x, spans = layout(data, equal)
+            xs = [x]
+        picks = [
+            pick_labels(p, args, t if args.subgraphcol else "")
+            for t, p in zip(titles, panels, strict=True)
+        ]
+        numbers = number_labels(panels, xs, picks) if args.labelnumbers else None
+        ylim = _ylim(panels, args)
+
         if not args.subgraphcol:
             fig, axes = make_figure(args)
             ax = axes[0][0]
-            x, spans = layout(data)
-            _draw(ax, data, args, x, spans, _ylim([data], args))
-            ax.set_title(args.title or "")
+            _draw(ax, data, args, x, spans, ylim, labels=picks[0], numbers=numbers)
+            ax.set_title(titles[0])
             fig.tight_layout()
             spread_labels(fig, ax)
-            save_or_show(fig, args)
-            return
-
-        titles, panels = _panels(data, args)
-        xs, spans = shared_layout(panels)
-        ylim = _ylim(panels, args)
-        nrows, ncols = subgraph_layout(len(panels), args.ncols)
-        fig, axes = make_figure(args, nrows=nrows, ncols=ncols)
-        used = []
-        for idx, (title, panel, x) in enumerate(zip(titles, panels, xs, strict=True)):
-            row, col = divmod(idx, ncols)
-            ax = axes[row][col]
-            # Category names under the lowest panel of each column only
-            lowest = idx + ncols >= len(panels)
-            _draw(
-                ax, panel, args, x, spans, ylim,
-                legend=idx == 0, categories=lowest, ylabel=col == 0,
-            )  # fmt: skip
-            ax.set_title(title)
-            if lowest and row < nrows - 1:
-                # An empty grid cell below: its labels hang into that space
-                ax.xaxis.set_in_layout(False)
-            used.append(ax)
-        for idx in range(len(panels), nrows * ncols):
-            axes[idx // ncols][idx % ncols].set_visible(False)
-        if args.title:
-            fig.suptitle(args.title)
-        fig.tight_layout()
-        for ax in used:
-            spread_labels(fig, ax)
+        else:
+            nrows, ncols = subgraph_layout(len(panels), args.ncols)
+            fig, axes = make_figure(args, nrows=nrows, ncols=ncols)
+            used = []
+            for idx, (title, panel, x, pick) in enumerate(
+                zip(titles, panels, xs, picks, strict=True)
+            ):
+                row, col = divmod(idx, ncols)
+                ax = axes[row][col]
+                # Category names under the lowest panel of each column only
+                lowest = idx + ncols >= len(panels)
+                _draw(
+                    ax, panel, args, x, spans, ylim,
+                    legend=idx == 0, categories=lowest, ylabel=col == 0,
+                    labels=pick, numbers=numbers,
+                )  # fmt: skip
+                ax.set_title(title)
+                if lowest and row < nrows - 1:
+                    # An empty grid cell below: its labels hang into that space
+                    ax.xaxis.set_in_layout(False)
+                used.append(ax)
+            for idx in range(len(panels), nrows * ncols):
+                axes[idx // ncols][idx % ncols].set_visible(False)
+            if args.title:
+                fig.suptitle(args.title)
+            fig.tight_layout()
+            for ax in used:
+                spread_labels(fig, ax)
+        if numbers is not None:
+            write_key(panels, xs, picks, numbers, args)
         save_or_show(fig, args)
 
 
