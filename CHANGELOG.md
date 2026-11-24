@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- `heatmap --annot`: the numbers in the cells are as large as the tick labels and follow `--fontsize`. They were always 10 pt, larger than the 9 pt tick labels by default and nearly twice the 6 pt ones with `--fontsize publication`, which crowded grids of many cells or panels. `--annotsize PT` sets them alone.
+
 ## [0.27.0] — 2026-11-24
 
 ### Added
