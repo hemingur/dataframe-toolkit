@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Changed
+- `--size` on every plot is the size of the whole figure, exactly, with the `--subgraphcol` panels sharing it. It used to be the size of one panel, multiplied by the grid: `--size double` (a journal's 7.2" column) with 8 panels in 4 columns gave a figure 28.8" wide, and a `WxH` size was silently capped at 16x10, even `--size 20x12` for one panel. Without `--size` nothing changes: each panel gets the command's default size and the figure grows with the panels up to 16x10. `pairs --size 10x6` now gives 10x6 too (it used to be taken for the default and ignored).
+
 ### Fixed
 - `heatmap --annot`: the numbers in the cells are as large as the tick labels and follow `--fontsize`. They were always 10 pt, larger than the 9 pt tick labels by default and nearly twice the 6 pt ones with `--fontsize publication`, which crowded grids of many cells or panels. `--annotsize PT` sets them alone.
 

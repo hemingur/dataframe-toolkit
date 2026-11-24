@@ -683,7 +683,9 @@ dftk annotate iris2.parquet   # source, species_col, and step all still present
 ## Figure options (plot commands)
 
 ```text
---size single|double|full|WxH    figure size (single ≈ 3.5", double ≈ 7.2")
+--size single|double|full|WxH    size of the whole figure, panels included (single ≈ 3.5",
+                                 double ≈ 7.2"); without it, each panel gets a default size
+                                 and the figure grows with them up to 16x10
 --fontsize screen|publication|presentation
 -f FILE                          save to file (PNG/PDF/SVG); omit to display
 --groupcol COL                   colour-code by this column
