@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.28.0] — 2026-11-24
 
 ### Changed
 - `--size` on every plot is the size of the whole figure, exactly, with the `--subgraphcol` panels sharing it. It used to be the size of one panel, multiplied by the grid: `--size double` (a journal's 7.2" column) with 8 panels in 4 columns gave a figure 28.8" wide, and a `WxH` size was silently capped at 16x10, even `--size 20x12` for one panel. Without `--size` nothing changes: each panel gets the command's default size and the figure grows with the panels up to 16x10. `pairs --size 10x6` now gives 10x6 too (it used to be taken for the default and ignored).
