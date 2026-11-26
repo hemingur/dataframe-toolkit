@@ -109,6 +109,11 @@ class TestOutsideCommand:
         with pytest.raises(ValueError, match="-c/--col"):
             cmd.execute(args)
 
+    def test_bad_postquery_is_a_value_error(self, table):
+        cmd, args = _parse([str(table), "-c", "a", "--postquery", "nope > 1"])
+        with pytest.raises(ValueError, match="--postquery"):
+            cmd.execute(args)
+
     def test_parquet_pipe_both_ways(self, table, capsys, monkeypatch, tmp_path):
         monkeypatch.setattr(io_module, "DFTK_TMPDIR", str(tmp_path / "pipe"))
         # -o alone: a temp parquet, its path on stdout

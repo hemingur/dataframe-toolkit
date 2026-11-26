@@ -150,11 +150,74 @@ class TestCast:
         io.printdf(pd.DataFrame({"a": [1, 2]}), make_args(cast=[f"a:{spec}"]))
         assert str(seen["df"]["a"].dtype) == dtype
 
-    def test_non_whole_float_to_int64_warns(self, capsys, caplog):
+    def test_non_whole_float_to_int64_is_an_error(self, capsys):
         df = pd.DataFrame({"k": ["a", "b"], "v": [2.5, None]})
-        out = _printdf(df, capsys, cast=["v:Int64"])
-        assert "--cast: failed for 'v:Int64'" in caplog.text
-        assert out.splitlines()[1] == "a\t2.5"
+        with pytest.raises(ValueError, match="--cast v:Int64: .*cast"):
+            _printdf(df, capsys, cast=["v:Int64"])
+
+    @pytest.mark.parametrize("spec", ["str", "string", "s"])
+    def test_str_names(self, spec, capsys):
+        df = pd.DataFrame({"a": [1, 2]})
+        out = _printdf(df, capsys, cast=[f"a:{spec}"], format="jsonl")
+        assert out.splitlines() == ['{"a": "1"}', '{"a": "2"}']
+
+    @pytest.mark.parametrize(
+        "values, expected",
+        [
+            ([1, 2], ["1", "2"]),
+            ([2.2, None], ["2.2", None]),
+            ([True, False], ["True", "False"]),
+        ],
+    )
+    def test_str_makes_text_and_keeps_missing(self, values, expected, tmp_path):
+        path = tmp_path / "out.parquet"
+        df = pd.DataFrame({"a": values})
+        io.printdf(df, make_args(cast=["a:str"], output=str(path)))
+        back = pd.read_parquet(path)
+        assert str(back["a"].dtype) in ("string", "object", "str")
+        assert [None if pd.isna(v) else v for v in back["a"]] == expected
+        import pyarrow.parquet as pq
+
+        assert "string" in str(pq.read_schema(path).field("a").type)
+
+    def test_casts_apply_in_order(self, capsys):
+        df = pd.DataFrame({"a": [1.0, 20.0]})
+        out = _printdf(df, capsys, cast=["a:Int64", "a:str"], format="jsonl")
+        assert out.splitlines() == ['{"a": "1"}', '{"a": "20"}']
+
+    def test_unknown_type_is_an_error(self, capsys):
+        with pytest.raises(ValueError, match="unknown type 'flt'.*str"):
+            _printdf(pd.DataFrame({"a": [1]}), capsys, cast=["a:flt"])
+
+    @pytest.mark.parametrize("item", ["a", "a:", ":int"])
+    def test_malformed_is_an_error(self, item, capsys):
+        with pytest.raises(ValueError, match="COL:TYPE"):
+            _printdf(pd.DataFrame({"a": [1]}), capsys, cast=[item])
+
+    def test_missing_column_is_an_error(self, capsys):
+        with pytest.raises(ValueError, match="no column 'b'"):
+            _printdf(pd.DataFrame({"a": [1]}), capsys, cast=["b:str"])
+
+    def test_glob_matching_nothing_is_fine(self, capsys):
+        out = _printdf(pd.DataFrame({"a": [1]}), capsys, cast=["x*:str"])
+        assert out == "a\n1\n"
+
+
+class TestQueries:
+    @pytest.mark.parametrize(
+        "query, reason",
+        [("nope > 1", "name 'nope' is not defined"), ("a >", "invalid syntax")],
+    )
+    def test_bad_postquery_is_an_error(self, query, reason, capsys):
+        with pytest.raises(ValueError, match=f"--postquery '{query}': {reason}"):
+            _printdf(pd.DataFrame({"a": [1]}), capsys, postquery=[query])
+
+    def test_bad_prequery_is_an_error(self, tmp_path):
+        path = tmp_path / "t.tsv"
+        path.write_text("a\n1\n")
+        args = make_args(DATAFILE=str(path), prequery=["nope > 1"])
+        with pytest.raises(ValueError, match="--prequery 'nope > 1': name 'nope'"):
+            io.read(args)
 
 
 class TestSort:
