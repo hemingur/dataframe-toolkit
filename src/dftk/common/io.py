@@ -80,6 +80,39 @@ def _query(df: pd.DataFrame, query: str, option: str) -> pd.DataFrame:
         raise ValueError(f"{option} {query!r}: {exc}") from None
 
 
+def _round(df: pd.DataFrame, item: str) -> pd.DataFrame:
+    """Apply one --round COL:N (a glob rounds the numeric columns it matches)
+    or --round N (every float column).  A malformed item, a literal column that
+    matches nothing or isn't numeric is an input error."""
+    col, sep, n = item.rpartition(":")
+    try:
+        ndigits = int(n)
+    except ValueError:
+        raise ValueError(f"--round expects COL:N or N, got {item!r}") from None
+    if not sep:
+        columns = [c for c in df.columns if df[c].dtype == np.float64]
+    elif not col:
+        raise ValueError(f"--round expects COL:N or N, got {item!r}")
+    elif frozenset("*?[") & set(col):
+        columns = [
+            c
+            for c in fnmatch.filter(df.columns, col)
+            if pd.api.types.is_numeric_dtype(df[c])
+            and not pd.api.types.is_bool_dtype(df[c])
+        ]
+    elif col not in df.columns:
+        raise ValueError(
+            f"--round {item!r}: no column {col!r} (available: {list(df.columns)})"
+        )
+    elif not pd.api.types.is_numeric_dtype(df[col]):
+        raise ValueError(f"--round {item!r}: {col} is not numeric ({df[col].dtype})")
+    else:
+        columns = [col]
+    for c in columns:
+        df[c] = df[c].round(ndigits)
+    return df
+
+
 def _cast(df: pd.DataFrame, item: str) -> pd.DataFrame:
     """Apply one --cast COL:TYPE.  An unknown type, a literal column name that
     matches nothing or a failed conversion is an input error."""
@@ -95,6 +128,16 @@ def _cast(df: pd.DataFrame, item: str) -> pd.DataFrame:
         )
     dtype = _CAST_TYPES[matches[0]]
     columns = fnmatch.filter(df.columns, col)
+    if dtype in ("int64", "Int64"):
+        for c in columns:
+            if pd.api.types.is_float_dtype(df[c]):
+                values = df[c].dropna()
+                broken = values[values % 1 != 0]
+                if len(broken):
+                    raise ValueError(
+                        f"--cast {c}:{coltype}: {c} has non-whole numbers "
+                        f"(e.g. {broken.iloc[0]}); use --round {c}:0 first"
+                    )
     if not columns and not (frozenset("*?[") & set(col)):
         raise ValueError(
             f"--cast {item!r}: no column {col!r} (available: {list(df.columns)})"
@@ -692,8 +735,11 @@ class io:
         g.add_argument(
             "--round",
             help=(
-                "Round columns to N decimal places (COL:N).  "
-                "A bare integer N rounds all float columns."
+                "Round columns to N decimal places (COL:N; a glob rounds "
+                "the numeric columns it matches).  A bare integer N rounds all "
+                "float columns.  Done before --cast, so --round x:0 --cast "
+                "x:int gives the nearest integer (halves go to the even "
+                "number: 2.5 to 2, 3.5 to 4)."
             ),
             nargs="*",
             default=None,
@@ -832,6 +878,11 @@ class io:
         for query in getattr(args, "postquery", []):
             df = _query(df, query, "--postquery")
 
+        # Round decimal places; before --cast, so --round x:0 --cast x:int
+        # gives the nearest integer
+        for item in getattr(args, "round", None) or []:
+            df = _round(df, item)
+
         # Cast columns
         for item in getattr(args, "cast", None) or []:
             df = _cast(df, item)
@@ -912,21 +963,6 @@ class io:
                 df = df[selcols].reset_index(drop=True)
             except Exception as exc:
                 logging.error(f"--select failed: {exc}")
-
-        # Round decimal places
-        for item in getattr(args, "round", None) or []:
-            try:
-                col, n = item.split(":")
-                for c in fnmatch.filter(df.columns, col):
-                    df[c] = df[c].round(int(n))
-            except Exception:
-                try:
-                    n = int(item)
-                    for c in df.columns:
-                        if df[c].dtype == np.float64:
-                            df[c] = df[c].round(n)
-                except Exception:
-                    pass
 
         # Deduplicate
         dedup = getattr(args, "deduplicate", None)
