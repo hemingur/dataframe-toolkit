@@ -66,7 +66,49 @@ _CAST_TYPES: dict[str, object] = {
     "bool": "bool",
     "datetime64": "datetime64[ns]",
     "category": "category",
+    "str": "string",
+    "string": "string",
 }
+
+
+def _query(df: pd.DataFrame, query: str, option: str) -> pd.DataFrame:
+    """df.query for --prequery / --postquery; a bad expression is an input
+    error (pandas raises UndefinedVariableError, SyntaxError, ...)."""
+    try:
+        return df.query(query)
+    except Exception as exc:
+        raise ValueError(f"{option} {query!r}: {exc}") from None
+
+
+def _cast(df: pd.DataFrame, item: str) -> pd.DataFrame:
+    """Apply one --cast COL:TYPE.  An unknown type, a literal column name that
+    matches nothing or a failed conversion is an input error."""
+    col, sep, coltype = item.rpartition(":")
+    if not sep or not col or not coltype:
+        raise ValueError(f"--cast expects COL:TYPE, got {item!r}")
+    # Case-sensitive: "int" is int64, "Int" is the nullable Int64
+    matches = [t for t in _CAST_TYPES if fnmatch.fnmatchcase(t, f"{coltype}*")]
+    if not matches:
+        raise ValueError(
+            f"--cast {item!r}: unknown type {coltype!r} "
+            f"(choose from {', '.join(_CAST_TYPES)})"
+        )
+    dtype = _CAST_TYPES[matches[0]]
+    columns = fnmatch.filter(df.columns, col)
+    if not columns and not (frozenset("*?[") & set(col)):
+        raise ValueError(
+            f"--cast {item!r}: no column {col!r} (available: {list(df.columns)})"
+        )
+    for c in columns:
+        try:
+            df[c] = df[c].astype(dtype)
+        except Exception as exc:
+            try:  # e.g. "1.0" text to int: via float
+                df[c] = df[c].astype(float).astype(dtype)
+            except Exception:
+                raise ValueError(f"--cast {c}:{coltype}: {exc}") from None
+    return df
+
 
 DFTK_TMPDIR: str = os.environ.get(
     "DFTK_TMPDIR",
@@ -544,11 +586,7 @@ class io:
         # -- prequery ------------------------------------------------------
 
         for query in prequery:
-            try:
-                df = df.query(query)
-            except Exception as exc:
-                logging.error(f"--prequery failed ({query!r}): {exc}")
-                raise
+            df = _query(df, query, "--prequery")
 
         return df
 
@@ -640,9 +678,12 @@ class io:
             "--cast",
             help=(
                 "Cast column to dtype (COL:TYPE).  TYPE is one of object, int64, "
-                "Int64, float64, bool, datetime64, category (a prefix is enough, "
-                "e.g. int, Int, cat).  Int64 is an integer column that allows "
-                "empty cells.  Glob patterns supported."
+                "Int64, float64, bool, datetime64, category, str (a prefix is "
+                "enough, e.g. int, Int, cat).  Int64 is an integer column that "
+                "allows empty cells; str is text (written to parquet as a "
+                "string column; empty cells stay empty).  Casts apply in "
+                "order, so --cast c:Int64 c:str turns 1.0 into 1.  Glob "
+                "patterns supported; a type that doesn't fit is an error."
             ),
             nargs="*",
             default=None,
@@ -789,27 +830,11 @@ class io:
 
         # Post-query filter
         for query in getattr(args, "postquery", []):
-            try:
-                df = df.query(query)
-            except Exception as exc:
-                logging.error(f"--postquery failed ({query!r}): {exc}")
-                raise
+            df = _query(df, query, "--postquery")
 
         # Cast columns
         for item in getattr(args, "cast", None) or []:
-            try:
-                col, coltype = item.split(":")
-                # Case-sensitive: "int" is int64, "Int" is the nullable Int64
-                pattern = f"{coltype}*"
-                matches = [t for t in _CAST_TYPES if fnmatch.fnmatchcase(t, pattern)]
-                dtype = _CAST_TYPES[matches[0]]
-                for c in fnmatch.filter(df.columns, col):
-                    try:
-                        df[c] = df[c].astype(dtype)
-                    except Exception:
-                        df[c] = df[c].astype(float).astype(dtype)
-            except Exception:
-                logging.warning(f"--cast: failed for {item!r}")
+            df = _cast(df, item)
 
         # Sort; --sortasc or --sortdesc without names sorts by every column,
         # left to right
