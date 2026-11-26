@@ -418,11 +418,90 @@ def apply_reflines(ax: matplotlib.axes.Axes, args: argparse.Namespace) -> None:
             )
 
 
+def abline(value: str) -> tuple[float, float, str | None]:
+    """--abline value: INTERCEPT:SLOPE, or INTERCEPT:SLOPE:LABEL."""
+    a, sep, rest = value.partition(":")
+    b, _, label = rest.partition(":")
+    try:
+        if not sep:
+            raise ValueError
+        return float(a), float(b), (label or None)
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"expected INTERCEPT:SLOPE[:LABEL], not {value!r}"
+        ) from None
+
+
+class _AblineAction(argparse.Action):
+    """--abline may be given more than once (a negative intercept needs
+    --abline=-1:2, one line per option); bare --abline adds y = x."""
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        lines = list(getattr(namespace, self.dest, None) or [])
+        lines += values or [(0.0, 1.0, None)]
+        setattr(namespace, self.dest, lines)
+
+
+def apply_ablines(ax: matplotlib.axes.Axes, args: argparse.Namespace) -> None:
+    """Draw --abline lines y = a + b*x across the whole panel, in the style of
+    --vline / --hline.  Call after apply_limits: the line is drawn over the
+    final x range and leaves the limits as they are, so it never zooms the
+    plot out.  On a log axis the line is a curve, drawn point by point."""
+    lines = getattr(args, "abline", None)
+    if not lines:
+        return
+    import numpy as np
+
+    xlim, ylim = ax.get_xlim(), ax.get_ylim()
+    logx = ax.get_xscale() == "log"
+    x = np.geomspace(*xlim, 512) if logx else np.linspace(*xlim, 512)
+    lo, hi = sorted(ylim)
+    for a, b, label in lines:
+        y = a + b * x
+        ax.plot(x, y, color=_REFLINE_COLOUR, ls="--", lw=0.9, zorder=1.5)
+        if label:
+            # at the right-most point inside the panel, along the line
+            inside = np.flatnonzero((y > lo) & (y < hi))
+            if len(inside):
+                i = max(inside[0], inside[-1] - 10)
+                ax.text(
+                    x[i],
+                    y[i],
+                    f"{label} ",
+                    ha="right",
+                    va="bottom",
+                    fontsize="small",
+                    color=_REFLINE_COLOUR,
+                    rotation=float(np.degrees(np.arctan(b))),
+                    rotation_mode="anchor",
+                    transform_rotates_text=True,
+                )
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
+
+
 def add_refline_arguments(
-    parser: argparse.ArgumentParser, vertical: bool = True, horizontal: bool = True
+    parser: argparse.ArgumentParser,
+    vertical: bool = True,
+    horizontal: bool = True,
+    sloped: bool = False,
 ) -> None:
-    """Add --vline / --hline (reference lines with optional labels)."""
+    """Add --vline / --hline (reference lines with optional labels), and
+    --abline with *sloped* (plots with a numeric x and y: scat, line)."""
     g = parser.add_argument_group("reference lines")
+    if sloped:
+        g.add_argument(
+            "--abline",
+            nargs="*",
+            type=abline,
+            action=_AblineAction,
+            default=None,
+            metavar="A:B[:LABEL]",
+            help="Dashed line(s) y = A + B*x (intercept, then slope, as in "
+            "R's abline), across the whole panel, labelled if :LABEL is "
+            "given.  Bare --abline is the identity line y = x (0:1).  A "
+            "negative intercept needs =: --abline=-1:2.  Repeatable.",
+        )
     if vertical:
         g.add_argument(
             "--vline",

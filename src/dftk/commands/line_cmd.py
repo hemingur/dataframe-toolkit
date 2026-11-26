@@ -27,6 +27,7 @@ from dftk.common.plot import (
     add_legend_arguments,
     add_refline_arguments,
     add_xy_arguments,
+    apply_ablines,
     apply_labels,
     apply_limits,
     apply_reflines,
@@ -166,6 +167,7 @@ def _line_ax(ax, df, args, title_suffix: str = ""):
 
     apply_reflines(ax, args)
     apply_limits(ax, args)
+    apply_ablines(ax, args)
     apply_ticks(ax, args)
     apply_labels(ax, args, default_xlabel=xcol or "", default_ylabel=ycol or "")
     if title_suffix:
@@ -255,7 +257,7 @@ class LineCommand(BaseCommand):
         self.add_read_arguments(parser)
         add_xy_arguments(parser)
         add_figure_arguments(parser)
-        add_refline_arguments(parser)
+        add_refline_arguments(parser, sloped=True)
         add_group_arguments(parser)
         add_legend_arguments(parser)
 
