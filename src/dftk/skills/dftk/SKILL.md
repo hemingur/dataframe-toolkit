@@ -57,7 +57,8 @@ using a command for the first time.
    `cleannames`, which also fixes headers such as `Sample ID` or `GC %`:
    `dftk cleannames data.tsv --backend duckdb -o data.parquet`. Parquet keeps
    the types, so later steps need no option.
-   For a column that is already float, `--cast COL:Int64` turns it back.
+   For a column that is already float, `--cast COL:Int64` turns it back;
+   `--cast COL:str` makes numbers text (e.g. cluster numbers as categories).
    `--digits N` writes such columns in exponent form (`2.49e+08`) and warns.
 
 ## Output modes (`-o`, on every data command)

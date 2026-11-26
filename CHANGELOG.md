@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- `--cast COL:str` (or `string`) makes a text column, written to parquet as a string column: 1 becomes "1", 2.2 "2.2", and empty cells stay empty. Casts apply in order, so `--cast c:Int64 c:str` turns 1.0 into "1". Useful for numeric codes (cluster number, class label) that should be categories.
+
+### Changed
+- A `--cast` that can't be done is now an input error (`Input error: …`, exit 1) that says why: an unknown type (it lists the valid ones), a column name that matches nothing (a glob matching nothing is still fine), a malformed `COL:TYPE`, or a conversion that fails, e.g. 2.5 to `Int64`. It used to log `--cast: failed for …` with no reason and write the column unchanged. A pipeline that relied on a failing `--cast` being skipped now stops.
+
+### Fixed
+- An invalid `--postquery` or `--prequery` expression (an unknown column, a syntax error) is an input error, one `Input error: --postquery 'x > 1': name 'x' is not defined` line and exit 1, instead of an "Unexpected error" with a pandas traceback. Commands from other packages that use dftk's output options get the same.
+
 ## [0.28.0] — 2026-11-24
 
 ### Changed
