@@ -152,7 +152,7 @@ class TestCast:
 
     def test_non_whole_float_to_int64_is_an_error(self, capsys):
         df = pd.DataFrame({"k": ["a", "b"], "v": [2.5, None]})
-        with pytest.raises(ValueError, match="--cast v:Int64: .*cast"):
+        with pytest.raises(ValueError, match="--cast v:Int64: .*non-whole"):
             _printdf(df, capsys, cast=["v:Int64"])
 
     @pytest.mark.parametrize("spec", ["str", "string", "s"])
@@ -185,6 +185,16 @@ class TestCast:
         out = _printdf(df, capsys, cast=["a:Int64", "a:str"], format="jsonl")
         assert out.splitlines() == ['{"a": "1"}', '{"a": "20"}']
 
+    @pytest.mark.parametrize("spec", ["int", "Int64"])
+    def test_non_whole_to_int_says_round_first(self, spec, capsys):
+        df = pd.DataFrame({"v": [3.0, 2.6]})
+        with pytest.raises(ValueError, match=r"e\.g\. 2\.6.*--round v:0 first"):
+            _printdf(df, capsys, cast=[f"v:{spec}"])
+
+    def test_whole_floats_to_int(self, capsys):
+        out = _printdf(pd.DataFrame({"v": [3.0, -2.0]}), capsys, cast=["v:int"])
+        assert out == "v\n3\n-2\n"
+
     def test_unknown_type_is_an_error(self, capsys):
         with pytest.raises(ValueError, match="unknown type 'flt'.*str"):
             _printdf(pd.DataFrame({"a": [1]}), capsys, cast=["a:flt"])
@@ -201,6 +211,42 @@ class TestCast:
     def test_glob_matching_nothing_is_fine(self, capsys):
         out = _printdf(pd.DataFrame({"a": [1]}), capsys, cast=["x*:str"])
         assert out == "a\n1\n"
+
+
+class TestRound:
+    def test_round_then_cast_gives_nearest_integer(self, capsys):
+        df = pd.DataFrame({"v": [2.6, -1.7, 3.2]})
+        for spec in ("int", "Int64"):
+            out = _printdf(df.copy(), capsys, round=["v:0"], cast=[f"v:{spec}"])
+            assert out == "v\n3\n-2\n3\n"
+
+    def test_round_then_str(self, capsys):
+        df = pd.DataFrame({"v": [2.64, None]})
+        out = _printdf(df, capsys, round=["v:1"], cast=["v:str"], format="jsonl")
+        assert out.splitlines() == ['{"v": "2.6"}', '{"v": null}']
+
+    def test_bare_n_rounds_float_columns(self, capsys):
+        df = pd.DataFrame({"k": ["a"], "i": [7], "x": [1.26]})
+        assert _printdf(df, capsys, round=["1"]) == "k\ti\tx\na\t7\t1.3\n"
+
+    def test_glob_skips_non_numeric(self, capsys):
+        df = pd.DataFrame({"x1": [1.26], "x2": ["t"]})
+        assert _printdf(df, capsys, round=["x*:1"]) == "x1\tx2\n1.3\tt\n"
+
+    @pytest.mark.parametrize(
+        "item, message",
+        [
+            ("v:x", "COL:N or N"),
+            (":1", "COL:N or N"),
+            ("two", "COL:N or N"),
+            ("w:0", "no column 'w'"),
+            ("k:0", "k is not numeric"),
+        ],
+    )
+    def test_bad_round_is_an_error(self, item, message, capsys):
+        df = pd.DataFrame({"k": ["a"], "v": [1.5]})
+        with pytest.raises(ValueError, match=message):
+            _printdf(df, capsys, round=[item])
 
 
 class TestQueries:
