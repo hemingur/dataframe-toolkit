@@ -1,5 +1,19 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- `--cast COL:str` (or `string`) makes a text column, written to parquet as a string column: 1 becomes "1", 2.2 "2.2", and empty cells stay empty. Casts apply in order, so `--cast c:Int64 c:str` turns 1.0 into "1". Useful for numeric codes (cluster number, class label) that should be categories.
+
+### Changed
+- A `--cast` that can't be done is now an input error (`Input error: …`, exit 1) that says why: an unknown type (it lists the valid ones), a column name that matches nothing (a glob matching nothing is still fine), a malformed `COL:TYPE`, or a conversion that fails, e.g. 2.5 to `Int64`. It used to log `--cast: failed for …` with no reason and write the column unchanged. A pipeline that relied on a failing `--cast` being skipped now stops.
+- `--cast COL:int` (or `Int64`) on numbers that aren't whole is an error that says to use `--round COL:0` first. `int` used to truncate them silently (2.6 to 2, -1.7 to -1).
+- A malformed `--round` (`v:x`), a column it names that doesn't exist or isn't numeric, is an input error; it used to be skipped without a message. A glob (`--round 'x*:2'`) rounds the numeric columns it matches and skips the rest.
+
+### Fixed
+- An invalid `--postquery` or `--prequery` expression (an unknown column, a syntax error) is an input error, one `Input error: --postquery 'x > 1': name 'x' is not defined` line and exit 1, instead of an "Unexpected error" with a pandas traceback. Commands from other packages that use dftk's output options get the same.
+- `--round` is done before `--cast`, so `--round x:0 --cast x:int` gives the nearest integer (2.6 to 3, -1.7 to -2). The cast used to come first: `int` truncated (2.6 to 2), and `Int64` failed with a warning and left the rounded floats (3.0).
+
 ## [0.28.0] — 2026-11-24
 
 ### Changed

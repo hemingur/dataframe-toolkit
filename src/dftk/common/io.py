@@ -66,7 +66,92 @@ _CAST_TYPES: dict[str, object] = {
     "bool": "bool",
     "datetime64": "datetime64[ns]",
     "category": "category",
+    "str": "string",
+    "string": "string",
 }
+
+
+def _query(df: pd.DataFrame, query: str, option: str) -> pd.DataFrame:
+    """df.query for --prequery / --postquery; a bad expression is an input
+    error (pandas raises UndefinedVariableError, SyntaxError, ...)."""
+    try:
+        return df.query(query)
+    except Exception as exc:
+        raise ValueError(f"{option} {query!r}: {exc}") from None
+
+
+def _round(df: pd.DataFrame, item: str) -> pd.DataFrame:
+    """Apply one --round COL:N (a glob rounds the numeric columns it matches)
+    or --round N (every float column).  A malformed item, a literal column that
+    matches nothing or isn't numeric is an input error."""
+    col, sep, n = item.rpartition(":")
+    try:
+        ndigits = int(n)
+    except ValueError:
+        raise ValueError(f"--round expects COL:N or N, got {item!r}") from None
+    if not sep:
+        columns = [c for c in df.columns if df[c].dtype == np.float64]
+    elif not col:
+        raise ValueError(f"--round expects COL:N or N, got {item!r}")
+    elif frozenset("*?[") & set(col):
+        columns = [
+            c
+            for c in fnmatch.filter(df.columns, col)
+            if pd.api.types.is_numeric_dtype(df[c])
+            and not pd.api.types.is_bool_dtype(df[c])
+        ]
+    elif col not in df.columns:
+        raise ValueError(
+            f"--round {item!r}: no column {col!r} (available: {list(df.columns)})"
+        )
+    elif not pd.api.types.is_numeric_dtype(df[col]):
+        raise ValueError(f"--round {item!r}: {col} is not numeric ({df[col].dtype})")
+    else:
+        columns = [col]
+    for c in columns:
+        df[c] = df[c].round(ndigits)
+    return df
+
+
+def _cast(df: pd.DataFrame, item: str) -> pd.DataFrame:
+    """Apply one --cast COL:TYPE.  An unknown type, a literal column name that
+    matches nothing or a failed conversion is an input error."""
+    col, sep, coltype = item.rpartition(":")
+    if not sep or not col or not coltype:
+        raise ValueError(f"--cast expects COL:TYPE, got {item!r}")
+    # Case-sensitive: "int" is int64, "Int" is the nullable Int64
+    matches = [t for t in _CAST_TYPES if fnmatch.fnmatchcase(t, f"{coltype}*")]
+    if not matches:
+        raise ValueError(
+            f"--cast {item!r}: unknown type {coltype!r} "
+            f"(choose from {', '.join(_CAST_TYPES)})"
+        )
+    dtype = _CAST_TYPES[matches[0]]
+    columns = fnmatch.filter(df.columns, col)
+    if dtype in ("int64", "Int64"):
+        for c in columns:
+            if pd.api.types.is_float_dtype(df[c]):
+                values = df[c].dropna()
+                broken = values[values % 1 != 0]
+                if len(broken):
+                    raise ValueError(
+                        f"--cast {c}:{coltype}: {c} has non-whole numbers "
+                        f"(e.g. {broken.iloc[0]}); use --round {c}:0 first"
+                    )
+    if not columns and not (frozenset("*?[") & set(col)):
+        raise ValueError(
+            f"--cast {item!r}: no column {col!r} (available: {list(df.columns)})"
+        )
+    for c in columns:
+        try:
+            df[c] = df[c].astype(dtype)
+        except Exception as exc:
+            try:  # e.g. "1.0" text to int: via float
+                df[c] = df[c].astype(float).astype(dtype)
+            except Exception:
+                raise ValueError(f"--cast {c}:{coltype}: {exc}") from None
+    return df
+
 
 DFTK_TMPDIR: str = os.environ.get(
     "DFTK_TMPDIR",
@@ -544,11 +629,7 @@ class io:
         # -- prequery ------------------------------------------------------
 
         for query in prequery:
-            try:
-                df = df.query(query)
-            except Exception as exc:
-                logging.error(f"--prequery failed ({query!r}): {exc}")
-                raise
+            df = _query(df, query, "--prequery")
 
         return df
 
@@ -640,9 +721,12 @@ class io:
             "--cast",
             help=(
                 "Cast column to dtype (COL:TYPE).  TYPE is one of object, int64, "
-                "Int64, float64, bool, datetime64, category (a prefix is enough, "
-                "e.g. int, Int, cat).  Int64 is an integer column that allows "
-                "empty cells.  Glob patterns supported."
+                "Int64, float64, bool, datetime64, category, str (a prefix is "
+                "enough, e.g. int, Int, cat).  Int64 is an integer column that "
+                "allows empty cells; str is text (written to parquet as a "
+                "string column; empty cells stay empty).  Casts apply in "
+                "order, so --cast c:Int64 c:str turns 1.0 into 1.  Glob "
+                "patterns supported; a type that doesn't fit is an error."
             ),
             nargs="*",
             default=None,
@@ -651,8 +735,11 @@ class io:
         g.add_argument(
             "--round",
             help=(
-                "Round columns to N decimal places (COL:N).  "
-                "A bare integer N rounds all float columns."
+                "Round columns to N decimal places (COL:N; a glob rounds "
+                "the numeric columns it matches).  A bare integer N rounds all "
+                "float columns.  Done before --cast, so --round x:0 --cast "
+                "x:int gives the nearest integer (halves go to the even "
+                "number: 2.5 to 2, 3.5 to 4)."
             ),
             nargs="*",
             default=None,
@@ -789,27 +876,16 @@ class io:
 
         # Post-query filter
         for query in getattr(args, "postquery", []):
-            try:
-                df = df.query(query)
-            except Exception as exc:
-                logging.error(f"--postquery failed ({query!r}): {exc}")
-                raise
+            df = _query(df, query, "--postquery")
+
+        # Round decimal places; before --cast, so --round x:0 --cast x:int
+        # gives the nearest integer
+        for item in getattr(args, "round", None) or []:
+            df = _round(df, item)
 
         # Cast columns
         for item in getattr(args, "cast", None) or []:
-            try:
-                col, coltype = item.split(":")
-                # Case-sensitive: "int" is int64, "Int" is the nullable Int64
-                pattern = f"{coltype}*"
-                matches = [t for t in _CAST_TYPES if fnmatch.fnmatchcase(t, pattern)]
-                dtype = _CAST_TYPES[matches[0]]
-                for c in fnmatch.filter(df.columns, col):
-                    try:
-                        df[c] = df[c].astype(dtype)
-                    except Exception:
-                        df[c] = df[c].astype(float).astype(dtype)
-            except Exception:
-                logging.warning(f"--cast: failed for {item!r}")
+            df = _cast(df, item)
 
         # Sort; --sortasc or --sortdesc without names sorts by every column,
         # left to right
@@ -887,21 +963,6 @@ class io:
                 df = df[selcols].reset_index(drop=True)
             except Exception as exc:
                 logging.error(f"--select failed: {exc}")
-
-        # Round decimal places
-        for item in getattr(args, "round", None) or []:
-            try:
-                col, n = item.split(":")
-                for c in fnmatch.filter(df.columns, col):
-                    df[c] = df[c].round(int(n))
-            except Exception:
-                try:
-                    n = int(item)
-                    for c in df.columns:
-                        if df[c].dtype == np.float64:
-                            df[c] = df[c].round(n)
-                except Exception:
-                    pass
 
         # Deduplicate
         dedup = getattr(args, "deduplicate", None)
