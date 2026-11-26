@@ -18,7 +18,6 @@
 ### Documentation
 - `--dropna` help and the skill show how to filter missing values in one column instead (`--postquery 'a.notna()'`, `'b == 2 or b.isna()'`, `b = 2 OR b IS NULL` in SQL), and that `!=` keeps missing rows in a pandas expression but `<>` drops them in SQL.
 
-
 ## [0.28.0] — 2026-11-24
 
 ### Changed
