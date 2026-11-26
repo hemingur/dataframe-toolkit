@@ -32,6 +32,7 @@ from dftk.common.plot import (
     add_legend_arguments,
     add_refline_arguments,
     add_xy_arguments,
+    apply_ablines,
     apply_labels,
     apply_limits,
     apply_reflines,
@@ -283,6 +284,7 @@ def _scatter_ax(ax, df, args, title_suffix: str = ""):
 
     apply_reflines(ax, args)
     apply_limits(ax, args)
+    apply_ablines(ax, args)
     apply_ticks(ax, args)
     apply_labels(ax, args, default_xlabel=xcol or "", default_ylabel=ycol or "")
     if title_suffix:
@@ -323,6 +325,12 @@ closely). At the ends of the x range, where few points are left, the curve
 can overshoot the data; a larger --frac or --xlim helps:
 
   dftk dataset tips -o | dftk scat -x total_bill -y tip --fit lowess
+
+Lines y = A + B*x, here 15 % and 20 % tips, on every panel (bare --abline
+is y = x; a negative intercept is written --abline=-1:2):
+
+  dftk dataset tips -o | dftk scat -x total_bill -y tip --subgraphcol time \\
+      --abline 0:0.15:15% 0:0.2:20%
 
 Hexagonal binning for large tables (54,000 diamonds), log colour scale and
 log axes; hexagons are binned on the log scale:
@@ -386,7 +394,7 @@ class ScatCommand(BaseCommand):
         self.add_read_arguments(parser)
         add_xy_arguments(parser)
         add_figure_arguments(parser)
-        add_refline_arguments(parser)
+        add_refline_arguments(parser, sloped=True)
         add_group_arguments(parser)
         add_legend_arguments(parser)
 

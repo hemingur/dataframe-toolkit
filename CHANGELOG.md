@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Added
+- `scat --abline` and `line --abline A:B[:LABEL]`: dashed lines y = A + B*x (intercept, then slope, as in R's `abline`), in the style of `--vline`/`--hline`, labelled along the line when `:LABEL` is given. A bare `--abline` is the identity line y = x. The line spans the whole panel and leaves the axis limits as they are; on log axes it is drawn as the curve it is. Repeatable, so `--abline --abline=-1:2` draws both (a negative intercept needs `=`). With `--subgraphcol` the same lines go on every panel.
 - `--cast COL:str` (or `string`) makes a text column, written to parquet as a string column: 1 becomes "1", 2.2 "2.2", and empty cells stay empty. Casts apply in order, so `--cast c:Int64 c:str` turns 1.0 into "1". Useful for numeric codes (cluster number, class label) that should be categories.
 
 ### Changed
@@ -13,6 +14,9 @@
 ### Fixed
 - An invalid `--postquery` or `--prequery` expression (an unknown column, a syntax error) is an input error, one `Input error: --postquery 'x > 1': name 'x' is not defined` line and exit 1, instead of an "Unexpected error" with a pandas traceback. Commands from other packages that use dftk's output options get the same.
 - `--round` is done before `--cast`, so `--round x:0 --cast x:int` gives the nearest integer (2.6 to 3, -1.7 to -2). The cast used to come first: `int` truncated (2.6 to 2), and `Int64` failed with a warning and left the rounded floats (3.0).
+
+### Documentation
+- `--dropna` help and the skill show how to filter missing values in one column instead (`--postquery 'a.notna()'`, `'b == 2 or b.isna()'`, `b = 2 OR b IS NULL` in SQL), and that `!=` keeps missing rows in a pandas expression but `<>` drops them in SQL.
 
 ## [0.28.0] — 2026-11-24
 

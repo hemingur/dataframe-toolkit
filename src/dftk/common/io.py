@@ -822,7 +822,9 @@ class io:
             help=(
                 "Drop rows containing any NA value from the output.  Applied "
                 "after the command has run, so it does not change what the "
-                "command sees (use --prequery for that)."
+                "command sees (use --prequery for that).  For one column: "
+                "--postquery 'COL.notna()'; for 2 or missing: --postquery "
+                "'b == 2 or b.isna()' (b == 2 alone drops the missing rows)."
             ),
             action="store_true",
         )

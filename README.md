@@ -144,7 +144,7 @@ publication-quality output.
 | `locus` | Regional association plot: -log10(p) in one region coloured by r² with the lead variant (`--ldcol`), lead as a diamond, `--lead`/`--label` by ID or `chr:pos` |
 | `manhattan` | Genome-wide -log10(p) by position (`Chr`, `pos`, `Pval`, or `--mlogpcol`/`--chi2col`); significance lines, thinning for millions of variants, `-g`/`--subgraphcol` for several scans |
 
-`scat`, `line` and `hist` draw dashed reference lines with `--vline X` and `--hline Y`, each labelled when written `X:LABEL` (`--vline 412:carriers`); `forest` takes `--vline` and `box` `--hline`.
+`scat`, `line` and `hist` draw dashed reference lines with `--vline X` and `--hline Y`, each labelled when written `X:LABEL` (`--vline 412:carriers`); `forest` takes `--vline` and `box` `--hline`. `scat` and `line` also draw sloped lines y = A + B*x with `--abline A:B[:LABEL]` (intercept, then slope, as in R; `--abline 0:0.15:15%`), across the whole panel without changing its limits; a bare `--abline` is the identity line y = x, and a negative intercept is written `--abline=-1:2`. On log axes the line is drawn as the curve it is. With `--subgraphcol` the same lines go on every panel.
 
 ### Utilities
 

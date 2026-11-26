@@ -89,6 +89,14 @@ right; give the file before them) / `--sort COL:a COL:d`,
 `--dropna`, `--na_rep VAL`, `--removeheader`, and
 `--meta KEY=VALUE` (provenance, see below).
 
+Missing values in one column: `--dropna` drops rows with a gap in any column;
+for one column filter instead, `--prequery 'a.notna()'` (before the command
+runs) or `--postquery 'a.notna()'` (on the output). "2 or missing" is
+`'b == 2 or b.isna()'`, or in SQL `b = 2 OR b IS NULL`: a comparison with a
+missing value is false. Inequality differs: in a pandas expression `b != 3`
+keeps the missing rows, in SQL `b <> 3` drops them. With `--backend duckdb`
+only empty cells are missing; a column holding the text `NA` is read as text.
+
 Output format: TSV unless `-o FILE` ends in `.json` (array of records),
 `.jsonl`, `.md` (Markdown table) or `.tex` (bare booktabs tabular, for
 `\input` in a LaTeX table); `--format tsv|json|jsonl|md|tex` does the same
@@ -176,7 +184,9 @@ Bonferroni per panel),
 `--textcol Pval n` numbers on the right, `-g` series per row, `--section` headers;
 `fit -o | forest -y marker -x effect --ci cilo,cihi` plots coefficients). `-g COL`
 overlays groups, `--subgraphcol COL` makes panels. `scat`, `line`, `hist` take
-`--vline X[:LABEL]` / `--hline Y[:LABEL]` reference lines (`forest` takes `--vline`, `box` `--hline`).
+`--vline X[:LABEL]` / `--hline Y[:LABEL]` reference lines (`forest` takes `--vline`, `box` `--hline`);
+`scat`, `line` take `--abline A:B[:LABEL]` for y = A + B*x (bare: y = x; `--abline=-1:2` for a
+negative intercept).
 
 Other: `dataset NAME` loads a bundled example table, `annotate FILE.parquet`
 reads and writes provenance metadata, `clean` removes leftover temp pipe
