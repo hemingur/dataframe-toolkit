@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.29.0] — 2026-11-26
 
 ### Added
 - `scat --abline` and `line --abline A:B[:LABEL]`: dashed lines y = A + B*x (intercept, then slope, as in R's `abline`), in the style of `--vline`/`--hline`, labelled along the line when `:LABEL` is given. A bare `--abline` is the identity line y = x. The line spans the whole panel and leaves the axis limits as they are; on log axes it is drawn as the curve it is. Repeatable, so `--abline --abline=-1:2` draws both (a negative intercept needs `=`). With `--subgraphcol` the same lines go on every panel.
