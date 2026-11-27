@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.30.1] — 2026-11-27
 
 ### Fixed
 - `--dropna` looks only at the columns written out: it runs after `--drop` and `--select`. It ran first, so a gap in a column left out of the output still dropped the row (`--select a b --dropna` dropped a row with `a` and `b` filled but `c` missing). Tables made with `--dropna` together with `--select` or `--drop` can now keep rows they used to lose; to filter on a column that isn't written, use `--postquery 'c.notna()'`.
