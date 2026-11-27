@@ -83,6 +83,7 @@ COMMAND_GROUPS: list[tuple[str, list[tuple[str, str]]]] = [
             ("print", "print_cmd:PrintCommand"),
             ("clean", "clean_cmd:CleanCommand"),
             ("skill", "skill_cmd:SkillCommand"),
+            ("completion", "completion_cmd:CompletionCommand"),
         ],
     ),
 ]

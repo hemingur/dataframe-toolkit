@@ -29,6 +29,7 @@ dependencies = [
     "pillow>=13.0",  # not used directly (matplotlib needs it); floor for security fixes
     "seaborn>=0.12",
     "tqdm>=4.65",
+    "shtab>=1.7",  # dftk completion: bash/zsh scripts from the parser
 ]
 
 [project.urls]
