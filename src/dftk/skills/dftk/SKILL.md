@@ -190,7 +190,8 @@ negative intercept).
 
 Other: `dataset NAME` loads a bundled example table, `annotate FILE.parquet`
 reads and writes provenance metadata, `clean` removes leftover temp pipe
-files, `skill install` installs this skill for Claude Code and Codex.
+files, `skill install` installs this skill for Claude Code and Codex,
+`completion install` sets up Tab completion in bash or zsh.
 
 ## Examples
 
