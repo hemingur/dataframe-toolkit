@@ -249,6 +249,30 @@ class TestRound:
             _printdf(df, capsys, round=[item])
 
 
+class TestDropna:
+    @pytest.fixture
+    def df(self):
+        return pd.DataFrame({"a": [1, 3, 5], "b": [2, None, 6], "c": [None, 4.0, 7.0]})
+
+    def test_every_column_without_select(self, df, capsys):
+        assert _printdf(df, capsys, dropna=True) == "a\tb\tc\n5\t6.0\t7.0\n"
+
+    def test_only_selected_columns_count(self, df, capsys):
+        out = _printdf(df, capsys, dropna=True, select=["a", "b"])
+        assert out == "a\tb\n1\t2.0\n5\t6.0\n"
+
+    def test_dropped_columns_do_not_count(self, df, capsys):
+        out = _printdf(df, capsys, dropna=True, drop=["c"])
+        assert out == "a\tb\n1\t2.0\n5\t6.0\n"
+
+    def test_parquet_index_is_reset(self, df, tmp_path):
+        path = tmp_path / "out.parquet"
+        io.printdf(df, make_args(dropna=True, select=["a", "c"], output=str(path)))
+        back = pd.read_parquet(path)
+        assert back["a"].tolist() == [3, 5]
+        assert back.index.tolist() == [0, 1]
+
+
 class TestQueries:
     @pytest.mark.parametrize(
         "query, reason",

@@ -820,9 +820,10 @@ class io:
         na_group.add_argument(
             "--dropna",
             help=(
-                "Drop rows containing any NA value from the output.  Applied "
-                "after the command has run, so it does not change what the "
-                "command sees (use --prequery for that).  For one column: "
+                "Drop rows containing any NA value from the output: only "
+                "the columns written count (after --drop / --select).  "
+                "Applied after the command has run, so it does not change "
+                "what the command sees (use --prequery for that).  For one column: "
                 "--postquery 'COL.notna()'; for 2 or missing: --postquery "
                 "'b == 2 or b.isna()' (b == 2 alone drops the missing rows)."
             ),
@@ -843,9 +844,6 @@ class io:
         # ---------------------------------------------------------------- #
         # Pre-output transformations (order matches original dfio.py)       #
         # ---------------------------------------------------------------- #
-
-        if getattr(args, "dropna", False):
-            df = df.dropna(axis=0, how="any")
 
         # Rename columns
         for item in getattr(args, "move", None) or []:
@@ -965,6 +963,11 @@ class io:
                 df = df[selcols].reset_index(drop=True)
             except Exception as exc:
                 logging.error(f"--select failed: {exc}")
+
+        # Drop rows with a gap: after --drop / --select, so only the columns
+        # written out count
+        if getattr(args, "dropna", False):
+            df = df.dropna(axis=0, how="any").reset_index(drop=True)
 
         # Deduplicate
         dedup = getattr(args, "deduplicate", None)
