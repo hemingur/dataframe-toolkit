@@ -102,6 +102,12 @@ def _skill(args: argparse.Namespace) -> None:
         replaced = _install(folder)
         verb = "Updated" if replaced else "Installed"
         print(f"{verb} the dftk skill (dftk {_dftk_version()}) in {folder / 'dftk'}")
+    # an installed Tab-completion script is refreshed too, so one command
+    # after an upgrade brings both up to date
+    from dftk.commands.completion_cmd import refresh_installed
+
+    for path in refresh_installed():
+        print(f"Updated the dftk completion script in {path}")
     print('Run "dftk skill install" again after upgrading dftk.')
 
 

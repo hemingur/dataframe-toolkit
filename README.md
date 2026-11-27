@@ -69,6 +69,29 @@ It prints where it installed the skill. Run it again after upgrading dftk
 so the skill matches the installed version; it replaces only the earlier
 dftk skill. The source is in `src/dftk/skills/dftk/`.
 
+### Tab completion
+
+```bash
+dftk completion install                # for your shell ($SHELL): bash or zsh
+dftk completion install --shell zsh
+```
+
+Tab then completes commands, options, the values an option allows
+(`--format`, `--fit`, `--catwidth`, …) and file names. The script is plain
+shell generated from dftk's own parsers, so pressing Tab is instant.
+
+- bash: installed to `~/.local/share/bash-completion/completions/dftk`, which
+  bash-completion loads by itself (most Linux systems load it in `~/.bashrc`;
+  on macOS, `brew install bash-completion@2`). Open a new shell.
+- zsh: installed to `~/.zfunc/_dftk`. Add `fpath+=~/.zfunc` to `~/.zshrc`
+  before `compinit` (with Oh My Zsh, before the line that sources
+  `oh-my-zsh.sh`), then open a new shell; if it doesn't complete,
+  `rm ~/.zcompdump*` once.
+
+Run it again after upgrading dftk so new options complete; `dftk skill install`
+also refreshes an installed completion script. `dftk completion print`
+writes the script to stdout instead.
+
 ## Quick example
 
 ```bash
@@ -156,6 +179,7 @@ publication-quality output.
 | `annotate` | Read and write provenance metadata (genome, source, …) in parquet files  |
 | `print`    | Read any dftk input (TSV, parquet, stdin) and write TSV, JSON, Markdown or LaTeX |
 | `clean`    | Remove leftover temp parquet pipe files from interrupted pipelines       |
+| `completion` | Tab completion for bash and zsh: `dftk completion install`            |
 | `help`     | List all subcommands or show full help for one: `dftk help stat`       |
 
 ## Common patterns

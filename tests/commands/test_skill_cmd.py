@@ -21,6 +21,9 @@ def _args(**kwargs):
 @pytest.fixture
 def home(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path))
+    # skill install refreshes an installed completion script: keep it in HOME
+    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
+    monkeypatch.delenv("BASH_COMPLETION_USER_DIR", raising=False)
     return tmp_path
 
 
@@ -138,3 +141,23 @@ def test_wheel_contains_the_skill(tmp_path):
     names = set(zipfile.ZipFile(wheel).namelist())
     for f in SKILL_DIR.rglob("*.md"):
         assert f"dftk/skills/dftk/{f.relative_to(SKILL_DIR).as_posix()}" in names
+
+
+class TestRefreshesCompletion:
+    def test_installed_completion_is_rewritten(self, home, capsys):
+        (home / ".claude").mkdir()
+        script = home / ".local" / "share" / "bash-completion" / "completions" / "dftk"
+        script.parent.mkdir(parents=True)
+        script.write_text("# old\n")
+        _skill(_args())
+        assert "_shtab_dftk" in script.read_text()
+        assert (
+            f"Updated the dftk completion script in {script}" in capsys.readouterr().out
+        )
+
+    def test_no_completion_installed_none_written(self, home, capsys):
+        (home / ".claude").mkdir()
+        _skill(_args())
+        assert not (home / ".local").exists()
+        assert not (home / ".zfunc").exists()
+        assert "completion script" not in capsys.readouterr().out
