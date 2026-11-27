@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.30.0] — 2026-11-27
 
 ### Added
 - `dftk completion install`: Tab completion in bash or zsh for commands, options, the values an option allows (`--format`, `--fit`, …) and file names. The script is generated from dftk's parsers (with `shtab`, a new small dependency) and is plain shell, so Tab is instant. bash: `~/.local/share/bash-completion/completions/dftk`; zsh: `~/.zfunc/_dftk` (add `fpath+=~/.zfunc` to `~/.zshrc`). `dftk completion print` writes it to stdout. `dftk skill install` also refreshes an installed completion script, so one command after an upgrade updates both.
