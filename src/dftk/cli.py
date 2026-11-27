@@ -35,11 +35,11 @@ def _commands_for(argv: list[str]) -> list[BaseCommand]:
         return [load_command(argv[0])]
     # `dftk --help`, no command, or an unknown name: load everything so the
     # command listing and argparse's "invalid choice" message are complete.
-    grouped = [cmd for _, cmds in load_command_groups() for cmd in cmds]
-    return grouped + [load_command("help")]
+    return all_commands()
 
 
-def main() -> None:
+def build_parser(commands: list[BaseCommand]) -> argparse.ArgumentParser:
+    """The dftk parser with a subparser for each of *commands*."""
     parser = argparse.ArgumentParser(
         prog="dftk",
         description="DataFrame analysis and manipulation toolkit.",
@@ -59,11 +59,21 @@ def main() -> None:
     subparsers = parser.add_subparsers(dest="command", metavar="COMMAND")
     subparsers.required = True
 
-    for cmd in _commands_for(sys.argv[1:]):
+    for cmd in commands:
         cmd_parser = subparsers.add_parser(cmd.name, help=cmd.help)
         cmd.add_arguments(cmd_parser)
         cmd_parser.set_defaults(command_instance=cmd)
+    return parser
 
+
+def all_commands() -> list[BaseCommand]:
+    """Every command, in the order `dftk --help` lists them."""
+    grouped = [cmd for _, cmds in load_command_groups() for cmd in cmds]
+    return grouped + [load_command("help")]
+
+
+def main() -> None:
+    parser = build_parser(_commands_for(sys.argv[1:]))
     args = parser.parse_args()
 
     try:
