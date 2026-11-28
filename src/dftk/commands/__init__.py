@@ -63,6 +63,7 @@ COMMAND_GROUPS: list[tuple[str, list[tuple[str, str]]]] = [
             ("line", "line_cmd:LineCommand"),
             ("hist", "hist_cmd:HistCommand"),
             ("box", "box_cmd:BoxCommand"),
+            ("bar", "bar_cmd:BarCommand"),
             ("chi", "chi_cmd:ChiCommand"),
             ("heatmap", "heatmap_cmd:HeatmapCommand"),
             ("pairs", "pairs_cmd:PairsCommand"),
