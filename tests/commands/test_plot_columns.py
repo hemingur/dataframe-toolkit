@@ -14,6 +14,7 @@ import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 import pytest  # noqa: E402
 
+from dftk.commands.bar_cmd import BarCommand  # noqa: E402
 from dftk.commands.box_cmd import BoxCommand  # noqa: E402
 from dftk.commands.chi_cmd import ChiCommand  # noqa: E402
 from dftk.commands.forest_cmd import ForestCommand  # noqa: E402
@@ -91,6 +92,11 @@ def _run(command, path, tmp_path, *argv):
         (HistCommand(), ["-x", "a", "--subgraphcol", "study"], {"a", "study"}),
         (ChiCommand(), ["-x", "a", "-y", "b"], {"a", "b"}),
         (BoxCommand(), ["-x", "study", "-y", "a", "-g", "CHR"], {"study", "a", "CHR"}),
+        (
+            BarCommand(),
+            ["-x", "BP", "-y", "a", "-g", "CHR", "--yci", "lo,hi"],
+            {"BP", "a", "CHR", "lo", "hi"},
+        ),
         (ManhattanCommand(), [], {"CHR", "BP", "P"}),
         (
             ManhattanCommand(),
