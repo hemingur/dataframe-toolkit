@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.31.0] — 2026-11-28
 
 ### Added
 - `dftk bar`: bar chart of values already computed, one bar per row (`-x CATEGORY -y VALUE`), e.g. after `dftk stat -g`. Error bars from `--yerr SE` or `--yci LO,HI`; `-g` puts groups side by side within each category (a missing group leaves a gap, so the bars stay aligned); `--order`/`--groupcolorder` (default: order of first appearance); `--subgraphcol` panels sharing categories, groups and value axis; `--horizontal` for long names; `--labels`/`--fmt` writes the values past the error bars; `--hline` (`--vline` with `--horizontal`). Bars start at 0, so negative values point down, and two rows for the same bar are an error that says to summarise first. Counts are left to `stat`/`pivot`.
